@@ -147,7 +147,7 @@
     ["messages", "Messages"], ["studies", "Studies"], ["projects", "Projects"], ["progress", "Progress"], ["settings", "Settings"],
   ];
   const ui = {
-    tab: "today", openWeeks: new Set(), edit: null, confirm: null,
+    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false,
     mentorFilter: "active", mentorSearch: "", msgProspect: "", toast: "",
     finder: { market: "dk", role: "ds", tier: "any" },
   };
@@ -316,6 +316,9 @@
     studies: '<path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.5V16c3 2.5 9 2.5 12 0v-5.5"/>',
     projects: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
     progress: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    hours: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    add: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
   };
   const icon = (id) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || ""}</svg>`;
@@ -332,6 +335,18 @@
     $("#tabs").innerHTML = TABS.map(([id, t]) => `<button type="button" role="tab" class="tab${ui.tab === id ? " on" : ""}" data-tab="${id}" aria-selected="${ui.tab === id}">${icon(id)}<span>${t}</span></button>`).join("");
     const n = weekNow();
     const wk = Math.min(Math.max(n, 0), TOTAL_WEEKS);
+    const BOTTOM = ["today", "roadmap", "mentors", "studies"];
+    const inMore = !BOTTOM.includes(ui.tab);
+    const bn = $("#bottomnav");
+    if (bn) bn.innerHTML = BOTTOM.map((id) => `<button type="button" class="bn${ui.tab === id && !ui.more ? " on" : ""}" data-tab="${id}">${icon(id)}<span>${TABS.find((t) => t[0] === id)[1]}</span></button>`).join("")
+      + `<button type="button" class="bn${inMore || ui.more ? " on" : ""}" data-act="toggle-more" aria-expanded="${ui.more}">${icon("more")}<span>More</span></button>`;
+    const sheet = $("#moresheet");
+    if (sheet) {
+      sheet.hidden = !ui.more;
+      sheet.innerHTML = `<div class="sheet-scrim" data-act="toggle-more"></div><div class="sheet" role="dialog" aria-label="More sections"><span class="grab"></span><div class="sheet-grid">${TABS.filter(([id]) => !BOTTOM.includes(id)).map(([id, t]) => `<button type="button" class="qa${ui.tab === id ? " on" : ""}" data-tab="${id}"><span class="qa-ico">${icon(id)}</span><span>${t}</span></button>`).join("")}</div></div>`;
+    }
+    const tt = $("#toptitle");
+    if (tt) tt.textContent = (TABS.find((t) => t[0] === ui.tab) || [0, ""])[1];
     const foot = $("#sidefoot");
     if (foot) foot.innerHTML = `<div class="sf-ring">${ring(wk / TOTAL_WEEKS, 52, 5)}<span class="mono">${wk}</span></div>
       <div><p class="sf-k">Week ${wk || "—"} of 52</p><p class="sf-v">${pct(overallPct())} of the curriculum done</p></div>`;
@@ -412,7 +427,15 @@
       ? `<ul class="plist">${soon.map((d) => { const k = daysBetween(t, d.due); return `<li><span><b>${esc(d.title)}</b> · ${esc(courseName(d.course))} <span class="pill ${k < 0 ? "bad" : k <= 3 ? "warn" : ""}">${k < 0 ? `${-k}d overdue` : k === 0 ? "today" : `in ${k}d`}</span></span><span class="row-actions"><label class="chk inline"><input type="checkbox" data-dl-done="${d.id}"><span>Done</span></label></span></li>`; }).join("")}</ul>`
       : `<p class="muted">Nothing due in the next 14 days. Add courses and deadlines in <button type="button" class="linkish" data-tab="studies">Studies</button>.</p>`;
 
+    const quick = [
+      ["roadmap", "This week", `data-goto-week="${wn}"`],
+      ["add", "Add prospect", 'data-act="new-prospect"'],
+      ["finder", "Find mentors", 'data-tab="finder"'],
+      ["messages", "Messages", 'data-tab="messages"'],
+      ["progress", "Progress", 'data-tab="progress"'],
+    ];
     return `<section class="banner">${head}</section>
+      <nav class="quick" aria-label="Quick actions">${quick.map(([ic, t, attr]) => `<button type="button" class="qa" ${attr}><span class="qa-ico">${icon(ic)}</span><span>${t}</span></button>`).join("")}</nav>
       ${kpis()}
       <div class="grid2">
         <section class="panel"><h3>Today · ${DAY_NAMES[dow]}</h3>${planHtml}
@@ -979,7 +1002,7 @@
     window.scrollTo(0, y);
   }
   function setTab(id) {
-    ui.tab = id; ui.confirm = null;
+    ui.tab = id; ui.confirm = null; ui.more = false;
     ls.set("fml-ui-tab", id);
     try { history.replaceState(null, "", "#" + id); } catch (e) { /* sandboxed */ }
     render();
@@ -1011,7 +1034,8 @@
     const id = t.dataset.id;
     const p = id ? PR()[id] : null;
     switch (t.dataset.act) {
-      case "new-prospect": ui.edit = "new"; if (ui.tab !== "mentors") { ui.tab = "mentors"; } render(); $("#pf-name") && $("#pf-name").focus(); break;
+      case "toggle-more": ui.more = !ui.more; renderTabs(); break;
+      case "new-prospect": ui.more = false; ui.edit = "new"; if (ui.tab !== "mentors") { ui.tab = "mentors"; } render(); $("#pf-name") && $("#pf-name").focus(); break;
       case "edit": ui.edit = id; render(); $("#prospect-form") && $("#prospect-form").scrollIntoView({ behavior: "smooth" }); break;
       case "cancel-edit": ui.edit = null; rerender(); break;
       case "ask-delete": ui.confirm = "del:" + id; rerender(); break;
