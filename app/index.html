@@ -157,6 +157,16 @@
   .problem h4 { font-size: 1.08rem; }
   .problem .chk:hover { background: color-mix(in srgb, var(--surface) 55%, transparent); }
   .builds { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.82rem; color: var(--muted); }
+  .practice { border-top: 1px solid var(--rule); padding-top: 14px; }
+  .drills, .assess { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .dn { display: inline-block; min-width: 1.4em; color: var(--muted); }
+  .quiz { display: flex; flex-direction: column; gap: 6px; }
+  .quiz-item { border: 1px solid var(--rule); border-radius: 8px; padding: 4px 8px 6px; display: flex; flex-direction: column; gap: 2px; }
+  .quiz-item > p { padding: 4px 0; }
+  .answer summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--accent); padding: 2px 6px; width: fit-content; }
+  .answer p { font-size: 0.88rem; background: var(--sunk); border-radius: 6px; padding: 8px 10px; margin: 4px 0 2px; }
+  .carry { background: var(--gold-soft); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .carry .chk:hover { background: color-mix(in srgb, var(--surface) 55%, transparent); }
   .week-foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; border-top: 1px solid var(--rule); padding-top: 12px; }
 
   /* roadmap */
@@ -290,4 +300,5 @@
 
 <script src="curriculum.js"></script>
 <script src="network.js"></script>
+<script src="practice.js"></script>
 <script src="app.js"></script>

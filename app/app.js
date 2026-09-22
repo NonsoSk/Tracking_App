@@ -7,6 +7,7 @@
   "use strict";
   const C = window.CURRICULUM;
   const N = window.NETWORK;
+  const PX = window.PRACTICE || [];
   const TOTAL_WEEKS = 52;
   const MENTOR_GOAL = 5;
   const PROJECT_GOAL = 2;
@@ -167,12 +168,20 @@
   const weekEnd = (n) => addDays(weekStart(n), 6);
   const weekRange = (n) => `${fmt(weekStart(n))} – ${fmt(weekEnd(n))}`;
   const weekOf = (n) => C.weeks[n - 1];
+  const practiceOf = (n) => PX.find((x) => x.n === n);
   const phaseOf = (n) => C.phases.find((p) => n >= p.from && n <= p.to);
   function weekKeys(n) {
     const w = weekOf(n);
     const keys = w.skills.map((_, i) => `w${n}s${i}`);
     w.problem.tasks.forEach((_, i) => keys.push(`w${n}t${i}`));
     keys.push(`w${n}p`, `w${n}g`, `w${n}m`);
+    const px = practiceOf(n);
+    if (px) {
+      px.drills.forEach((_, i) => keys.push(`w${n}d${i}`));
+      px.quiz.forEach((_, i) => keys.push(`w${n}q${i}`));
+      px.carry.tasks.forEach((_, i) => keys.push(`w${n}c${i}`));
+      keys.push(`w${n}a`);
+    }
     return keys;
   }
   const isChecked = (k) => !!P().checks[k];
@@ -377,7 +386,7 @@
           <p class="muted small">Change these times in Settings. <button type="button" class="linkish" data-tab="settings">Add them to your phone calendar</button> so you get reminders.</p></section>
         <section class="panel"><h3>Mentor actions</h3>${mentorHtml}</section>
       </div>
-      ${n >= 1 && n <= TOTAL_WEEKS ? weekBody(wn, true) : ""}
+      ${n >= 1 && n <= TOTAL_WEEKS ? reviewHtml(wn) + weekBody(wn, true) : ""}
       <section class="panel"><h3>School deadlines</h3>${studyHtml}</section>`;
   }
 
@@ -398,6 +407,57 @@
     </div>`;
   }
 
+  function quizItem(key, q, a, label) {
+    return `<div class="quiz-item">
+      ${chk(key, `${label ? `<span class="muted small">${esc(label)}</span> ` : ""}${esc(q)}`)}
+      <details class="answer"><summary>Show answer</summary><p>${esc(a)}</p></details>
+    </div>`;
+  }
+  function practiceHtml(n) {
+    const px = practiceOf(n);
+    if (!px) return "";
+    const carryLabel = n === 1 ? "Carry-over challenge · both halves of this week" : `Carry-over challenge · Week ${n - 1} + Week ${n}`;
+    return `<div class="grid2 practice">
+      <div class="drills">
+        <p class="eyebrow">Practice drills · do these before the problem</p>
+        <div class="checks">${px.drills.map((d, i) => chk(`w${n}d${i}`, `<span class="mono small dn">${i + 1}</span> ${esc(d)}`)).join("")}</div>
+      </div>
+      <div class="assess">
+        <p class="eyebrow">Weekly assessment · Sunday, no notes</p>
+        <p class="small muted">Answer each question out loud or on paper, then check. Tick only the ones you got right.</p>
+        <div class="quiz">${px.quiz.map((x, i) => quizItem(`w${n}q${i}`, x.q, x.a)).join("")}</div>
+        <div class="carry">
+          <p class="eyebrow">${esc(carryLabel)}</p>
+          <h4>${esc(px.carry.title)}</h4>
+          <p class="small">${esc(px.carry.scenario)}</p>
+          <div class="checks">${px.carry.tasks.map((t, i) => chk(`w${n}c${i}`, esc(t))).join("")}</div>
+        </div>
+        <div class="checks tight">${chk(`w${n}a`, "<b>Assessment passed</b>: 3 of 4 quiz answers right and the carry-over challenge done without notes. If not, redo drills 1–3 and try again next day.")}</div>
+      </div>
+    </div>`;
+  }
+
+  // Spaced review: questions from 1, 2, 4 and 8 weeks ago, rotating daily.
+  function spacedReview(n) {
+    const dayIdx = daysBetween(S().startDate, today());
+    const items = [];
+    [1, 2, 4, 8].forEach((back) => {
+      const w = n - back;
+      const px = practiceOf(w);
+      if (!px || w < 1) return;
+      const i = ((dayIdx % px.quiz.length) + px.quiz.length) % px.quiz.length;
+      items.push({ w, q: px.quiz[i].q, a: px.quiz[i].a });
+    });
+    return items;
+  }
+  function reviewHtml(n) {
+    const items = spacedReview(n);
+    if (!items.length) return "";
+    return `<section class="panel"><h3>Spaced review <span class="muted small">5 minutes · questions from 1, 2, 4 and 8 weeks ago, new ones each day</span></h3>
+      <div class="quiz">${items.map((x) => `<div class="quiz-item"><p><button type="button" class="chip mono" data-goto-week="${x.w}">W${x.w}</button> ${esc(x.q)}</p><details class="answer"><summary>Show answer</summary><p>${esc(x.a)}</p></details></div>`).join("")}</div>
+      <p class="muted small">Got one wrong? Open that week and redo its first two drills.</p></section>`;
+  }
+
   function weekBody(n, compact) {
     const w = weekOf(n);
     return `<section class="panel week-body">
@@ -413,6 +473,7 @@
         </div>
         <div>${problemHtml(n)}</div>
       </div>
+      ${practiceHtml(n)}
       <div class="week-foot">
         <label class="field sm"><span>Hours studied</span><input id="hours-${n}" type="number" min="0" max="80" step="0.5" inputmode="decimal" data-hours="${n}" value="${esc(P().hours[n] || "")}" placeholder="0"></label>
         <label class="chk inline"><input type="checkbox" data-exam="${n}"${P().exam[n] ? " checked" : ""}><span>Exam week (lighter load)</span></label>
@@ -842,7 +903,7 @@
     s.routine.forEach((r, i) => ev(`routine-${i}`, [...timed(nextOnOrAfter(s.startDate, Number(r.day)), r.start, Number(r.mins) || 60), `RRULE:FREQ=WEEKLY;BYDAY=${byday[r.day]};UNTIL=${end}`, `SUMMARY:${esc2("Study: " + r.label)}`], "-PT10M"));
     for (let n = 1; n <= TOTAL_WEEKS; n++) {
       const w = weekOf(n);
-      ev(`week-${n}`, [...allDay(weekStart(n)), `SUMMARY:${esc2(`Week ${n}: ${w.title}`)}`, `DESCRIPTION:${esc2(`Skills: ${w.skills.join("; ")}\n\nFintech problem: ${w.problem.title}\n\nMentor task: ${w.mentor}`)}`], "PT8H");
+      ev(`week-${n}`, [...allDay(weekStart(n)), `SUMMARY:${esc2(`Week ${n}: ${w.title}`)}`, `DESCRIPTION:${esc2(`Skills: ${w.skills.join("; ")}\n\nFintech problem: ${w.problem.title}${practiceOf(n) ? `\n\nCarry-over challenge: ${practiceOf(n).carry.title}` : ""}\n\nMentor task: ${w.mentor}`)}`], "PT8H");
     }
     prospects().forEach((p) => {
       const na = nextAction(p);

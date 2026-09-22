@@ -21,6 +21,7 @@ Data is saved in the browser's local storage. Use **Settings → Export backup**
 | File | Contents |
 |---|---|
 | `app/curriculum.js` | 52 weeks: skills, resources, cumulative fintech problems, weekly mentor tasks, and the project milestones |
+| `app/practice.js` | Per week: 6 practice drills, a 4-question quiz with answers, and a carry-over challenge combining last week's and this week's skills |
 | `app/network.js` | Target markets and fintech companies, mentor communities, message templates, comment formula, call questions |
 | `app/app.js` | The app: Today, Roadmap, Mentors (CRM), Finder, Messages, Studies, Projects, Progress, Settings, calendar export |
 | `app/index.html` | Page shell and styles |

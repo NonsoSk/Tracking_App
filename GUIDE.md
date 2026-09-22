@@ -95,6 +95,19 @@ Datasets you'll use: UCI Default of Credit Card Clients, Give Me Some Credit, Ho
 
 The full list of 52 problems, each with its context, data and tasks, is in the app's **Roadmap** tab.
 
+### Practice and assessment every week
+
+Every week in the app has four layers, so you practise a lot and don't forget earlier material:
+
+| Layer | When | What |
+|---|---|---|
+| **6 practice drills** | Mon–Thu sessions | Short, hands-on exercises on this week's skills, all with real money examples (ATM rules, card Luhn checks, late fees, PSI, alert budgets…) |
+| **Fintech problem** | Saturday | The main real-world problem (above) |
+| **Weekly assessment** | Sunday, no notes | 4 quiz questions with hidden answers to check yourself, plus a **carry-over challenge** that needs **last week's skills together with this week's** (e.g. Week 14's challenge combines Week 13's joins with Week 14's window functions to catch account-draining fraud) |
+| **Spaced review** | 5 min on the Today tab | Questions from 1, 2, 4 and 8 weeks ago, changing every day, so older topics keep coming back |
+
+**Passing a week:** 3 of 4 quiz answers right and the carry-over challenge done without notes. If you don't pass, redo drills 1–3 the next day and retry. Missed a spaced-review question? Open that week and redo its first two drills.
+
 ---
 
 ## 5. The two (plus one) portfolio projects
@@ -199,8 +212,8 @@ Open **`app/index.html`** in any browser, or use the published version in Claude
 
 | Tab | What it does |
 |---|---|
-| **Today** | Week number, progress, streak, today's schedule (study + LinkedIn + classes), mentor actions (ready to connect, follow-ups due, who to engage), this week's checklist, school deadlines |
-| **Roadmap** | All 52 weeks: skills, resources, fintech problem + tasks, mentor task, hours, exam-week toggle, notes. Every checkbox can be unticked |
+| **Today** | Week number, progress, streak, today's schedule (study + LinkedIn + classes), spaced-review questions, mentor actions (ready to connect, follow-ups due, who to engage), this week's checklist, school deadlines |
+| **Roadmap** | All 52 weeks: skills, resources, practice drills, weekly assessment (quiz + carry-over challenge), fintech problem + tasks, mentor task, hours, exam-week toggle, notes. Every checkbox can be unticked |
 | **Mentors** | Your prospect CRM: stage pipeline, 30-day readiness clock, comment log (with undo), bell tracking, fit score, local time, next action and date, calendar reminder per person |
 | **Finder** | Generates LinkedIn, post and Google searches by market, role and company type; fintech company directory; mentor communities |
 | **Messages** | Templates filled in for each prospect, character counts, copy buttons, the comment formula, call questions |
