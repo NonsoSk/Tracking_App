@@ -147,7 +147,7 @@
     ["messages", "Messages"], ["studies", "Studies"], ["projects", "Projects"], ["progress", "Progress"], ["settings", "Settings"],
   ];
   const ui = {
-    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false,
+    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false, sub: {}, phase: null, msgTemplate: "",
     mentorFilter: "active", mentorSearch: "", msgProspect: "", toast: "",
     finder: { market: "dk", role: "ds", tier: "any" },
   };
@@ -354,10 +354,29 @@
 
   function render() {
     renderTabs();
-    renderSyncBadge();
     const views = { today: vToday, roadmap: vRoadmap, mentors: vMentors, finder: vFinder, messages: vMessages, studies: vStudies, projects: vProjects, progress: vProgress, settings: vSettings };
-    $("#view").innerHTML = views[ui.tab]();
+    $("#view").innerHTML = `<div class="view-in">${views[ui.tab]()}</div>`;
+    renderOverlay();
+    renderSyncBadge();
     if (ui.toast) { showToast(ui.toast); ui.toast = ""; }
+  }
+  let overlayKey = null;
+  function renderOverlay() {
+    const o = $("#overlay");
+    if (!o) return;
+    const key = ui.edit === null ? null : String(ui.edit);
+    if (key === overlayKey) return;
+    overlayKey = key;
+    if (key === null) { o.innerHTML = ""; o.hidden = true; document.body.classList.remove("locked"); return; }
+    o.hidden = false;
+    document.body.classList.add("locked");
+    o.innerHTML = `<div class="drawer-scrim" data-act="cancel-edit"></div>
+      <aside class="drawer" role="dialog" aria-modal="true" aria-label="Prospect details">
+        <button type="button" class="x drawer-x" data-act="cancel-edit" aria-label="Close">×</button>
+        ${prospectForm(ui.edit === "new" ? {} : PR()[ui.edit] || {})}
+      </aside>`;
+    const first = $("#pf-name");
+    if (first) first.focus();
   }
   let toastTimer;
   function showToast(text) {
@@ -367,6 +386,16 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
   }
+
+  // ---------- layout helpers ----------
+  const sub = (scope, def) => ui.sub[scope] || def;
+  function segtabs(scope, options, current, cls) {
+    return `<div class="segtabs${cls ? " " + cls : ""}" role="tablist">${options.map(([k, t, badge]) => `<button type="button" role="tab" class="st${current === k ? " on" : ""}" data-sub="${scope}:${k}" aria-selected="${current === k}"><span>${t}</span>${badge != null && badge !== "" ? `<span class="st-b">${badge}</span>` : ""}</button>`).join("")}</div>`;
+  }
+  function pageHead(eyebrow, title, lede, right) {
+    return `<header class="phead"><div class="ph-text"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div>${right ? `<div class="ph-right">${right}</div>` : ""}</header>`;
+  }
+  const countKeys = (keys) => `${keys.filter(isChecked).length}/${keys.length}`;
 
   // ---------- views ----------
   function kpis() {
@@ -384,22 +413,49 @@
     return `<div class="kpis">${items.map(([k, v, extra]) => `<div class="kpi"><span class="kpi-k">${k}</span><span class="kpi-v">${v}</span>${extra}</div>`).join("")}</div>`;
   }
 
+  // A bank-card styled summary of the learner's year.
+  function learningCard(n) {
+    const wk = Math.min(Math.max(n, 0), TOTAL_WEEKS);
+    const wp = n >= 1 && n <= TOTAL_WEEKS ? weekPct(n) : 0;
+    const ph = n >= 1 && n <= TOTAL_WEEKS ? phaseOf(n) : null;
+    const end = parse(weekEnd(TOTAL_WEEKS));
+    return `<div class="lcard" aria-label="Learning card">
+      <div class="lc-top"><span class="lc-brand"><span class="mark sm">52</span>Learning card</span>
+        <svg class="lc-wave" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7c2.5 2.8 2.5 7.2 0 10M12 5c3.6 3.9 3.6 10.1 0 14M16 3c4.7 5 4.7 13 0 18"/></svg></div>
+      <div class="lc-mid"><span class="lc-chip" aria-hidden="true"></span><span class="lc-phase">${ph ? `Phase ${ph.id} · ${esc(ph.name)}` : n > TOTAL_WEEKS ? "Year complete" : "Starts " + fmt(S().startDate)}</span></div>
+      <p class="lc-num"><span>W${pad(wk)}</span><span>/52</span><span>${pad(Math.round(overallPct() * 100))}%</span><span>${pad(streak())}D</span></p>
+      <div class="lc-bottom">
+        <div><small>Learner</small><b>${esc((S().name || "Your name").toUpperCase())}</b></div>
+        <div><small>Valid thru</small><b>${pad(end.getMonth() + 1)}/${String(end.getFullYear()).slice(2)}</b></div>
+        <div class="lc-ring">${ring(wp, 46, 5, "on-dark")}<span>${Math.round(wp * 100)}</span></div>
+      </div>
+    </div>`;
+  }
+
   function vToday() {
     const n = weekNow();
     const t = today();
     const dow = new Date().getDay();
     const wn = Math.min(Math.max(n, 1), TOTAL_WEEKS);
+    const active = n >= 1 && n <= TOTAL_WEEKS;
     const greet = (() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
     const who = S().name ? `, ${esc(S().name.split(" ")[0])}` : "";
-    let bannerText;
-    if (n === 0) bannerText = `<p class="b-eyebrow">${greet}${who} · starts ${fmt(S().startDate, { weekday: "long", month: "long", day: "numeric" })}</p><h1>Your year starts soon</h1><p class="b-meta">Week 1: ${esc(weekOf(1).title)}</p>`;
-    else if (n > TOTAL_WEEKS) bannerText = `<p class="b-eyebrow">${greet}${who}</p><h1>You finished the year</h1><p class="b-meta">52 weeks complete. Time for the year-2 plan.</p>`;
-    else bannerText = `<p class="b-eyebrow">${greet}${who} · Week ${n} of 52 · ${esc(phaseOf(n).name)}</p><h1>${esc(weekOf(n).title)}</h1>
-      <p class="b-meta">${weekRange(n)} · This week's problem: <b>${esc(weekOf(n).problem.title)}</b></p>
-      ${P().exam[n] ? `<p class="b-pill">Exam week: lighter load, the problem is optional</p>` : ""}`;
-    const wp = n >= 1 && n <= TOTAL_WEEKS ? weekPct(n) : 0;
-    const head = `<div class="b-text">${bannerText}</div>
-      <div class="b-ring">${ring(wp, 112, 10, "on-dark")}<div class="b-ring-label"><span class="mono">${pct(wp)}</span><span>this week</span></div></div>`;
+    const reviewItems = active ? spacedReview(wn) : [];
+    const tab = sub("today", "overview");
+    const tabs = [["overview", "Overview"], ["week", "This week", active ? pct(weekPct(wn)) : null], ["review", "Spaced review", reviewItems.length || null]];
+    const head = pageHead(new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }), `${greet}${who}`, "", segtabs("today", tabs, tab));
+
+    if (tab === "week") return head + (active ? weekBody(wn, true) : `<section class="panel"><p class="muted">Week 1 starts ${fmt(S().startDate, { weekday: "long", month: "long", day: "numeric" })}. Its checklist will appear here.</p></section>`);
+    if (tab === "review") return head + (reviewItems.length ? reviewHtml(wn) : `<section class="panel empty-state"><h3>Nothing to review yet</h3><p class="muted">From Week 2, this shows questions from 1, 2, 4 and 8 weeks back, new ones every day.</p></section>`);
+
+    let focus;
+    if (n === 0) focus = `<p class="eyebrow">Coming up</p><h2>Your year starts ${fmt(S().startDate, { weekday: "long", month: "long", day: "numeric" })}</h2><p class="muted">Week 1: ${esc(weekOf(1).title)}</p>`;
+    else if (n > TOTAL_WEEKS) focus = `<p class="eyebrow">52 weeks complete</p><h2>You finished the year</h2><p class="muted">Time for the year-2 plan.</p>`;
+    else focus = `<p class="eyebrow">Week ${n} of 52 · ${weekRange(n)}</p><h2>${esc(weekOf(n).title)}</h2>
+      <p class="muted">Problem: <b class="ink">${esc(weekOf(n).problem.title)}</b></p>
+      ${P().exam[n] ? `<span class="pill warn">Exam week: lighter load, the problem is optional</span>` : ""}
+      <div class="focus-bar">${bar(weekPct(n))}<span class="mono small">${pct(weekPct(n))}</span></div>
+      <div class="actions"><button type="button" class="btn primary" data-sub="today:week">Open this week</button><button type="button" class="btn" data-act="log-hours">Log hours</button></div>`;
 
     const plan = [
       { start: S().linkedinTime, html: `<span>LinkedIn: ${S().linkedinMins} min of thoughtful comments on your prospects' posts</span>` },
@@ -408,43 +464,47 @@
     ].sort((a, b) => a.start.localeCompare(b.start));
     const planHtml = `<ul class="plan">${plan.map((x) => `<li${x.cls ? ` class="${x.cls}"` : ""}><span class="mono">${esc(x.start)}</span>${x.html}</li>`).join("")}</ul>`;
 
-    // mentor actions
+    // mentor actions (3 per list; the rest live in the Mentors tab)
     const ps = prospects().filter((p) => p.stage !== "parked");
     const ready = ps.filter((p) => readiness(p).ready);
     const due = ps.filter((p) => !readiness(p).early && p.followUp && p.followUp <= t);
     const engage = ps.filter((p) => readiness(p).early).sort((a, b) => (lastEngaged(a) || "").localeCompare(lastEngaged(b) || "")).slice(0, 3);
-    const pLine = (p, note) => `<li><span><b>${esc(p.name)}</b> · ${esc(p.company || "")}${note ? ` <span class="muted">— ${note}</span>` : ""}</span>
+    const more = (list) => list.length > 3 ? `<li class="more-row"><button type="button" class="linkish" data-tab="mentors">+${list.length - 3} more in Mentors</button></li>` : "";
+    const pLine = (p, note) => `<li><span class="pl-who"><span class="avatar xs">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b> <span class="muted">· ${esc(p.company || "")}</span>${note ? `<span class="muted small pl-note">${note}</span>` : ""}</span></span>
       <span class="row-actions">${p.linkedin ? link(p.linkedin, "Profile") : ""}<button type="button" class="btn sm" data-act="msg-for" data-id="${p.id}">Messages</button></span></li>`;
     const mentorHtml = !ps.length
       ? `<p class="muted">No prospects yet. ${n < 3 ? "You start adding them in Week 3; " : ""}use the <button type="button" class="linkish" data-tab="finder">Finder</button> to find your first five.</p>`
-      : `${ready.length ? `<h4>Ready to connect</h4><ul class="plist">${ready.map((p) => pLine(p, `${readiness(p).comments} comments over ${readiness(p).known} days`)).join("")}</ul>` : ""}
-         ${due.length ? `<h4>Follow-ups due</h4><ul class="plist">${due.map((p) => pLine(p, esc(nextAction(p).text))).join("")}</ul>` : ""}
-         ${engage.length ? `<h4>Engage today</h4><ul class="plist">${engage.map((p) => `<li><span><b>${esc(p.name)}</b> · ${esc(p.company || "")} <span class="muted">— last comment ${lastEngaged(p) ? fmt(lastEngaged(p)) : "never"}</span></span>
-              <span class="row-actions">${p.linkedin ? link(p.linkedin.replace(/\/$/, "") + "/recent-activity/all/", "Their posts") : ""}<button type="button" class="btn sm" data-act="log-comment" data-id="${p.id}">Log comment</button></span></li>`).join("")}</ul>` : ""}`;
+      : `${ready.length ? `<h4 class="lh accent">Ready to connect</h4><ul class="plist">${ready.slice(0, 3).map((p) => pLine(p, `${readiness(p).comments} comments over ${readiness(p).known} days`)).join("")}${more(ready)}</ul>` : ""}
+         ${due.length ? `<h4 class="lh warn">Follow-ups due</h4><ul class="plist">${due.slice(0, 3).map((p) => pLine(p, esc(nextAction(p).text))).join("")}${more(due)}</ul>` : ""}
+         ${engage.length ? `<h4 class="lh">Engage today</h4><ul class="plist">${engage.map((p) => `<li><span class="pl-who"><span class="avatar xs">${esc(initials(p.name))}</span><span><b>${esc(p.name)}</b> <span class="muted">· ${esc(p.company || "")}</span><span class="muted small pl-note">Last comment ${lastEngaged(p) ? fmt(lastEngaged(p)) : "never"}</span></span></span>
+              <span class="row-actions">${p.linkedin ? link(p.linkedin.replace(/\/$/, "") + "/recent-activity/all/", "Their posts") : ""}<button type="button" class="btn sm" data-act="log-comment" data-id="${p.id}">Log comment</button></span></li>`).join("")}</ul>` : ""}
+         ${!ready.length && !due.length && !engage.length ? `<p class="muted">Nothing due today. Nice.</p>` : ""}`;
 
     const soon = ST().deadlines.filter((d) => !d.done && d.due && daysBetween(t, d.due) <= 14).sort((a, b) => a.due.localeCompare(b.due));
     const studyHtml = soon.length
-      ? `<ul class="plist">${soon.map((d) => { const k = daysBetween(t, d.due); return `<li><span><b>${esc(d.title)}</b> · ${esc(courseName(d.course))} <span class="pill ${k < 0 ? "bad" : k <= 3 ? "warn" : ""}">${k < 0 ? `${-k}d overdue` : k === 0 ? "today" : `in ${k}d`}</span></span><span class="row-actions"><label class="chk inline"><input type="checkbox" data-dl-done="${d.id}"><span>Done</span></label></span></li>`; }).join("")}</ul>`
+      ? `<ul class="plist">${soon.map((d) => { const k = daysBetween(t, d.due); return `<li><span><b>${esc(d.title)}</b> <span class="muted">· ${esc(courseName(d.course))}</span> <span class="pill ${k < 0 ? "bad" : k <= 3 ? "warn" : ""}">${k < 0 ? `${-k}d overdue` : k === 0 ? "today" : `in ${k}d`}</span></span><span class="row-actions"><label class="chk inline"><input type="checkbox" data-dl-done="${d.id}"><span>Done</span></label></span></li>`; }).join("")}</ul>`
       : `<p class="muted">Nothing due in the next 14 days. Add courses and deadlines in <button type="button" class="linkish" data-tab="studies">Studies</button>.</p>`;
 
     const quick = [
-      ["roadmap", "This week", `data-goto-week="${wn}"`],
+      ["roadmap", "This week", 'data-sub="today:week"'],
       ["add", "Add prospect", 'data-act="new-prospect"'],
       ["finder", "Find mentors", 'data-tab="finder"'],
       ["messages", "Messages", 'data-tab="messages"'],
       ["progress", "Progress", 'data-tab="progress"'],
     ];
-    return `<section class="banner">${head}</section>
-      <nav class="quick" aria-label="Quick actions">${quick.map(([ic, t, attr]) => `<button type="button" class="qa" ${attr}><span class="qa-ico">${icon(ic)}</span><span>${t}</span></button>`).join("")}</nav>
+    return `${head}
+      <div class="today-top">${learningCard(n)}<section class="panel focus">${focus}</section></div>
+      <nav class="quick" aria-label="Quick actions">${quick.map(([ic, tt, attr]) => `<button type="button" class="qa" ${attr}><span class="qa-ico">${icon(ic)}</span><span>${tt}</span></button>`).join("")}</nav>
       ${kpis()}
-      <div class="grid2">
-        <section class="panel"><h3>Today · ${DAY_NAMES[dow]}</h3>${planHtml}
-          <p class="muted small">Change these times in Settings. <button type="button" class="linkish" data-tab="settings">Add them to your phone calendar</button> so you get reminders.</p></section>
-        <section class="panel"><h3>Mentor actions</h3>${mentorHtml}</section>
+      <div class="tri">
+        <section class="panel"><h3>${icon("hours")} Today · ${DAY_NAMES[dow]}</h3>${planHtml}
+          <p class="muted small">Change these times in Settings. <button type="button" class="linkish" data-sub-go="settings:reminders">Add them to your phone calendar</button> so you get reminders.</p></section>
+        <section class="panel"><h3>${icon("mentors")} Mentor actions</h3>${mentorHtml}</section>
+        <section class="panel"><h3>${icon("studies")} School deadlines</h3>${studyHtml}</section>
       </div>
-      ${n >= 1 && n <= TOTAL_WEEKS ? reviewHtml(wn) + weekBody(wn, true) : ""}
-      <section class="panel"><h3>School deadlines</h3>${studyHtml}</section>`;
+      <div class="swipe-hint" aria-hidden="true"><i></i><i></i><i></i></div>`;
   }
+  const initials = (name) => (name || "?").trim().split(/\s+/).map((x) => x[0]).slice(0, 2).join("").toUpperCase();
 
   function problemHtml(n) {
     const w = weekOf(n);
@@ -469,19 +529,24 @@
       <details class="answer"><summary>Show answer</summary><p>${esc(a)}</p></details>
     </div>`;
   }
-  function practiceHtml(n) {
+  function drillsHtml(n) {
     const px = practiceOf(n);
-    if (!px) return "";
+    if (!px) return `<p class="muted">No drills for this week.</p>`;
+    return `<div class="drills">
+      <p class="pane-note">${icon("hours")} Do these in your weekday sessions, before the Saturday problem.</p>
+      <div class="checks cols">${px.drills.map((d, i) => chk(`w${n}d${i}`, `<span class="dn">${i + 1}</span> ${esc(d)}`)).join("")}</div>
+    </div>`;
+  }
+  function assessHtml(n) {
+    const px = practiceOf(n);
+    if (!px) return `<p class="muted">No assessment for this week.</p>`;
     const carryLabel = n === 1 ? "Carry-over challenge · both halves of this week" : `Carry-over challenge · Week ${n - 1} + Week ${n}`;
-    return `<div class="grid2 practice">
-      <div class="drills">
-        <p class="eyebrow">Practice drills · do these before the problem</p>
-        <div class="checks">${px.drills.map((d, i) => chk(`w${n}d${i}`, `<span class="mono small dn">${i + 1}</span> ${esc(d)}`)).join("")}</div>
+    return `<div class="grid2 assess-grid">
+      <div class="assess">
+        <p class="pane-note">Sunday, no notes. Answer each question out loud or on paper, then check. Tick only the ones you got right.</p>
+        <div class="quiz">${px.quiz.map((x, i) => quizItem(`w${n}q${i}`, x.q, x.a)).join("")}</div>
       </div>
       <div class="assess">
-        <p class="eyebrow">Weekly assessment · Sunday, no notes</p>
-        <p class="small muted">Answer each question out loud or on paper, then check. Tick only the ones you got right.</p>
-        <div class="quiz">${px.quiz.map((x, i) => quizItem(`w${n}q${i}`, x.q, x.a)).join("")}</div>
         <div class="carry">
           <p class="eyebrow">${esc(carryLabel)}</p>
           <h4>${esc(px.carry.title)}</h4>
@@ -510,40 +575,63 @@
     const items = spacedReview(n);
     if (!items.length) return "";
     return `<section class="panel"><h3>Spaced review <span class="muted small">5 minutes · questions from 1, 2, 4 and 8 weeks ago, new ones each day</span></h3>
-      <div class="quiz">${items.map((x) => `<div class="quiz-item"><p><button type="button" class="chip mono" data-goto-week="${x.w}">W${x.w}</button> ${esc(x.q)}</p><details class="answer"><summary>Show answer</summary><p>${esc(x.a)}</p></details></div>`).join("")}</div>
+      <div class="quiz review-grid">${items.map((x) => `<div class="quiz-item"><p><button type="button" class="chip" data-goto-week="${x.w}">W${x.w}</button> ${esc(x.q)}</p><details class="answer"><summary>Show answer</summary><p>${esc(x.a)}</p></details></div>`).join("")}</div>
       <p class="muted small">Got one wrong? Open that week and redo its first two drills.</p></section>`;
   }
 
+  // One week, split into five tabs so it never becomes a long scroll.
   function weekBody(n, compact) {
     const w = weekOf(n);
-    return `<section class="panel week-body">
-      ${compact ? `<h3>This week's checklist <span class="muted">${pct(weekPct(n))} done</span></h3>` : ""}
-      <div class="grid2">
-        <div>
-          <p class="eyebrow">Skills</p>
-          <div class="checks">${w.skills.map((s, i) => chk(`w${n}s${i}`, esc(s))).join("")}</div>
-          <p class="eyebrow">Resources</p>
-          <ul class="res">${w.resources.map((r) => `<li>${link(r.u, r.t)}</li>`).join("")}</ul>
-          <p class="eyebrow">Mentor-network task</p>
-          <div class="checks">${chk(`w${n}m`, esc(w.mentor))}</div>
-        </div>
-        <div>${problemHtml(n)}</div>
-      </div>
-      ${practiceHtml(n)}
-      <div class="week-foot">
+    const px = practiceOf(n);
+    const groups = {
+      learn: [...w.skills.map((_, i) => `w${n}s${i}`), `w${n}m`],
+      practice: px ? px.drills.map((_, i) => `w${n}d${i}`) : [],
+      problem: [...w.problem.tasks.map((_, i) => `w${n}t${i}`), `w${n}p`, `w${n}g`],
+      assess: px ? [...px.quiz.map((_, i) => `w${n}q${i}`), ...px.carry.tasks.map((_, i) => `w${n}c${i}`), `w${n}a`] : [],
+    };
+    const scope = "week-" + n;
+    const tab = sub(scope, "learn");
+    const tabs = [
+      ["learn", "Learn", countKeys(groups.learn)],
+      ["practice", "Practice", countKeys(groups.practice)],
+      ["problem", "Problem", countKeys(groups.problem)],
+      ["assess", "Assess", countKeys(groups.assess)],
+      ["log", "Log", P().hours[n] ? `${P().hours[n]}h` : null],
+    ];
+    let pane;
+    if (tab === "practice") pane = drillsHtml(n);
+    else if (tab === "problem") pane = problemHtml(n);
+    else if (tab === "assess") pane = assessHtml(n);
+    else if (tab === "log") pane = `<div class="week-foot">
         <label class="field sm"><span>Hours studied</span><input id="hours-${n}" type="number" min="0" max="80" step="0.5" inputmode="decimal" data-hours="${n}" value="${esc(P().hours[n] || "")}" placeholder="0"></label>
         <label class="chk inline"><input type="checkbox" data-exam="${n}"${P().exam[n] ? " checked" : ""}><span>Exam week (lighter load)</span></label>
-        <label class="field grow"><span>Notes / what I learned</span><textarea id="note-${n}" rows="2" data-note="${n}" placeholder="What clicked, what didn't, questions for mentors">${esc(P().notes[n] || "")}</textarea></label>
-      </div>
+        <label class="field grow"><span>Notes / what I learned</span><textarea id="note-${n}" rows="4" data-note="${n}" placeholder="What clicked, what didn't, questions for mentors">${esc(P().notes[n] || "")}</textarea></label>
+      </div>`;
+    else pane = `<div class="grid2">
+        <div class="stack"><p class="eyebrow">Skills</p><div class="checks">${w.skills.map((s, i) => chk(`w${n}s${i}`, esc(s))).join("")}</div></div>
+        <div class="stack">
+          <p class="eyebrow">Resources</p><ul class="res">${w.resources.map((r) => `<li>${link(r.u, r.t)}</li>`).join("")}</ul>
+          <div class="mtask"><p class="eyebrow">Mentor-network task</p><div class="checks">${chk(`w${n}m`, esc(w.mentor))}</div></div>
+        </div>
+      </div>`;
+    return `<section class="panel week-body">
+      <div class="wb-head">${compact ? `<div><p class="eyebrow">Week ${n} · ${weekRange(n)}</p><h3>${esc(w.title)} <span class="muted small">${pct(weekPct(n))} done</span></h3></div>` : ""}${segtabs(scope, tabs, tab, "wb-tabs")}</div>
+      <div class="wb-pane">${pane}</div>
     </section>`;
   }
 
   function vRoadmap() {
     const now = weekNow();
+    const curPhase = now >= 1 && now <= TOTAL_WEEKS ? phaseOf(now).id : 1;
+    if (ui.phase == null) ui.phase = curPhase;
     if (!ui.openWeeks.size && now >= 1 && now <= TOTAL_WEEKS) ui.openWeeks.add(now);
-    return `<section class="hero"><p class="eyebrow">12 months · 6 phases · 52 weeks</p><h1>Roadmap</h1>
-      <p class="lede">Each week: learn the skills, then solve a real fintech problem that reuses earlier weeks. Tick anything off, and untick it if you ticked it by mistake.</p></section>
-      ${C.phases.map((ph) => `<section class="phase">
+    const ph = C.phases.find((x) => x.id === ui.phase) || C.phases[0];
+    const picker = `<div class="phase-picker" role="tablist">${C.phases.map((x) => `<button type="button" role="tab" class="pp${x.id === ph.id ? " on" : ""}${x.id === curPhase ? " cur" : ""}" data-phase="${x.id}" aria-selected="${x.id === ph.id}">
+        <span class="pp-ring">${ring(phasePct(x), 38, 4)}<span>${x.id}</span></span>
+        <span class="pp-text"><b>${esc(x.name)}</b><small>Weeks ${x.from}–${x.to}</small></span></button>`).join("")}</div>`;
+    return `${pageHead("12 months · 6 phases · 52 weeks", "Roadmap", "Each week: learn the skills, then solve a real fintech problem that reuses earlier weeks. Tick anything off, and untick it if you ticked it by mistake.")}
+      ${picker}
+      <section class="phase">
         <div class="phase-head"><div><p class="eyebrow">Phase ${ph.id} · Weeks ${ph.from}–${ph.to} · ${fmt(weekStart(ph.from), { month: "short" })}–${fmt(weekEnd(ph.to), { month: "short", year: "numeric" })}</p><h2>${esc(ph.name)}</h2><p class="muted">${esc(ph.summary)}</p></div>
         <div class="phase-pct"><span class="mono">${pct(phasePct(ph))}</span>${bar(phasePct(ph))}</div></div>
         ${Array.from({ length: ph.to - ph.from + 1 }, (_, i) => ph.from + i).map((n) => {
@@ -554,7 +642,7 @@
             ${ui.openWeeks.has(n) ? weekBody(n, false) : ""}
           </details>`;
         }).join("")}
-      </section>`).join("")}`;
+      </section>`;
   }
 
   function prospectForm(p) {
@@ -613,7 +701,7 @@
     const confirming = ui.confirm === "del:" + p.id;
     return `<article class="pcard stage-${p.stage}">
       <header>
-        <span class="avatar${p.stage === "mentor" ? " gold" : ""}" aria-hidden="true">${esc((p.name || "?").trim().split(/\s+/).map((x) => x[0]).slice(0, 2).join("").toUpperCase())}</span>
+        <span class="avatar${p.stage === "mentor" ? " gold" : ""}" aria-hidden="true">${esc(initials(p.name))}</span>
         <div class="pc-id"><h4>${p.linkedin ? link(p.linkedin, p.name) : esc(p.name)}</h4>
           <p class="muted small">${esc(p.role || "Data scientist")}${p.company ? " · " + esc(p.company) : ""} · ${esc(m.name)}${lt.label ? ` · <span class="${lt.good ? "good-time" : ""}">${esc(lt.label)} there${lt.good ? " (good time to message)" : ""}</span>` : ""}</p></div>
         <select class="stage-select" id="stage-${p.id}" data-stage="${p.id}" aria-label="Stage">${STAGES.map((s) => `<option value="${s.id}"${s.id === p.stage ? " selected" : ""}>${s.t}</option>`).join("")}</select>
@@ -626,16 +714,20 @@
         <label class="chk inline"><input type="checkbox" data-bell="${p.id}"${p.bell ? " checked" : ""}><span>Bell on</span></label>
       </div>
       ${na ? `<p class="next ${dueCls}"><b>${na.due <= today() ? "Now" : fmt(na.due)}:</b> ${esc(na.text)}</p>` : ""}
-      <div class="actions">
-        ${r.early || p.stage === "mentor" || p.stage === "call" ? `<button type="button" class="btn sm" data-act="log-comment" data-id="${p.id}">Log comment</button>` : ""}
-        ${(p.engagements || []).length ? `<button type="button" class="btn sm ghost" data-act="undo-comment" data-id="${p.id}">Undo last comment</button>` : ""}
-        ${!r.early && p.stage !== "parked" ? `<button type="button" class="btn sm" data-act="done-followup" data-id="${p.id}">Done → next reminder</button>` : ""}
+      <div class="actions pc-actions">
+        ${r.early || p.stage === "mentor" || p.stage === "call" ? `<button type="button" class="btn sm primary" data-act="log-comment" data-id="${p.id}">Log comment</button>` : ""}
+        ${!r.early && p.stage !== "parked" ? `<button type="button" class="btn sm primary" data-act="done-followup" data-id="${p.id}">Done → next reminder</button>` : ""}
         <button type="button" class="btn sm" data-act="msg-for" data-id="${p.id}">Messages</button>
-        ${na ? link(gcal({ title: `Mentor: ${p.name} (${p.company || ""})`, date: na.due, allDay: true, details: na.text + (p.linkedin ? "\n" + p.linkedin : "") }), "Add reminder") : ""}
-        <button type="button" class="btn sm ghost" data-act="edit" data-id="${p.id}">Edit</button>
-        ${confirming
-          ? `<span class="confirm">Delete ${esc(p.name)}? <button type="button" class="btn sm danger" data-act="delete" data-id="${p.id}">Delete</button><button type="button" class="btn sm ghost" data-act="cancel-confirm">Keep</button></span>`
-          : `<button type="button" class="btn sm ghost" data-act="ask-delete" data-id="${p.id}">Delete</button>`}
+        <details class="kebab"${confirming ? " open" : ""}><summary class="btn sm ghost" aria-label="More actions">More</summary>
+          <div class="menu">
+            ${na ? `<a class="mi" target="_blank" rel="noopener" href="${esc(gcal({ title: `Mentor: ${p.name} (${p.company || ""})`, date: na.due, allDay: true, details: na.text + (p.linkedin ? "\n" + p.linkedin : "") }))}">Add reminder to calendar</a>` : ""}
+            ${(p.engagements || []).length ? `<button type="button" class="mi" data-act="undo-comment" data-id="${p.id}">Undo last comment</button>` : ""}
+            <button type="button" class="mi" data-act="edit" data-id="${p.id}">Edit details</button>
+            ${confirming
+              ? `<div class="mi confirm">Delete ${esc(p.name)}? <button type="button" class="btn sm danger" data-act="delete" data-id="${p.id}">Delete</button><button type="button" class="btn sm ghost" data-act="cancel-confirm">Keep</button></div>`
+              : `<button type="button" class="mi danger-text" data-act="ask-delete" data-id="${p.id}">Delete</button>`}
+          </div>
+        </details>
       </div>
     </article>`;
   }
@@ -653,18 +745,14 @@
       return !q || [p.name, p.company, p.role, marketOf(p.market).name].join(" ").toLowerCase().includes(q);
     });
     list = list.sort((a, b) => ((nextAction(a) || {}).due || "9").localeCompare((nextAction(b) || {}).due || "9"));
-    const editing = ui.edit !== null ? prospectForm(ui.edit === "new" ? {} : PR()[ui.edit] || {}) : "";
-    return `<section class="hero"><p class="eyebrow">Goal: ${MENTOR_GOAL}+ mentors from about ${PROSPECT_GOAL} prospects</p><h1>Mentors</h1>
-      <p class="lede">Identify people first, engage on their posts for ${READY_DAYS}+ days (${READY_COMMENTS}+ real comments), then connect. The app tells you who is ready and what to send.</p></section>
-      <div class="funnel">${STAGES.map((s) => `<button type="button" class="fstage${ui.mentorFilter === s.id ? " on" : ""}" data-filter="${s.id}"><span class="mono">${counts[s.id] || 0}</span><span>${s.t}</span></button>`).join("")}</div>
+    return `${pageHead(`Goal: ${MENTOR_GOAL}+ mentors from about ${PROSPECT_GOAL} prospects`, "Mentors", `Identify people first, engage on their posts for ${READY_DAYS}+ days (${READY_COMMENTS}+ real comments), then connect. The app tells you who is ready and what to send.`, `<button type="button" class="btn primary" data-act="new-prospect">${icon("add")} Add prospect</button>`)}
+      <div class="funnel" role="tablist">${STAGES.map((s, i) => `<button type="button" class="fstage${ui.mentorFilter === s.id ? " on" : ""}" data-filter="${s.id}"><span class="mono">${counts[s.id] || 0}</span><span>${s.t}</span>${i < STAGES.length - 2 ? '<i class="fs-arrow" aria-hidden="true"></i>' : ""}</button>`).join("")}</div>
       <div class="toolbar">
-        <button type="button" class="btn primary" data-act="new-prospect">Add prospect</button>
         <div class="seg">${[["active", "In progress"], ["mentor", "Mentors"], ["parked", "Parked"], ["all", "All"]].map(([k, t]) => `<button type="button" class="${ui.mentorFilter === k ? "on" : ""}" data-filter="${k}">${t}</button>`).join("")}</div>
-        <input id="mentor-search" class="search" type="search" placeholder="Search name, company, country" value="${esc(ui.mentorSearch)}" data-search="1">
-        <span class="muted small">${all.length}/${PROSPECT_GOAL} prospects in your pipeline</span>
+        <label class="search-wrap">${icon("finder")}<input id="mentor-search" class="search" type="search" placeholder="Search name, company, country" value="${esc(ui.mentorSearch)}" data-search="1"></label>
+        <span class="muted small pipeline-count">${all.length}/${PROSPECT_GOAL} prospects in your pipeline</span>
       </div>
-      ${editing}
-      <div class="pgrid">${list.length ? list.map(prospectCard).join("") : `<p class="muted empty">${all.length ? "No prospects match this filter." : "No prospects yet. Use the Finder tab to search LinkedIn, then add people here."}</p>`}</div>`;
+      <div class="pgrid">${list.length ? list.map(prospectCard).join("") : `<div class="panel empty-state"><h3>${all.length ? "No prospects match this filter" : "No prospects yet"}</h3><p class="muted">${all.length ? "Try another filter or clear the search." : "Use the Finder tab to search LinkedIn, then add people here."}</p>${all.length ? "" : `<div class="actions"><button type="button" class="btn primary" data-tab="finder">Open Finder</button></div>`}</div>`}</div>`;
   }
 
   function vFinder() {
@@ -682,26 +770,19 @@
     const liPosts = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(`${roles[f.role].split(" OR ")[0].replace(/[()]/g, "")} fintech`)}&sortBy=%22date_posted%22`;
     const google = `https://www.google.com/search?q=${encodeURIComponent(xray)}`;
     const sel = (id, key, opts) => `<select id="${id}" data-finder="${key}">${opts.map(([k, t]) => `<option value="${k}"${f[key] === k ? " selected" : ""}>${esc(t)}</option>`).join("")}</select>`;
-    return `<section class="hero"><p class="eyebrow">Find mid-career fintech data scientists</p><h1>Finder</h1>
-      <p class="lede">Aim for people 2–8 years in: senior enough to guide you, not so senior they have no time. Pick a market, open the searches, then add the best people to Mentors.</p></section>
-      <section class="panel">
-        <div class="fields">
+    const tab = sub("finder", "search");
+    const tabs = [["search", "Search"], ["companies", "Companies", m.companies.length], ["howto", "How to pick"], ["places", "Communities", N.places.length]];
+    const filters = `<div class="fields filters">
           <label class="field"><span>Market</span>${sel("finder-market", "market", N.markets.map((x) => [x.id, x.name + (x.primary ? " ★" : "")]))}</label>
           <label class="field"><span>Role focus</span>${sel("finder-role", "role", [["ds", "Data scientist"], ["risk", "Credit risk modelling"], ["fraud", "Fraud / financial crime"], ["mle", "ML engineer"], ["analytics", "Analytics"]])}</label>
           <label class="field"><span>Company type</span>${sel("finder-tier", "tier", [["any", "Any fintech / bank"], ["startup", "Startups"], ["mid", "Mid-size / scale-ups"], ["large", "Large firms / banks"]])}</label>
-        </div>
-        <div class="search-cards">
-          <div class="scard"><h4>1 · LinkedIn people search</h4><p class="small">Opens LinkedIn with a ready-made search. Then click <b>Locations</b> and choose <b>${esc(m.name.replace(/ \(.*\)/, ""))}</b>.</p><code class="q">${esc(kw)}</code><div class="actions">${link(liPeople, "Open LinkedIn search")}<button type="button" class="btn sm ghost" data-copy="${esc(kw)}">Copy search</button></div></div>
-          <div class="scard"><h4>2 · People who post</h4><p class="small">Searches recent <b>posts</b>. Active posters are the ones you can engage with, so start here.</p><div class="actions">${link(liPosts, "Open recent posts")}</div></div>
-          <div class="scard"><h4>3 · Google X-ray</h4><p class="small">Finds public LinkedIn profiles through Google, useful when LinkedIn limits your searches.</p><code class="q">${esc(xray)}</code><div class="actions">${link(google, "Search Google")}<button type="button" class="btn sm ghost" data-copy="${esc(xray)}">Copy</button></div></div>
-        </div>
-      </section>
-      <section class="panel"><h3>Fintech companies in ${esc(m.name)}</h3><p class="muted small">Each opens a LinkedIn search for data scientists at that company.</p>
-        <div class="patterns">${m.companies.map((c) => `<a class="chip" target="_blank" rel="noopener" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`"data scientist" "${c.replace(/ \(.*\)/, "")}"`)}">${esc(c)}</a>`).join("")}</div></section>
-      <div class="grid2">
-        <section class="panel"><h3>How to pick the right people</h3>
-          <ol class="steps">
-            <li>Open 10–15 profiles from the searches above.</li>
+        </div>`;
+    let pane;
+    if (tab === "companies") pane = `<section class="panel"><h3>Fintech companies in ${esc(m.name)}</h3><p class="muted small">Each opens a LinkedIn search for data scientists at that company. Change the market under Search.</p>
+        <div class="company-grid">${m.companies.map((c) => `<a class="company" target="_blank" rel="noopener" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`"data scientist" "${c.replace(/ \(.*\)/, "")}"`)}"><span class="avatar sq">${esc(initials(c))}</span><span>${esc(c)}</span></a>`).join("")}</div></section>`;
+    else if (tab === "howto") pane = `<section class="panel"><h3>How to pick the right people</h3>
+          <ol class="steps big">
+            <li>Open 10–15 profiles from the searches in the Search tab.</li>
             <li>Keep people who <b>post or comment at least monthly</b>. Check <i>Activity</i> on their profile.</li>
             <li>Check the <b>fit criteria</b> (2–8 years, fintech, replies to comments, mentions mentoring).</li>
             <li>Click <b>Follow</b>, then the <b>bell icon</b> on their profile, so LinkedIn notifies you of every post.</li>
@@ -709,11 +790,18 @@
             <li>Add 3–5 people a week until you have about ${PROSPECT_GOAL}. Only about 1 in 10 becomes a mentor, and that's normal.</li>
           </ol>
           <p class="note"><b>Why the app doesn't scan LinkedIn for you:</b> LinkedIn has no public API for this and bans accounts that use scraping tools. The bell notification does the watching safely, and this app does the tracking and timing.</p>
-        </section>
-        <section class="panel"><h3>Where mentors already gather</h3>
-          <ul class="places">${N.places.map((p) => `<li>${link(p.u, p.t)}<span class="muted small">${esc(p.why)}</span></li>`).join("")}</ul>
-        </section>
-      </div>`;
+        </section>`;
+    else if (tab === "places") pane = `<section class="panel"><h3>Where mentors already gather</h3>
+          <ul class="places grid">${N.places.map((p) => `<li>${link(p.u, p.t)}<span class="muted small">${esc(p.why)}</span></li>`).join("")}</ul>
+        </section>`;
+    else pane = `<section class="panel">${filters}
+        <div class="search-cards">
+          <div class="scard"><span class="sc-n">1</span><h4>LinkedIn people search</h4><p class="small">Opens LinkedIn with a ready-made search. Then click <b>Locations</b> and choose <b>${esc(m.name.replace(/ \(.*\)/, ""))}</b>.</p><code class="q">${esc(kw)}</code><div class="actions">${link(liPeople, "Open LinkedIn search")}<button type="button" class="btn sm ghost" data-copy="${esc(kw)}">Copy search</button></div></div>
+          <div class="scard"><span class="sc-n">2</span><h4>People who post</h4><p class="small">Searches recent <b>posts</b>. Active posters are the ones you can engage with, so start here.</p><div class="actions">${link(liPosts, "Open recent posts")}</div></div>
+          <div class="scard"><span class="sc-n">3</span><h4>Google X-ray</h4><p class="small">Finds public LinkedIn profiles through Google, useful when LinkedIn limits your searches.</p><code class="q">${esc(xray)}</code><div class="actions">${link(google, "Search Google")}<button type="button" class="btn sm ghost" data-copy="${esc(xray)}">Copy</button></div></div>
+        </div>
+      </section>`;
+    return `${pageHead("Find mid-career fintech data scientists", "Finder", "Aim for people 2–8 years in: senior enough to guide you, not so senior they have no time. Pick a market, open the searches, then add the best people to Mentors.", segtabs("finder", tabs, tab))}${pane}`;
   }
 
   function fillTemplate(body, p) {
@@ -736,35 +824,39 @@
 
   function vMessages() {
     const p = PR()[ui.msgProspect] || null;
-    return `<section class="hero"><p class="eyebrow">Admire, add value, ask small</p><h1>Messages</h1>
-      <p class="lede">Never open with "will you mentor me?". Show you've followed their work, show what you've built, and make a small, specific ask. Mentorship grows from 2–3 good exchanges.</p></section>
-      <section class="panel">
-        <div class="fields">
-          <label class="field"><span>Write to</span><select id="msg-prospect" data-msg-prospect="1"><option value="">(no one: show placeholders)</option>${prospects().map((x) => `<option value="${x.id}"${x.id === ui.msgProspect ? " selected" : ""}>${esc(x.name)}${x.company ? " · " + esc(x.company) : ""}</option>`).join("")}</select></label>
-        </div>
-        ${p ? `<p class="small">${readiness(p).early && !readiness(p).ready ? `<span class="pill warn">Not ready yet</span> ${esc(nextAction(p).text)}` : `<span class="pill accent">Next step</span> ${esc((nextAction(p) || { text: "Parked." }).text)}`} ${localTime(p).label ? `· Their time: ${esc(localTime(p).label)}${localTime(p).good ? " (good time)" : " (best: Tue–Thu, 8–10am their time)"}` : ""}</p>` : ""}
-        <p class="muted small">Your details (name, one-liner, latest project, question) come from <button type="button" class="linkish" data-tab="settings">Settings</button>. Anything in [brackets] needs your own words, which is what makes a message land.</p>
-      </section>
-      <div class="tgrid">${N.templates.map((t) => {
-        const text = fillTemplate(t.body, p);
-        const over = t.limit && text.length > t.limit;
-        return `<article class="panel tmpl"><header><h4>${esc(t.stage)}</h4>${t.limit ? `<span class="pill ${over ? "bad" : ""}">${text.length}/${t.limit}</span>` : ""}</header>
-          <p class="muted small">${esc(fillTemplate(t.when, p))}</p>
-          <pre class="msg" id="tmpl-${t.id}">${esc(text)}</pre>
-          <div class="actions"><button type="button" class="btn sm primary" data-copy-el="tmpl-${t.id}">Copy</button>${over ? `<span class="small bad-text">Over LinkedIn's free-account note limit. Shorten it.</span>` : ""}</div></article>`;
-      }).join("")}</div>
-      <div class="grid2">
+    const tab = sub("messages", "templates");
+    const tabs = [["templates", "Templates", N.templates.length], ["comments", "Comment formula"], ["calls", "Call questions"]];
+    const head = pageHead("Admire, add value, ask small", "Messages", `Never open with "will you mentor me?". Show you've followed their work, show what you've built, and make a small, specific ask. Mentorship grows from 2–3 good exchanges.`, segtabs("messages", tabs, tab));
+    if (tab === "comments") return head + `<div class="grid2">
         <section class="panel"><h3>Comment formula (for the ${READY_DAYS}-day warm-up)</h3>
           <dl class="formula">${N.commentFormula.map((c) => `<dt>${esc(c.k)}</dt><dd>${esc(c.v)}</dd>`).join("")}</dl>
-          <p class="eyebrow">Examples using your weekly problems</p>
-          <ul class="quotes">${N.commentExamples.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>
           <p class="muted small">Avoid "Great post!" and emoji-only comments: they build no familiarity.</p>
         </section>
-        <section class="panel"><h3>Questions for a 15-minute call</h3>
-          <ul class="steps">${N.callQuestions.map((q) => `<li>${esc(q)}</li>`).join("")}</ul>
+        <section class="panel"><h3>Examples using your weekly problems</h3>
+          <ul class="quotes">${N.commentExamples.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>
+        </section></div>`;
+    if (tab === "calls") return head + `<section class="panel"><h3>Questions for a 15-minute call</h3>
+          <ul class="steps big">${N.callQuestions.map((q) => `<li>${esc(q)}</li>`).join("")}</ul>
           <p class="note">Before the call, send your agenda in one line. Stop at 15 minutes, even if it's going well. Send the thank-you within 24 hours.</p>
-        </section>
-      </div>`;
+        </section>`;
+    const tid = N.templates.some((t) => t.id === ui.msgTemplate) ? ui.msgTemplate : N.templates[0].id;
+    const t = N.templates.find((x) => x.id === tid);
+    const text = fillTemplate(t.body, p);
+    const over = t.limit && text.length > t.limit;
+    return head + `<div class="md">
+      <aside class="md-list panel">
+        <label class="field"><span>Write to</span><select id="msg-prospect" data-msg-prospect="1"><option value="">(no one: show placeholders)</option>${prospects().map((x) => `<option value="${x.id}"${x.id === ui.msgProspect ? " selected" : ""}>${esc(x.name)}${x.company ? " · " + esc(x.company) : ""}</option>`).join("")}</select></label>
+        ${p ? `<p class="small">${readiness(p).early && !readiness(p).ready ? `<span class="pill warn">Not ready yet</span> ${esc(nextAction(p).text)}` : `<span class="pill accent">Next step</span> ${esc((nextAction(p) || { text: "Parked." }).text)}`} ${localTime(p).label ? `· Their time: ${esc(localTime(p).label)}${localTime(p).good ? " (good time)" : " (best: Tue–Thu, 8–10am their time)"}` : ""}</p>` : ""}
+        <nav class="tlist" aria-label="Templates">${N.templates.map((x, i) => `<button type="button" class="tl${x.id === tid ? " on" : ""}" data-template="${x.id}"><span class="tl-n">${i + 1}</span><span>${esc(x.stage)}</span></button>`).join("")}</nav>
+      </aside>
+      <article class="panel tmpl">
+        <header><div><p class="eyebrow">Step ${N.templates.indexOf(t) + 1} of ${N.templates.length}</p><h3>${esc(t.stage)}</h3></div>${t.limit ? `<span class="pill ${over ? "bad" : "accent"}">${text.length}/${t.limit}</span>` : ""}</header>
+        <p class="when">${icon("hours")}<span>${esc(fillTemplate(t.when, p))}</span></p>
+        <pre class="msg" id="tmpl-${t.id}">${esc(text)}</pre>
+        <div class="actions"><button type="button" class="btn primary" data-copy-el="tmpl-${t.id}">Copy message</button>${over ? `<span class="small bad-text">Over LinkedIn's free-account note limit. Shorten it.</span>` : ""}</div>
+        <p class="muted small">Your details (name, one-liner, latest project, question) come from <button type="button" class="linkish" data-sub-go="settings:profile">Settings</button>. Anything in [brackets] needs your own words, which is what makes a message land.</p>
+      </article>
+    </div>`;
   }
 
   // ---------- studies ----------
@@ -781,30 +873,16 @@
     const courseOpts = st.courses.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
     const byDay = [1, 2, 3, 4, 5, 6, 0].map((d) => ({ d, items: st.classes.filter((c) => Number(c.day) === d).sort((a, b) => a.start.localeCompare(b.start)) }));
     const dls = [...st.deadlines].sort((a, b) => (a.done - b.done) || (a.due || "").localeCompare(b.due || ""));
-    return `<section class="hero"><p class="eyebrow">Your degree comes first</p><h1>Studies</h1>
-      <p class="lede">Put your classes and deadlines here so they show up on Today next to your ML plan. In exam weeks, tick "Exam week" in the Roadmap to lighten the load.</p></section>
-      <div class="grid2">
-        <section class="panel"><h3>Courses</h3>
+    const open = st.deadlines.filter((d) => !d.done).length;
+    const tab = sub("studies", "timetable");
+    const tabs = [["timetable", "Timetable", st.classes.length || null], ["deadlines", "Deadlines", open || null], ["courses", "Courses", st.courses.length || null]];
+    const head = pageHead("Your degree comes first", "Studies", `Put your classes and deadlines here so they show up on Today next to your ML plan. In exam weeks, tick "Exam week" in the Roadmap to lighten the load.`, segtabs("studies", tabs, tab));
+    if (tab === "courses") return head + `<section class="panel narrow"><h3>Courses</h3>
           <form class="inline-form" id="course-form"><input id="course-name" name="name" required placeholder="e.g. Financial Accounting II"><button class="btn primary" type="submit">Add course</button></form>
           <ul class="plist">${st.courses.map((c) => `<li><span>${esc(c.name)}</span><span class="row-actions">${ui.confirm === "course:" + c.id ? `<button type="button" class="btn sm danger" data-act="del-course" data-id="${c.id}">Remove</button><button type="button" class="btn sm ghost" data-act="cancel-confirm">Keep</button>` : `<button type="button" class="btn sm ghost" data-act="ask-del-course" data-id="${c.id}">Remove</button>`}</span></li>`).join("") || `<li class="muted">No courses yet.</li>`}</ul>
           <label class="field"><span>Semester ends (classes stop showing after this)</span><input id="semester-end" type="date" data-semester="1" value="${esc(st.semesterEnd || "")}"></label>
-        </section>
-        <section class="panel"><h3>Add a class to your timetable</h3>
-          <form class="fields" id="class-form">
-            <label class="field"><span>Course</span><select id="class-course" name="course" required>${courseOpts || `<option value="">Add a course first</option>`}</select></label>
-            <label class="field"><span>Day</span><select id="class-day" name="day">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<option value="${d}">${DAY_NAMES[d]}</option>`).join("")}</select></label>
-            <label class="field"><span>Start</span><input id="class-start" name="start" type="time" value="09:00" required></label>
-            <label class="field"><span>End</span><input id="class-end" name="end" type="time" value="11:00" required></label>
-            <label class="field"><span>Room (optional)</span><input id="class-place" name="place" placeholder="Room B204"></label>
-            <div class="actions"><button class="btn primary" type="submit"${st.courses.length ? "" : " disabled"}>Add class</button></div>
-          </form>
-        </section>
-      </div>
-      <section class="panel"><h3>Weekly timetable</h3>
-        <div class="timetable">${byDay.map(({ d, items }) => `<div class="tday"><p class="eyebrow">${DAY_NAMES[d].slice(0, 3)}</p>${items.map((c) => `<div class="tclass"><span class="mono small">${esc(c.start)}–${esc(c.end)}</span><b>${esc(courseName(c.course))}</b>${c.place ? `<span class="muted small">${esc(c.place)}</span>` : ""}<button type="button" class="x" aria-label="Remove class" data-act="del-class" data-id="${c.id}">×</button></div>`).join("") || `<span class="muted small">—</span>`}</div>`).join("")}</div>
-        ${st.classes.length ? `<p class="small muted">Add your timetable to Google Calendar: ${st.classes.map((c) => link(gcal({ title: courseName(c.course), date: nextDow(Number(c.day)), start: c.start, mins: Math.max(15, minutesBetween(c.start, c.end)), recur: `FREQ=WEEKLY${st.semesterEnd ? ";UNTIL=" + st.semesterEnd.replace(/-/g, "") : ""}`, details: c.place || "" }), `${DAY_NAMES[c.day].slice(0, 3)} ${courseName(c.course)}`)).join(" · ")}</p>` : ""}
-      </section>
-      <section class="panel"><h3>Assignments, tests & exams</h3>
+        </section>`;
+    if (tab === "deadlines") return head + `<section class="panel"><h3>Assignments, tests & exams</h3>
         <form class="fields" id="deadline-form">
           <label class="field wide"><span>What</span><input id="dl-title" name="title" required placeholder="Econometrics problem set 3"></label>
           <label class="field"><span>Course</span><select id="dl-course" name="course"><option value="">General</option>${courseOpts}</select></label>
@@ -814,6 +892,20 @@
         </form>
         <ul class="plist">${dls.map((d) => { const k = daysBetween(t, d.due); return `<li class="${d.done ? "is-done" : ""}"><label class="chk inline"><input type="checkbox" data-dl-done="${d.id}"${d.done ? " checked" : ""}><span><b>${esc(d.title)}</b> · ${esc(d.type)} · ${esc(courseName(d.course))} · ${fmt(d.due, { weekday: "short", month: "short", day: "numeric" })}</span></label>
           <span class="row-actions">${!d.done ? `<span class="pill ${k < 0 ? "bad" : k <= 3 ? "warn" : ""}">${k < 0 ? `${-k}d overdue` : k === 0 ? "today" : `in ${k}d`}</span>${link(gcal({ title: `${d.type}: ${d.title}`, date: d.due, allDay: true, details: courseName(d.course) }), "Remind me")}` : ""}<button type="button" class="x" aria-label="Remove" data-act="del-deadline" data-id="${d.id}">×</button></span></li>`; }).join("") || `<li class="muted">No deadlines yet.</li>`}</ul>
+      </section>`;
+    return head + `<section class="panel"><h3>Weekly timetable</h3>
+        <div class="timetable">${byDay.map(({ d, items }) => `<div class="tday${Number(d) === new Date().getDay() ? " today" : ""}"><p class="eyebrow">${DAY_NAMES[d].slice(0, 3)}</p>${items.map((c) => `<div class="tclass"><span class="small">${esc(c.start)}–${esc(c.end)}</span><b>${esc(courseName(c.course))}</b>${c.place ? `<span class="muted small">${esc(c.place)}</span>` : ""}<button type="button" class="x" aria-label="Remove class" data-act="del-class" data-id="${c.id}">×</button></div>`).join("") || `<span class="muted small">—</span>`}</div>`).join("")}</div>
+        ${st.classes.length ? `<p class="small muted">Add your timetable to Google Calendar: ${st.classes.map((c) => link(gcal({ title: courseName(c.course), date: nextDow(Number(c.day)), start: c.start, mins: Math.max(15, minutesBetween(c.start, c.end)), recur: `FREQ=WEEKLY${st.semesterEnd ? ";UNTIL=" + st.semesterEnd.replace(/-/g, "") : ""}`, details: c.place || "" }), `${DAY_NAMES[c.day].slice(0, 3)} ${courseName(c.course)}`)).join(" · ")}</p>` : ""}
+        <details class="adder"${st.classes.length ? "" : " open"}><summary class="btn sm">${icon("add")} Add a class</summary>
+          <form class="fields" id="class-form">
+            <label class="field"><span>Course</span><select id="class-course" name="course" required>${courseOpts || `<option value="">Add a course first</option>`}</select></label>
+            <label class="field"><span>Day</span><select id="class-day" name="day">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<option value="${d}">${DAY_NAMES[d]}</option>`).join("")}</select></label>
+            <label class="field"><span>Start</span><input id="class-start" name="start" type="time" value="09:00" required></label>
+            <label class="field"><span>End</span><input id="class-end" name="end" type="time" value="11:00" required></label>
+            <label class="field"><span>Room (optional)</span><input id="class-place" name="place" placeholder="Room B204"></label>
+            <div class="actions"><button class="btn primary" type="submit"${st.courses.length ? "" : " disabled"}>Add class</button>${st.courses.length ? "" : `<button type="button" class="linkish" data-sub="studies:courses">Add a course first</button>`}</div>
+          </form>
+        </details>
       </section>`;
   }
   function nextDow(dow) {
@@ -827,23 +919,28 @@
   }
 
   function vProjects() {
-    return `<section class="hero"><p class="eyebrow">Goal: ${PROJECT_GOAL}+ real-world projects</p><h1>Projects</h1>
-      <p class="lede">Portfolio projects are your proof of value when you reach out to mentors and employers. Tick "Shipped" only when it's public: code, README and demo.</p></section>
-      <div class="pgrid wide">${C.projects.map((pj) => {
-        const ms = pj.milestones.map((_, i) => `${pj.id}m${i}`);
-        const done = ms.filter(isChecked).length;
-        const meta = P().projects[pj.id] || {};
-        return `<article class="panel project${isChecked(pj.id + "shipped") ? " shipped" : ""}">
-          <p class="eyebrow">${esc(pj.weeks)}</p><h3>${esc(pj.name)}</h3><p class="muted">${esc(pj.summary)}</p>
-          <div class="prow">${bar(done / ms.length)}<span class="mono small">${done}/${ms.length}</span></div>
-          <div class="checks">${pj.milestones.map((m, i) => chk(`${pj.id}m${i}`, esc(m))).join("")}</div>
-          <div class="fields">
+    const tab = sub("projects", C.projects[0].id);
+    const tabs = C.projects.map((pj) => [pj.id, pj.name.replace(/ \(bonus\)/, ""), isChecked(pj.id + "shipped") ? "Shipped" : countKeys(pj.milestones.map((_, i) => `${pj.id}m${i}`))]);
+    const pj = C.projects.find((x) => x.id === tab) || C.projects[0];
+    const ms = pj.milestones.map((_, i) => `${pj.id}m${i}`);
+    const done = ms.filter(isChecked).length;
+    const meta = P().projects[pj.id] || {};
+    return `${pageHead(`Goal: ${PROJECT_GOAL}+ real-world projects`, "Projects", `Portfolio projects are your proof of value when you reach out to mentors and employers. Tick "Shipped" only when it's public: code, README and demo.`, segtabs("projects", tabs, pj.id))}
+      <article class="panel project${isChecked(pj.id + "shipped") ? " shipped" : ""}">
+        <div class="proj-head">
+          <div class="pp-ring big">${ring(done / ms.length, 76, 7)}<span>${done}/${ms.length}</span></div>
+          <div><p class="eyebrow">${esc(pj.weeks)}</p><h2>${esc(pj.name)}</h2><p class="muted">${esc(pj.summary)}</p></div>
+        </div>
+        <div class="grid2">
+          <div class="stack"><p class="eyebrow">Milestones</p><div class="checks">${pj.milestones.map((m, i) => chk(`${pj.id}m${i}`, esc(m))).join("")}</div></div>
+          <div class="stack">
+            <p class="eyebrow">Links</p>
             <label class="field"><span>GitHub repo</span><input id="${pj.id}-repo" type="url" data-project="${pj.id}" data-field="repo" value="${esc(meta.repo || "")}" placeholder="https://github.com/…"></label>
             <label class="field"><span>Live demo</span><input id="${pj.id}-demo" type="url" data-project="${pj.id}" data-field="demo" value="${esc(meta.demo || "")}" placeholder="https://…streamlit.app"></label>
+            <div class="checks ship">${chk(pj.id + "shipped", "<b>Shipped</b>: public repo, README, demo and launch post")}</div>
           </div>
-          <div class="checks">${chk(pj.id + "shipped", "<b>Shipped</b>: public repo, README, demo and launch post")}</div>
-        </article>`;
-      }).join("")}</div>`;
+        </div>
+      </article>`;
   }
 
   function vProgress() {
@@ -867,16 +964,18 @@
       return { t: s.t, n: reached };
     });
     const fmax = Math.max(1, ...funnel.map((f) => f.n));
-    return `<section class="hero"><p class="eyebrow">How far you've come</p><h1>Progress</h1></section>
-      ${kpis()}
-      <section class="panel"><h3>52 weeks at a glance</h3><p class="muted small">Each square is a week; darker means more of it is checked off. Click one to open it.</p>
-        <div class="weekgrid">${Array.from({ length: TOTAL_WEEKS }, (_, i) => { const n = i + 1; const p = weekPct(n); return `<button type="button" class="wcell${n === now ? " now" : ""}" style="--p:${p.toFixed(2)}" data-goto-week="${n}" title="Week ${n}: ${esc(weekOf(n).title)} (${pct(p)})"><span>${n}</span></button>`; }).join("")}</div>
-      </section>
-      <div class="grid2">
+    const tab = sub("progress", "overview");
+    const tabs = [["overview", "Overview"], ["breakdown", "Phases & mentors"], ["hours", "Hours", `${totalH}h`]];
+    const head = pageHead("How far you've come", "Progress", "", segtabs("progress", tabs, tab));
+    if (tab === "breakdown") return head + `<div class="grid2">
         <section class="panel"><h3>Phases</h3>${C.phases.map((ph) => `<div class="prow"><span class="plabel">${ph.id}. ${esc(ph.name)}</span>${bar(phasePct(ph))}<span class="mono small">${pct(phasePct(ph))}</span></div>`).join("")}</section>
         <section class="panel"><h3>Mentor funnel</h3><p class="muted small">People who reached each stage or beyond.</p>${funnel.map((f) => `<div class="prow"><span class="plabel">${esc(f.t)}</span>${bar(f.n / fmax, "gold")}<span class="mono small">${f.n}</span></div>`).join("")}</section>
-      </div>
-      <section class="panel"><h3>Hours per week <span class="muted">${totalH} hours total</span></h3><div class="chart-wrap">${svg}</div></section>`;
+      </div>`;
+    if (tab === "hours") return head + `<section class="panel"><h3>Hours per week <span class="muted">${totalH} hours total</span></h3><div class="chart-wrap">${svg}</div></section>`;
+    return head + `${kpis()}
+      <section class="panel"><h3>52 weeks at a glance</h3><p class="muted small">Each square is a week; darker means more of it is checked off. Click one to open it.</p>
+        <div class="weekgrid">${Array.from({ length: TOTAL_WEEKS }, (_, i) => { const n = i + 1; const p = weekPct(n); return `<button type="button" class="wcell${n === now ? " now" : ""}" style="--p:${p.toFixed(2)}" data-goto-week="${n}" title="Week ${n}: ${esc(weekOf(n).title)} (${pct(p)})"><span>${n}</span></button>`; }).join("")}</div>
+      </section>`;
   }
 
   function vSettings() {
@@ -887,17 +986,10 @@
     const gl = s.routine.map((r) => link(gcal({ title: `Study: ${r.label}`, date: nextOnOrAfter(s.startDate, Number(r.day)), start: r.start, mins: Number(r.mins) || 60, recur: `FREQ=WEEKLY;BYDAY=${byday[r.day]};UNTIL=${end}`, details: "Fintech ML Ledger: open the Today tab for this week's checklist." }), `${DAY_NAMES[r.day].slice(0, 3)} ${r.start} ${r.label}`));
     gl.unshift(link(gcal({ title: "LinkedIn: comment on prospects' posts", date: s.startDate, start: s.linkedinTime, mins: Number(s.linkedinMins) || 15, recur: `FREQ=DAILY;UNTIL=${end}`, details: "Open the Today tab > Engage today. One thoughtful comment each (anchor, add, ask), then press Log comment." }), `Daily ${s.linkedinTime} LinkedIn engagement`));
     gl.push(link(gcal({ title: "Mentors: monthly update + pipeline review", date: s.startDate, allDay: true, recur: `FREQ=WEEKLY;INTERVAL=4;UNTIL=${end}`, details: "Send monthly updates to mentors, add new prospects, review your funnel." }), "Every 4 weeks: mentor updates"));
-    return `<section class="hero"><p class="eyebrow">Your details, schedule and reminders</p><h1>Settings</h1></section>
-      <section class="panel"><h3>About you (used in your messages)</h3>
-        <div class="fields">
-          ${field("name", "Your name", "Ada Okafor")}
-          ${field("oneLiner", "Who you are in one line", "a finance student building ML for credit risk", "wide")}
-          ${field("project", "Latest project", "a credit-risk EDA of 150k borrowers")}
-          ${field("projectLink", "Project link", "https://github.com/…")}
-          ${field("win", "Latest win (for follow-ups)", "deployed my first model API")}
-          ${field("ask", "Your one specific question", "how do you choose thresholds for fraud alerts?", "wide")}
-        </div></section>
-      <section class="panel"><h3>Plan</h3>
+    const tab = sub("settings", "profile");
+    const tabs = [["profile", "About you"], ["schedule", "Plan & routine"], ["reminders", "Reminders"], ["data", "Your data"]];
+    const head = pageHead("Your details, schedule and reminders", "Settings", "", segtabs("settings", tabs, tab));
+    if (tab === "schedule") return head + `<section class="panel"><h3>Plan</h3>
         <div class="fields">
           <label class="field"><span>Start date (Week 1)</span><input id="set-start" type="date" data-setting="startDate" value="${esc(s.startDate)}"></label>
           <label class="field"><span>Weekly hours goal</span><input id="set-goal" type="number" min="1" max="60" data-setting="weeklyGoalHours" value="${esc(s.weeklyGoalHours)}"></label>
@@ -911,16 +1003,16 @@
           <input id="r-mins-${i}" type="number" min="15" step="15" data-routine="${i}" data-field="mins" value="${esc(r.mins)}" aria-label="Minutes">
           <input id="r-label-${i}" data-routine="${i}" data-field="label" value="${esc(r.label)}" aria-label="What">
           <button type="button" class="x" aria-label="Remove" data-act="del-routine" data-i="${i}">×</button></div>`).join("")}</div>
-        <button type="button" class="btn sm" data-act="add-routine">Add session</button>
+        <div class="actions"><button type="button" class="btn sm" data-act="add-routine">${icon("add")} Add session</button></div>
         <p class="muted small">Default: about ${Math.round(s.routine.reduce((a, r) => a + Number(r.mins || 0), 0) / 60)} hours a week plus ${s.linkedinMins} minutes of LinkedIn a day, which is manageable alongside a full course load.</p>
-      </section>
-      <section class="panel" id="reminders"><h3>Reminders on your phone</h3>
+      </section>`;
+    if (tab === "reminders") return head + `<section class="panel" id="reminders"><h3>Reminders on your phone</h3>
         <p>Tap each link once to add a repeating event to Google Calendar (it syncs to your phone's calendar and notifications). Prospect follow-ups and deadlines have their own <b>Add reminder</b> links.</p>
         <div class="linkcol">${gl.join("")}</div>
         <p class="muted small">Use Apple Calendar or Outlook? Download an .ics file with all reminders, including each week's topic and your prospect follow-ups. This works when the app is opened as a file on your computer; inside Claude, use the links above.</p>
-        <button type="button" class="btn" data-act="ics">Download calendar file (.ics)</button>
-      </section>
-      <section class="panel"><h3>Your data</h3>
+        <div class="actions"><button type="button" class="btn" data-act="ics">Download calendar file (.ics)</button></div>
+      </section>`;
+    if (tab === "data") return head + `<section class="panel narrow"><h3>Your data</h3>
         <p><span id="sync" class="sync"></span></p>
         <div class="actions">
           <button type="button" class="btn" data-act="export">Export backup (.json)</button>
@@ -928,6 +1020,15 @@
           ${ui.confirm === "reset" ? `<span class="confirm">Erase everything? <button type="button" class="btn danger" data-act="reset">Erase</button><button type="button" class="btn ghost" data-act="cancel-confirm">Cancel</button></span>` : `<button type="button" class="btn ghost" data-act="ask-reset">Reset all data</button>`}
         </div>
       </section>`;
+    return head + `<section class="panel"><h3>About you (used in your messages)</h3>
+        <div class="fields">
+          ${field("name", "Your name", "Ada Okafor")}
+          ${field("oneLiner", "Who you are in one line", "a finance student building ML for credit risk", "wide")}
+          ${field("project", "Latest project", "a credit-risk EDA of 150k borrowers")}
+          ${field("projectLink", "Project link", "https://github.com/…")}
+          ${field("win", "Latest win (for follow-ups)", "deployed my first model API")}
+          ${field("ask", "Your one specific question", "how do you choose thresholds for fraud alerts?", "wide")}
+        </div></section>`;
   }
   function nextOnOrAfter(date, dow) {
     const cur = parse(date).getDay();
@@ -1016,12 +1117,17 @@
   }
 
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-tab],[data-act],[data-goto-week],[data-filter],[data-copy],[data-copy-el]");
+    const t = e.target.closest("[data-tab],[data-act],[data-goto-week],[data-filter],[data-copy],[data-copy-el],[data-sub],[data-sub-go],[data-phase],[data-template]");
     if (!t) return;
     if (t.dataset.tab) { setTab(t.dataset.tab); return; }
+    if (t.dataset.sub) { const [scope, val] = t.dataset.sub.split(":"); ui.sub[scope] = val; ui.confirm = null; rerender(); return; }
+    if (t.dataset.subGo) { const [tab, val] = t.dataset.subGo.split(":"); ui.sub[tab] = val; setTab(tab); return; }
+    if (t.dataset.phase) { ui.phase = Number(t.dataset.phase); rerender(); return; }
+    if (t.dataset.template) { ui.msgTemplate = t.dataset.template; rerender(); return; }
     if (t.dataset.gotoWeek) {
       const n = Number(t.dataset.gotoWeek);
-      ui.openWeeks.add(n);
+      ui.openWeeks = new Set([n]);
+      ui.phase = phaseOf(n).id;
       if (ui.tab !== "roadmap") { ui.tab = "roadmap"; ls.set("fml-ui-tab", "roadmap"); }
       render();
       const el = document.getElementById("week-" + n);
@@ -1035,9 +1141,10 @@
     const p = id ? PR()[id] : null;
     switch (t.dataset.act) {
       case "toggle-more": ui.more = !ui.more; renderTabs(); break;
-      case "new-prospect": ui.more = false; ui.edit = "new"; if (ui.tab !== "mentors") { ui.tab = "mentors"; } render(); $("#pf-name") && $("#pf-name").focus(); break;
-      case "edit": ui.edit = id; render(); $("#prospect-form") && $("#prospect-form").scrollIntoView({ behavior: "smooth" }); break;
-      case "cancel-edit": ui.edit = null; rerender(); break;
+      case "new-prospect": ui.more = false; ui.edit = "new"; renderTabs(); renderOverlay(); break;
+      case "edit": ui.edit = id; renderOverlay(); break;
+      case "cancel-edit": ui.edit = null; renderOverlay(); break;
+      case "log-hours": { const n = Math.min(Math.max(weekNow(), 1), TOTAL_WEEKS); ui.sub.today = "week"; ui.sub["week-" + n] = "log"; rerender(); const h = $("#hours-" + n); if (h) h.focus(); break; }
       case "ask-delete": ui.confirm = "del:" + id; rerender(); break;
       case "cancel-confirm": ui.confirm = null; rerender(); break;
       case "delete": Store.deleteProspect(id); ui.confirm = null; ui.toast = "Prospect deleted"; rerender(); break;
@@ -1078,7 +1185,12 @@
     const d = e.target;
     if (!(d instanceof HTMLDetailsElement) || !d.dataset.week) return;
     const n = Number(d.dataset.week);
-    if (d.open && !ui.openWeeks.has(n)) { ui.openWeeks.add(n); d.insertAdjacentHTML("beforeend", weekBody(n, false)); }
+    if (d.open && !ui.openWeeks.has(n)) {
+      ui.openWeeks = new Set([n]);
+      rerender();
+      const el = document.getElementById("week-" + n);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
     else if (!d.open) { ui.openWeeks.delete(n); const b = d.querySelector(".week-body"); if (b) b.remove(); }
   }, true);
 
@@ -1181,6 +1293,12 @@
       ST().deadlines.push({ id: newId(), title: val("title"), course: val("course"), type: val("type"), due: val("due"), done: false });
       Store.save("studies"); ui.toast = "Deadline added"; rerender(); return;
     }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (ui.edit !== null) { ui.edit = null; renderOverlay(); }
+    else if (ui.more) { ui.more = false; renderTabs(); }
   });
 
   // Refresh "today" if the page stays open past midnight.
