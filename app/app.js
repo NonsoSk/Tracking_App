@@ -307,8 +307,34 @@
     el.textContent = text;
   }
 
+  const ICONS = {
+    today: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    roadmap: '<path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
+    mentors: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+    finder: '<circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4.5-4.5"/>',
+    messages: '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+    studies: '<path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.5V16c3 2.5 9 2.5 12 0v-5.5"/>',
+    projects: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
+    progress: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  };
+  const icon = (id) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || ""}</svg>`;
+  function ring(p, size, stroke, cls) {
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    const v = Math.max(0, Math.min(1, p));
+    return `<svg class="ring ${cls || ""}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+      <circle class="ring-bg" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}"/>
+      <circle class="ring-fg" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${(c * v).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+    </svg>`;
+  }
   function renderTabs() {
-    $("#tabs").innerHTML = TABS.map(([id, t]) => `<button type="button" role="tab" class="tab${ui.tab === id ? " on" : ""}" data-tab="${id}" aria-selected="${ui.tab === id}">${t}</button>`).join("");
+    $("#tabs").innerHTML = TABS.map(([id, t]) => `<button type="button" role="tab" class="tab${ui.tab === id ? " on" : ""}" data-tab="${id}" aria-selected="${ui.tab === id}">${icon(id)}<span>${t}</span></button>`).join("");
+    const n = weekNow();
+    const wk = Math.min(Math.max(n, 0), TOTAL_WEEKS);
+    const foot = $("#sidefoot");
+    if (foot) foot.innerHTML = `<div class="sf-ring">${ring(wk / TOTAL_WEEKS, 52, 5)}<span class="mono">${wk}</span></div>
+      <div><p class="sf-k">Week ${wk || "—"} of 52</p><p class="sf-v">${pct(overallPct())} of the curriculum done</p></div>`;
   }
 
   function render() {
@@ -347,11 +373,18 @@
     const n = weekNow();
     const t = today();
     const dow = new Date().getDay();
-    let head;
-    if (n === 0) head = `<p class="eyebrow">Starts ${fmt(S().startDate, { weekday: "long", month: "long", day: "numeric" })}</p><h1>Your year starts soon</h1>`;
-    else if (n > TOTAL_WEEKS) head = `<p class="eyebrow">52 weeks complete</p><h1>You finished the year</h1>`;
-    else head = `<p class="eyebrow">Week ${n} of 52 · ${esc(phaseOf(n).name)} · ${weekRange(n)}</p><h1>${esc(weekOf(n).title)}</h1>${P().exam[n] ? `<p class="pill warn">Exam week: lighter load. The fintech problem is optional.</p>` : ""}`;
     const wn = Math.min(Math.max(n, 1), TOTAL_WEEKS);
+    const greet = (() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
+    const who = S().name ? `, ${esc(S().name.split(" ")[0])}` : "";
+    let bannerText;
+    if (n === 0) bannerText = `<p class="b-eyebrow">${greet}${who} · starts ${fmt(S().startDate, { weekday: "long", month: "long", day: "numeric" })}</p><h1>Your year starts soon</h1><p class="b-meta">Week 1: ${esc(weekOf(1).title)}</p>`;
+    else if (n > TOTAL_WEEKS) bannerText = `<p class="b-eyebrow">${greet}${who}</p><h1>You finished the year</h1><p class="b-meta">52 weeks complete. Time for the year-2 plan.</p>`;
+    else bannerText = `<p class="b-eyebrow">${greet}${who} · Week ${n} of 52 · ${esc(phaseOf(n).name)}</p><h1>${esc(weekOf(n).title)}</h1>
+      <p class="b-meta">${weekRange(n)} · This week's problem: <b>${esc(weekOf(n).problem.title)}</b></p>
+      ${P().exam[n] ? `<p class="b-pill">Exam week: lighter load, the problem is optional</p>` : ""}`;
+    const wp = n >= 1 && n <= TOTAL_WEEKS ? weekPct(n) : 0;
+    const head = `<div class="b-text">${bannerText}</div>
+      <div class="b-ring">${ring(wp, 112, 10, "on-dark")}<div class="b-ring-label"><span class="mono">${pct(wp)}</span><span>this week</span></div></div>`;
 
     const plan = [
       { start: S().linkedinTime, html: `<span>LinkedIn: ${S().linkedinMins} min of thoughtful comments on your prospects' posts</span>` },
@@ -379,7 +412,7 @@
       ? `<ul class="plist">${soon.map((d) => { const k = daysBetween(t, d.due); return `<li><span><b>${esc(d.title)}</b> · ${esc(courseName(d.course))} <span class="pill ${k < 0 ? "bad" : k <= 3 ? "warn" : ""}">${k < 0 ? `${-k}d overdue` : k === 0 ? "today" : `in ${k}d`}</span></span><span class="row-actions"><label class="chk inline"><input type="checkbox" data-dl-done="${d.id}"><span>Done</span></label></span></li>`; }).join("")}</ul>`
       : `<p class="muted">Nothing due in the next 14 days. Add courses and deadlines in <button type="button" class="linkish" data-tab="studies">Studies</button>.</p>`;
 
-    return `<section class="hero">${head}</section>
+    return `<section class="banner">${head}</section>
       ${kpis()}
       <div class="grid2">
         <section class="panel"><h3>Today · ${DAY_NAMES[dow]}</h3>${planHtml}
@@ -557,7 +590,8 @@
     const confirming = ui.confirm === "del:" + p.id;
     return `<article class="pcard stage-${p.stage}">
       <header>
-        <div><h4>${p.linkedin ? link(p.linkedin, p.name) : esc(p.name)}</h4>
+        <span class="avatar${p.stage === "mentor" ? " gold" : ""}" aria-hidden="true">${esc((p.name || "?").trim().split(/\s+/).map((x) => x[0]).slice(0, 2).join("").toUpperCase())}</span>
+        <div class="pc-id"><h4>${p.linkedin ? link(p.linkedin, p.name) : esc(p.name)}</h4>
           <p class="muted small">${esc(p.role || "Data scientist")}${p.company ? " · " + esc(p.company) : ""} · ${esc(m.name)}${lt.label ? ` · <span class="${lt.good ? "good-time" : ""}">${esc(lt.label)} there${lt.good ? " (good time to message)" : ""}</span>` : ""}</p></div>
         <select class="stage-select" id="stage-${p.id}" data-stage="${p.id}" aria-label="Stage">${STAGES.map((s) => `<option value="${s.id}"${s.id === p.stage ? " selected" : ""}>${s.t}</option>`).join("")}</select>
       </header>
