@@ -31,13 +31,13 @@ export function Dashboard() {
       <PageTitle title="Overview" subtitle="All grievances from 2018 to today, live." />
       {d && (
           <div className="-mt-3 mb-5 flex flex-wrap gap-2 no-print">
-            <Select aria-label="Year" className="h-10 w-auto text-sm" value={filters.year ?? ''} onChange={(e) => patch({ year: e.target.value ? Number(e.target.value) : undefined })}>
+            <Select aria-label="Year" className="h-10 !w-auto text-sm" value={filters.year ?? ''} onChange={(e) => patch({ year: e.target.value ? Number(e.target.value) : undefined })}>
               <option value="">All years</option>{(q.data?.years ?? []).slice().reverse().map((y) => <option key={y} value={y}>{y}</option>)}
             </Select>
-            <Select aria-label="Community type" className="h-10 w-auto text-sm" value={filters.community_type_id ?? ''} onChange={(e) => patch({ community_type_id: e.target.value ? Number(e.target.value) : undefined, cluster_id: undefined, community_id: undefined })}>
+            <Select aria-label="Community type" className="h-10 !w-auto text-sm" value={filters.community_type_id ?? ''} onChange={(e) => patch({ community_type_id: e.target.value ? Number(e.target.value) : undefined, cluster_id: undefined, community_id: undefined })}>
               <option value="">All community types</option>{d.community_types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </Select>
-            <Select aria-label="Category" className="h-10 w-auto text-sm" value={filters.category_id ?? ''} onChange={(e) => patch({ category_id: e.target.value ? Number(e.target.value) : undefined })}>
+            <Select aria-label="Category" className="h-10 !w-auto text-sm" value={filters.category_id ?? ''} onChange={(e) => patch({ category_id: e.target.value ? Number(e.target.value) : undefined })}>
               <option value="">All categories</option>{d.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
             {Object.keys(filters).length > 0 && <button className="px-2 text-sm font-semibold text-brand-700" onClick={() => patch({ year: undefined, community_type_id: undefined, category_id: undefined, cluster_id: undefined, community_id: undefined })}>Clear</button>}

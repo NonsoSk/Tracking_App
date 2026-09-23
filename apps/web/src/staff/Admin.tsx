@@ -166,7 +166,7 @@ export function Categories() {
           <Card className="p-5">
             <p className="mb-4 flex items-start gap-2 text-sm text-ink-700"><CalendarDays className="h-5 w-5 shrink-0 text-brand-700" />Public holidays are skipped by the 3-working-day overdue clock. Adding one recalculates open deadlines.</p>
             <div className="mb-4 flex flex-wrap gap-2">
-              <Input type="date" className="h-10 w-auto" aria-label="Date" value={hol.day} onChange={(e) => setHol({ ...hol, day: e.target.value })} />
+              <Input type="date" className="h-10 !w-auto" aria-label="Date" value={hol.day} onChange={(e) => setHol({ ...hol, day: e.target.value })} />
               <Input className="h-10 w-64" aria-label="Holiday name" placeholder="e.g. Independence Day" value={hol.name} onChange={(e) => setHol({ ...hol, name: e.target.value })} />
               <Button loading={busy} disabled={!hol.day || !hol.name} onClick={async () => { if (await save(() => supabase.from('holidays').insert(hol), 'Holiday added', [['holidays']])) setHol({ day: '', name: '' }); }}>Add</Button>
             </div>

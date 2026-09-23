@@ -120,7 +120,7 @@ export function GrievanceList() {
       <FilterBar filters={filters} onChange={setFilters} />
       <div className="mt-4 flex items-center justify-end gap-2 text-sm">
         <label htmlFor="sort" className="text-ink-500">Sort</label>
-        <Select id="sort" className="h-9 w-auto text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
+        <Select id="sort" className="h-9 !w-auto text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="overdue_first">Overdue first</option><option value="received_desc">Newest</option>
           <option value="received_asc">Oldest</option><option value="days_desc">Longest outstanding</option><option value="updated_desc">Recently updated</option>
         </Select>
