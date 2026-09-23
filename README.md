@@ -9,6 +9,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 |---|---|
 | [docs/01-data-audit.md](docs/01-data-audit.md) | Audit of the 2018–2026 workbooks: columns, counts, duplicates, overlap, naming/category/status inconsistencies, migration mapping |
 | [docs/02-architecture.md](docs/02-architecture.md) | Platform, schema, roles and permissions, offline sync, screens, migration pipeline, **confirmed decisions (§8)** |
+| [docs/03-import-report.md](docs/03-import-report.md) | Historical import dry run: 608 source rows → 504 grievances, review queue |
 
 ## Build status
 
@@ -19,7 +20,8 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 6 Community master data (48 communities, affiliations, aliases, categories) | ✅ database · ⏳ admin screens |
 | 7 Submission codes + submission (self-service, assisted/paper, idempotent) | ✅ database · ⏳ app screens |
 | 8 Officer workflow (assign, status, remarks, resolve, acknowledge, archive) | ✅ database · ⏳ app screens |
-| 9 Dashboards · 10 Offline sync · 11 WhatsApp dispatch · 12 Import · 13 Reports | ⏳ next |
+| 12 Historical import (reconcile, de-duplicate, verbatim source rows, rollback) | ✅ script + database · ⏳ admin wizard |
+| 9 Dashboards · 10 Offline sync · 11 WhatsApp dispatch · 13 Reports | ⏳ next |
 
 ## Database
 
@@ -36,10 +38,11 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | `…0700_admin_and_jobs` | user/role/scope admin, staff list view, hourly overdue scan (pg_cron) |
 | `…0800_legacy_import` | import batches, verbatim source rows, legacy value mappings |
 | `…0900_security` | RLS policies and grants for every table and function |
+| `…1000_legacy_import_fn` | `app.import_legacy_batch` / `app.rollback_legacy_batch`, batched overdue alerts |
 
 ### Running the tests
 
-The suite has 120 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA and notifications.
+The suite has 139 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
 
 ```bash
 # needs PostgreSQL 15+ with pgtap + pg_trgm, and pg_prove
@@ -63,5 +66,15 @@ pip install -r scripts/migration/requirements.txt
 python3 scripts/migration/audit_workbooks.py --complete "<Complete Grievance Tracker>.xlsx" \
                                              --tracker "<Indorama_Grievance Tracker_2026.1>.xlsx"
 ```
+
+### Importing the history
+
+```bash
+cd scripts/migration
+python3 import_workbooks.py --complete "<Complete…>.xlsx" --tracker "<…2026.1>.xlsx"           # dry run + report
+PGHOST=… PGUSER=postgres python3 import_workbooks.py --complete … --tracker … --apply          # one transaction
+```
+
+Import after the officer accounts and scopes exist, so open items are assigned. To undo, run `select app.rollback_legacy_batch('<batch id>')`.
 
 The source workbooks contain complainant names and phone numbers. **Do not commit them.** `.gitignore` blocks `*.xlsx`, `*.csv` and `audit-output/`.
