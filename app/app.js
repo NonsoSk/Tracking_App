@@ -331,6 +331,88 @@
       <circle class="ring-fg" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${(c * v).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
     </svg>`;
   }
+  // ---------- theme ----------
+  const THEME_KEY = "fml-theme";
+  function effectiveTheme() {
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark" || t === "light") return t;
+    try { return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } catch (e) { return "light"; }
+  }
+  function setTheme(mode) {
+    if (mode === "light" || mode === "dark") { document.documentElement.setAttribute("data-theme", mode); ls.set(THEME_KEY, mode); }
+    else { document.documentElement.removeAttribute("data-theme"); ls.set(THEME_KEY, "system"); }
+  }
+  (function restoreTheme() {
+    const saved = ls.get(THEME_KEY);
+    if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+  })();
+  function themeToggle() {
+    const dark = effectiveTheme() === "dark";
+    return `<button type="button" class="theme-toggle${dark ? " is-dark" : ""}" data-act="theme" role="switch" aria-checked="${dark}" aria-label="Dark theme">
+      <span class="tt-sun" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+      <span class="tt-moon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span>
+      <span class="tt-knob" aria-hidden="true"></span>
+    </button>`;
+  }
+
+  // ---------- 3D illustrations (pure SVG, lit with gradients) ----------
+  let artSeq = 0;
+  function art(kind) {
+    const id = "g" + (++artSeq);
+    const shadow = (cx, cy, rx, ry) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${id}sh)"/>`;
+    const shDef = `<radialGradient id="${id}sh"><stop offset="0" stop-color="#001a55" stop-opacity=".32"/><stop offset="1" stop-color="#001a55" stop-opacity="0"/></radialGradient>`;
+    const blueDefs = `<linearGradient id="${id}bf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4d86ff"/><stop offset="1" stop-color="#1340c4"/></linearGradient>
+      <linearGradient id="${id}bs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a45b8"/><stop offset="1" stop-color="#0a2677"/></linearGradient>
+      <linearGradient id="${id}bt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cfe0ff"/><stop offset="1" stop-color="#86a9ff"/></linearGradient>
+      <linearGradient id="${id}gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7cf6a"/><stop offset="1" stop-color="#c88b1c"/></linearGradient>
+      <linearGradient id="${id}gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b57812"/><stop offset="1" stop-color="#7d4f08"/></linearGradient>
+      <linearGradient id="${id}gt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2c9"/><stop offset="1" stop-color="#f3cd6d"/></linearGradient>`;
+    // isometric-ish block: front face, right side, top
+    const block = (x, base, w, h, d, c) => `<path d="M${x} ${base - h}h${w}v${h}h-${w}z" fill="url(#${id}${c}f)"/>
+      <path d="M${x + w} ${base - h}l${d} -${d * 0.6}v${h}l-${d} ${d * 0.6}z" fill="url(#${id}${c}s)"/>
+      <path d="M${x} ${base - h}l${d} -${d * 0.6}h${w}l-${d} ${d * 0.6}z" fill="url(#${id}${c}t)"/>`;
+    let body = "";
+    let vb = "0 0 120 110";
+    if (kind === "coins") {
+      const coin = (y) => `<path d="M26 ${y}v10a34 12 0 0 0 68 0v-10a34 12 0 0 1 -68 0z" fill="url(#${id}cs)"/>
+        <ellipse cx="60" cy="${y}" rx="34" ry="12" fill="url(#${id}ct)"/>
+        <ellipse cx="60" cy="${y}" rx="23" ry="7.6" fill="none" stroke="#b9861f" stroke-opacity=".55" stroke-width="1.6"/>
+        <ellipse cx="54" cy="${y - 3}" rx="12" ry="3" fill="#fff" opacity=".35"/>`;
+      body = `<defs>${shDef}<linearGradient id="${id}cs" x1="0" x2="1"><stop offset="0" stop-color="#8a5a0b"/><stop offset=".38" stop-color="#e2ae4b"/><stop offset=".55" stop-color="#f8dc92"/><stop offset="1" stop-color="#9c650e"/></linearGradient>
+        <radialGradient id="${id}ct" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#fff3c8"/><stop offset=".5" stop-color="#f1c75f"/><stop offset="1" stop-color="#c58f22"/></radialGradient></defs>
+        ${shadow(60, 100, 46, 8)}${coin(80)}${coin(64)}${coin(48)}`;
+    } else if (kind === "bars") {
+      vb = "0 0 130 110";
+      body = `<defs>${shDef}${blueDefs}</defs>${shadow(64, 98, 56, 7)}
+        ${block(18, 94, 22, 30, 10, "b")}${block(48, 94, 22, 50, 10, "b")}${block(78, 94, 22, 72, 10, "g")}`;
+    } else if (kind === "books") {
+      vb = "0 0 130 110";
+      body = `<defs>${shDef}${blueDefs}</defs>${shadow(62, 98, 54, 7)}
+        ${block(22, 94, 70, 14, 16, "b")}${block(28, 80, 62, 13, 16, "g")}${block(20, 67, 70, 14, 16, "b")}`;
+    } else if (kind === "cube") {
+      body = `<defs>${shDef}${blueDefs}</defs>${shadow(58, 100, 46, 7)}
+        ${block(24, 94, 52, 52, 24, "b")}
+        <path d="M24 42l24 -14.4h52l-24 14.4z" fill="url(#${id}gt)" opacity=".95"/>
+        <path d="M46 42v52" stroke="#f3cd6d" stroke-width="7"/><path d="M46 42l24 -14.4" stroke="#fff2c9" stroke-width="7"/>`;
+    } else if (kind === "chat") {
+      body = `<defs>${shDef}<linearGradient id="${id}ch" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5c93ff"/><stop offset="1" stop-color="#0f3bb5"/></linearGradient>
+        <linearGradient id="${id}ch2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d9e4fb"/></linearGradient></defs>
+        ${shadow(60, 100, 44, 7)}
+        <path d="M30 30h52a14 14 0 0 1 14 14v22a14 14 0 0 1 -14 14h-30l-16 12v-12h-6a14 14 0 0 1 -14 -14v-22a14 14 0 0 1 14 -14z" fill="url(#${id}ch)"/>
+        <path d="M32 33h46a12 12 0 0 1 12 12v3h-70v-3a12 12 0 0 1 12 -12z" fill="#fff" opacity=".18"/>
+        <circle cx="42" cy="56" r="5" fill="url(#${id}ch2)"/><circle cx="58" cy="56" r="5" fill="url(#${id}ch2)"/><circle cx="74" cy="56" r="5" fill="url(#${id}ch2)"/>`;
+    } else {
+      // orbs
+      const orb = (cx, cy, r, a, b, c) => `<radialGradient id="${id}o${cx}" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="${a}"/><stop offset=".5" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient>`;
+      body = `<defs>${shDef}${orb(48, 0, 0, "#b9d1ff", "#3570ff", "#0a2a8a")}${orb(86, 0, 0, "#fff3cf", "#efc158", "#9c650e")}${orb(80, 0, 0, "#d5e3ff", "#6a97ff", "#1b3fae")}</defs>
+        ${shadow(60, 100, 46, 7)}
+        <circle cx="48" cy="58" r="32" fill="url(#${id}o48)"/><ellipse cx="38" cy="42" rx="11" ry="7" fill="#fff" opacity=".45"/>
+        <circle cx="86" cy="78" r="16" fill="url(#${id}o86)"/><ellipse cx="81" cy="71" rx="5" ry="3.2" fill="#fff" opacity=".5"/>
+        <circle cx="80" cy="30" r="10" fill="url(#${id}o80)"/><ellipse cx="77" cy="26" rx="3.4" ry="2" fill="#fff" opacity=".55"/>`;
+    }
+    return `<svg class="art art-${kind}" viewBox="${vb}" aria-hidden="true">${body}</svg>`;
+  }
+
   function renderTabs() {
     $("#tabs").innerHTML = TABS.map(([id, t]) => `<button type="button" role="tab" class="tab${ui.tab === id ? " on" : ""}" data-tab="${id}" aria-selected="${ui.tab === id}">${icon(id)}<span>${t}</span></button>`).join("");
     const n = weekNow();
@@ -345,6 +427,8 @@
       sheet.hidden = !ui.more;
       sheet.innerHTML = `<div class="sheet-scrim" data-act="toggle-more"></div><div class="sheet" role="dialog" aria-label="More sections"><span class="grab"></span><div class="sheet-grid">${TABS.filter(([id]) => !BOTTOM.includes(id)).map(([id, t]) => `<button type="button" class="qa${ui.tab === id ? " on" : ""}" data-tab="${id}"><span class="qa-ico">${icon(id)}</span><span>${t}</span></button>`).join("")}</div></div>`;
     }
+    const th = $("#themeslot");
+    if (th) th.innerHTML = themeToggle();
     const tt = $("#toptitle");
     if (tt) tt.textContent = (TABS.find((t) => t[0] === ui.tab) || [0, ""])[1];
     const foot = $("#sidefoot");
@@ -392,8 +476,10 @@
   function segtabs(scope, options, current, cls) {
     return `<div class="segtabs${cls ? " " + cls : ""}" role="tablist">${options.map(([k, t, badge]) => `<button type="button" role="tab" class="st${current === k ? " on" : ""}" data-sub="${scope}:${k}" aria-selected="${current === k}"><span>${t}</span>${badge != null && badge !== "" ? `<span class="st-b">${badge}</span>` : ""}</button>`).join("")}</div>`;
   }
+  const PAGE_ART = { roadmap: "bars", mentors: "orbs", finder: "orbs", messages: "chat", studies: "books", projects: "cube", progress: "bars", settings: "orbs" };
   function pageHead(eyebrow, title, lede, right) {
-    return `<header class="phead"><div class="ph-text"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div>${right ? `<div class="ph-right">${right}</div>` : ""}</header>`;
+    const a = PAGE_ART[ui.tab];
+    return `<header class="phead">${a ? `<div class="ph-art">${art(a)}</div>` : ""}<div class="ph-text"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div>${right ? `<div class="ph-right">${right}</div>` : ""}</header>`;
   }
   const countKeys = (keys) => `${keys.filter(isChecked).length}/${keys.length}`;
 
@@ -493,7 +579,7 @@
       ["progress", "Progress", 'data-tab="progress"'],
     ];
     return `${head}
-      <div class="today-top">${learningCard(n)}<section class="panel focus">${focus}</section></div>
+      <div class="today-top">${learningCard(n)}<section class="panel focus"><div class="focus-art">${art("coins")}</div>${focus}</section></div>
       <nav class="quick" aria-label="Quick actions">${quick.map(([ic, tt, attr]) => `<button type="button" class="qa" ${attr}><span class="qa-ico">${icon(ic)}</span><span>${tt}</span></button>`).join("")}</nav>
       ${kpis()}
       <div class="tri">
@@ -1020,7 +1106,11 @@
           ${ui.confirm === "reset" ? `<span class="confirm">Erase everything? <button type="button" class="btn danger" data-act="reset">Erase</button><button type="button" class="btn ghost" data-act="cancel-confirm">Cancel</button></span>` : `<button type="button" class="btn ghost" data-act="ask-reset">Reset all data</button>`}
         </div>
       </section>`;
-    return head + `<section class="panel"><h3>About you (used in your messages)</h3>
+    const mode = ls.get(THEME_KEY) || "system";
+    return head + `<section class="panel"><h3>Appearance</h3>
+        <div class="seg">${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([k, t]) => `<button type="button" class="${mode === k ? "on" : ""}" data-act="theme-mode" data-mode="${k}">${t}</button>`).join("")}</div>
+        <p class="muted small">Also switch any time with the sun/moon toggle at the top. Saved on this device.</p></section>
+      <section class="panel"><h3>About you (used in your messages)</h3>
         <div class="fields">
           ${field("name", "Your name", "Ada Okafor")}
           ${field("oneLiner", "Who you are in one line", "a finance student building ML for credit risk", "wide")}
@@ -1140,6 +1230,8 @@
     const id = t.dataset.id;
     const p = id ? PR()[id] : null;
     switch (t.dataset.act) {
+      case "theme": setTheme(effectiveTheme() === "dark" ? "light" : "dark"); renderTabs(); if (ui.tab === "settings") rerender(); break;
+      case "theme-mode": setTheme(t.dataset.mode); renderTabs(); rerender(); break;
       case "toggle-more": ui.more = !ui.more; renderTabs(); break;
       case "new-prospect": ui.more = false; ui.edit = "new"; renderTabs(); renderOverlay(); break;
       case "edit": ui.edit = id; renderOverlay(); break;
@@ -1242,6 +1334,21 @@
       };
       r.readAsText(t.files[0]);
     }
+  });
+
+  // Gentle 3D tilt on the learning card (pointer devices only).
+  document.addEventListener("pointermove", (e) => {
+    const c = e.target.closest && e.target.closest(".lcard");
+    if (!c || e.pointerType !== "mouse") return;
+    const r = c.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+    c.style.setProperty("--ry", (x * 10).toFixed(2) + "deg");
+    c.style.setProperty("--rx", (-y * 8).toFixed(2) + "deg");
+    c.style.setProperty("--gx", ((x + 0.5) * 100).toFixed(0) + "%");
+  });
+  document.addEventListener("pointerout", (e) => {
+    const c = e.target.closest && e.target.closest(".lcard");
+    if (c && !c.contains(e.relatedTarget)) { c.style.removeProperty("--rx"); c.style.removeProperty("--ry"); c.style.removeProperty("--gx"); }
   });
 
   let noteTimer;

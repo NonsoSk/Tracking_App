@@ -581,13 +581,63 @@
   .swipe-hint { display: none; justify-content: center; gap: 6px; margin-top: -8px; }
   .swipe-hint i { width: 6px; height: 6px; border-radius: 50%; background: var(--rule-strong); }
   .swipe-hint i:first-child { width: 18px; border-radius: 3px; background: var(--accent); }
+
+  /* ---------- theme toggle ---------- */
+  .topright { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle { appearance: none; border: 0; cursor: pointer; position: relative; width: 58px; height: 30px; border-radius: 999px; padding: 0; background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 -1px 0 rgba(255, 255, 255, 0.12); flex: none; }
+  .theme-toggle svg { width: 14px; height: 14px; fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 2; stroke-linecap: round; }
+  .tt-sun, .tt-moon { position: absolute; top: 8px; display: grid; }
+  .tt-sun { left: 8px; } .tt-moon { right: 8px; }
+  .tt-moon svg { fill: rgba(255, 255, 255, 0.85); stroke: none; }
+  .tt-knob { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffffff, #e3ebff 60%, #b9c9f0); box-shadow: 0 2px 6px rgba(0, 10, 40, 0.35), inset 0 -2px 3px rgba(0, 30, 90, 0.18); transition: transform 0.28s cubic-bezier(.3,1.4,.5,1); }
+  .theme-toggle.is-dark .tt-knob { transform: translateX(28px); background: radial-gradient(circle at 35% 30%, #fff6d8, #f2cd6c 60%, #b98617); }
+  @media (min-width: 980px) {
+    .topright { order: 3; margin-top: auto; justify-content: space-between; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); }
+    .topright::before { content: "Dark mode"; font: 700 0.86rem var(--sans); color: var(--banner-muted); }
+    .topright .toptitle { display: none; }
+    .sidefoot { order: 4; margin-top: 0 !important; }
+  }
+
+  /* ---------- 3D illustrations & depth ---------- */
+  .art { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0, 30, 100, 0.12)); }
+  .ph-art { width: 84px; flex: none; align-self: center; animation: float 6s ease-in-out infinite; }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  .focus { position: relative; overflow: hidden; }
+  .focus-art { position: absolute; right: 14px; top: 10px; width: 118px; opacity: 0.95; animation: float 7s ease-in-out infinite; pointer-events: none; }
+  .focus > *:not(.focus-art) { position: relative; z-index: 1; }
+  .focus h2, .focus > .muted { padding-right: 110px; }
+  .lcard { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.25s ease-out; transform-style: preserve-3d; will-change: transform; }
+  .lcard::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(circle at var(--gx, 30%) 0%, rgba(255,255,255,0.18), transparent 55%); pointer-events: none; z-index: 0; }
+  .qa-ico { background: radial-gradient(circle at 32% 26%, #ffffff 0%, var(--accent-soft) 48%, color-mix(in srgb, var(--accent) 22%, var(--accent-soft)) 100%);
+    box-shadow: inset 0 -3px 6px color-mix(in srgb, var(--accent) 22%, transparent), inset 0 2px 2px rgba(255, 255, 255, 0.7), 0 6px 14px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .qa:hover .qa-ico, .qa.on .qa-ico { background: radial-gradient(circle at 32% 26%, color-mix(in srgb, var(--accent) 55%, #fff) 0%, var(--accent) 55%, var(--accent-2) 100%); }
+  .btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff), var(--accent) 60%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 4px 12px color-mix(in srgb, var(--accent) 32%, transparent); }
+  .avatar { background: radial-gradient(circle at 32% 28%, #ffffff, var(--accent-soft) 60%, color-mix(in srgb, var(--accent) 18%, var(--accent-soft))); box-shadow: inset 0 -2px 3px color-mix(in srgb, var(--accent) 18%, transparent), 0 2px 6px color-mix(in srgb, var(--accent) 15%, transparent); }
+  .avatar.gold { background: radial-gradient(circle at 32% 28%, #fffaf0, var(--gold-soft) 60%, color-mix(in srgb, var(--gold) 25%, var(--gold-soft))); }
+  :root[data-theme="dark"] .qa-ico, :root[data-theme="dark"] .avatar { background: radial-gradient(circle at 32% 26%, #2c4a8c, var(--accent-soft) 60%, #0e1a3a); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .qa-ico, :root:not([data-theme="light"]) .avatar { background: radial-gradient(circle at 32% 26%, #2c4a8c, var(--accent-soft) 60%, #0e1a3a); } }
+  @media (min-width: 980px) {
+    .side { overflow: hidden; }
+    .side::after { content: ""; position: absolute; width: 220px; height: 220px; right: -90px; bottom: 120px; border-radius: 50%; pointer-events: none;
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), rgba(80,140,255,0.25) 40%, rgba(0,20,90,0.05) 70%); box-shadow: inset -10px -14px 30px rgba(0, 10, 60, 0.35); opacity: 0.55; }
+    .side > * { position: relative; z-index: 1; }
+  }
+  @media (max-width: 640px) {
+    .ph-art { width: 56px; align-self: flex-start; }
+    .phead { flex-wrap: wrap; }
+    .phead { column-gap: 12px; }
+    .ph-text { flex-basis: calc(100% - 72px); }
+    .focus-art { width: 80px; top: 8px; right: 8px; }
+    .focus h2, .focus > .muted { padding-right: 70px; }
+    .toptitle { display: none; }
+  }
   @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 </style>
 
 <div class="shell">
   <aside class="side">
     <div class="brand"><span class="mark" aria-hidden="true">52</span><div>Fintech ML Ledger<small>Python · ML · Mentors</small></div></div>
-    <span class="toptitle" id="toptitle"></span>
+    <div class="topright"><span class="toptitle" id="toptitle"></span><span id="themeslot"></span></div>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Sections"></nav>
     <div class="sidefoot" id="sidefoot"></div>
   </aside>
