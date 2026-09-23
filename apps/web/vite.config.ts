@@ -57,10 +57,10 @@ export default defineConfig({
       },
     },
   },
-  server: { port: 5173 },
+  server: { port: 5173, fs: { allow: ['.', '../../supabase/functions/_shared'] } },
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', '../../supabase/functions/_shared/**/*.test.ts'],
     setupFiles: ['src/test-setup.ts'],
   },
 } as any);

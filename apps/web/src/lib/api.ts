@@ -101,6 +101,12 @@ export const api = {
     return data as { id: string };
   },
 
+  async resetMemberPin(userId: string) {
+    const { data, error } = await supabase.functions.invoke('admin-reset-pin', { body: { user_id: userId } });
+    if (error) throw toAppError(error);
+    return data as { pin: string };
+  },
+
   // master data tables (RLS: masterdata.manage for writes)
   table: (name: string) => supabase.from(name),
 };

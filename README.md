@@ -10,18 +10,25 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | [docs/01-data-audit.md](docs/01-data-audit.md) | Audit of the 2018–2026 workbooks: columns, counts, duplicates, overlap, naming/category/status inconsistencies, migration mapping |
 | [docs/02-architecture.md](docs/02-architecture.md) | Platform, schema, roles and permissions, offline sync, screens, migration pipeline, **confirmed decisions (§8)** |
 | [docs/03-import-report.md](docs/03-import-report.md) | Historical import dry run: 608 source rows → 504 grievances, review queue |
+| [docs/04-deployment.md](docs/04-deployment.md) | Supabase setup, WhatsApp templates and secrets, scheduling, hosting, operations, local development |
 
 ## Build status
 
 | Phase | Status |
 |---|---|
-| 1–4 Audit, architecture, design system plan | ✅ approved |
-| 5 Auth & roles (database: RBAC, RLS, profiles, sign-up hook) | ✅ database · ⏳ app screens |
-| 6 Community master data (48 communities, affiliations, aliases, categories) | ✅ database · ⏳ admin screens |
-| 7 Submission codes + submission (self-service, assisted/paper, idempotent) | ✅ database · ⏳ app screens |
-| 8 Officer workflow (assign, status, remarks, resolve, acknowledge, archive) | ✅ database · ⏳ app screens |
-| 12 Historical import (reconcile, de-duplicate, verbatim source rows, rollback) | ✅ script + database · ⏳ admin wizard |
-| 9 Dashboards · 10 Offline sync · 11 WhatsApp dispatch · 13 Reports | ⏳ next |
+| 1–4 Audit, architecture, design system | ✅ approved |
+| 5 Auth & roles: phone + PIN (members), email + password (staff), configurable permissions, RLS | ✅ |
+| 6 Community master data: 48 communities, Akpajo in two groups, 31 pipeline communities (32nd pending) | ✅ |
+| 7 Submission codes + 5-step submit wizard, paper/assisted entry | ✅ |
+| 8 Officer workspace: status, remarks, actions, resolve, assign, triage, acknowledgement, archive | ✅ |
+| 9 Dashboards (drill-down), search, filters | ✅ |
+| 10 Offline: installable PWA, on-device drafts/outbox, idempotent sync | ✅ |
+| 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
+| 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
+| 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
+| 14 Tests: 156 pgTAP · 29 unit · 3 browser end-to-end (incl. offline) | ✅ |
+
+Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).
 
 ## Database
 
@@ -40,6 +47,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | `…0900_security` | RLS policies and grants for every table and function |
 | `…1000_legacy_import_fn` | `app.import_legacy_batch` / `app.rollback_legacy_batch`, batched overdue alerts |
 | `…1100_app_api` | app read API: master data, staff list/detail (search, filters, paging), dashboards, officer home, export, admin lists |
+| `…1200_ops` | audit hook for PIN resets |
 
 ### Running the tests
 

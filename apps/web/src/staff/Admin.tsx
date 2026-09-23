@@ -241,7 +241,9 @@ function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
   const [roles, setRoles] = useState<string[]>(user.roles);
   const [scopes, setScopes] = useState<string[]>(user.scopes.map((s) => s.community_id ? `c:${s.community_id}` : s.cluster_id ? `k:${s.cluster_id}` : `t:${s.community_type}`));
   const [confirmDisable, setConfirmDisable] = useState(false);
+  const [pin, setPin] = useState<string | null>(null);
   const keys = [['users'], ['staff-directory']];
+  const isMember = user.roles.length === 1 && user.roles[0] === 'community_member';
   const d = master.data;
   const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const scopePayload = scopes.map((s) => s.startsWith('c:') ? { community_id: s.slice(2) } : s.startsWith('k:') ? { cluster_id: Number(s.slice(2)) } : { community_type: s.slice(2) });
@@ -255,6 +257,14 @@ function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
         }}>Save changes</Button>
       </>}>
       <div className="space-y-6">
+        {isMember && (
+          <section className="rounded-2xl bg-canvas p-4">
+            <h3 className="font-semibold">Forgotten PIN</h3>
+            <p className="mt-1 text-sm text-ink-700">Only reset a PIN after confirming the person's identity (in person or by calling their registered number {formatPhone(user.phone)}).</p>
+            {pin ? <p className="mt-3 text-sm">Temporary PIN: <span className="rounded-lg bg-surface px-2 py-1 font-mono text-lg font-bold tracking-widest ring-1 ring-line">{pin}</span> · give it to the member; it is not shown again.</p>
+              : <Button className="mt-3" size="sm" variant="secondary" loading={busy} onClick={() => save(async () => setPin((await api.resetMemberPin(user.id)).pin), 'PIN reset', keys)}>Reset PIN</Button>}
+          </section>
+        )}
         <section>
           <h3 className="mb-2 font-semibold">Roles</h3>
           <div className="grid gap-2 sm:grid-cols-2">

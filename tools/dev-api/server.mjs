@@ -194,6 +194,19 @@ async function handle(req, res) {
     } catch (e) { return pgError(res, e); }
   }
 
+  if (path === '/functions/v1/admin-reset-pin' && req.method === 'POST') {
+    const claims = claimsFrom(req);
+    const b = await readBody(req);
+    try {
+      const allowed = await asRole(claims, (c) => c.query("select app.has_perm('users.manage') as ok"));
+      if (!allowed.rows[0]?.ok) return send(res, 403, { error: 'not_allowed' });
+      const pin = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+      await pool.query(`update auth.users set encrypted_password = extensions.crypt($2, extensions.gen_salt('bf')) where id = $1`, [b.user_id, pin]);
+      await asRole(claims, (c) => c.query('select public.log_pin_reset($1)', [b.user_id]));
+      return send(res, 200, { pin });
+    } catch (e) { return pgError(res, e); }
+  }
+
   // ---- simple table access (master data screens)
   const tbl = path.match(/^\/rest\/v1\/([a-z_0-9]+)$/);
   if (tbl) {
