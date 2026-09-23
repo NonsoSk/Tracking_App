@@ -39,10 +39,11 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | `…0800_legacy_import` | import batches, verbatim source rows, legacy value mappings |
 | `…0900_security` | RLS policies and grants for every table and function |
 | `…1000_legacy_import_fn` | `app.import_legacy_batch` / `app.rollback_legacy_batch`, batched overdue alerts |
+| `…1100_app_api` | app read API: master data, staff list/detail (search, filters, paging), dashboards, officer home, export, admin lists |
 
 ### Running the tests
 
-The suite has 139 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
+The suite has 156 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
 
 ```bash
 # needs PostgreSQL 15+ with pgtap + pg_trgm, and pg_prove
