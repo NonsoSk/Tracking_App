@@ -4,7 +4,7 @@
 **Reproduce:** `python3 scripts/migration/audit_workbooks.py --complete <Complete…xlsx> --tracker <Indorama…2026.1.xlsx>`
 The script prints the PII-free summary below and writes row-level review lists (with names and phones) to the git-ignored `audit-output/` folder.
 
-> **Files not supplied.** Only the two Excel workbooks were attached. `GRIEVANCE FORM IPL.docx`, `Host Communities in Indorama.docx`, `Pipeline Communities Structure.pdf` and `Jetty Communities Structure.pdf` were **not** available, so the community master below comes from the structure written in the brief. Where the brief and the workbooks disagree, both are shown.
+> **Reference files (received 23 Sep 2026).** `Host Communities in Indorama.docx` lists the 6 host communities (and 25 PAC members). `Pipeline Communities Structure.pdf` says "5 clusters and 32 communities" but names 31, the same 31 as the brief. `Jetty Communities Structure.pdf` lists Onne and Ogu. `GRIEVANCE FORM IPL.docx` has Date, Full Name, Community, Phone Number, Address, Email, Concern/Grievance, Suggestions, Signature and Date.
 
 ---
 
@@ -70,23 +70,23 @@ Consequence: a 2019 record has **no complainant name, phone, gender, severity or
   - Status conflicts in **every pair**: Workbook A says `Closed`, Workbook B says `Resolved`.
   - Categories agree in every pair.
 - **Complete/2024 (3 records: IPL2001037, IPL2001047, IPL2001095) are not in the tracker.**
-- **Tracker "2024" block (25 records) is not in Workbook A**, and it looks wrong:
-  - all 25 carry **2026-style IDs** (`IPL2026…`, `IFL2026…`);
-  - all share Form Issuance Date **13 Apr 2024**;
-  - their submission dates climb by exactly one day per row (29 May → 20 Jun 2024), which is the pattern Excel's fill-down produces.
+- **Tracker "2024" block (25 records, sheet rows 2–26) is not in Workbook A as such, and it is internally inconsistent:**
+  - every row's *name and tracking ID* also belong to a different 2026 row in the same sheet (e.g. row 11 = row 106's person and ID);
+  - the *grievance and resolution text* comes from earlier grievances: rows 24–26 carry word for word the texts of the three Complete/2024 records (IPL2001037, IPL2001047, IPL2001095), and six others match 2019–2023 texts;
+  - all 25 share Form Issuance Date 13 Apr 2024, and their submission dates climb one day per row (fill-down artefact).
 
-  The likely explanation is a mis-keyed year on 2026 forms. **This is a flag, not a correction:** the dates are imported as recorded and marked `date_suspect` for you to confirm.
+  **Decision (23 Sep 2026): these are 2024 records duplicated into the tracker and are removed.** They are not imported as grievances. Each raw row is still kept in `legacy_source_records` with `match_role = 'excluded_duplicate'`, so nothing from the file is lost. The authoritative 2024 records are the 3 in Workbook A.
 
 ### 3.2 Duplicates inside Tracker 2026.1
 **57 Tracking IDs are used more than once, across 120 rows:**
 
-| Pattern | IDs | What it probably means | Proposed handling |
+| Pattern | IDs | What it probably means | Handling |
 |---|---|---|---|
 | Same person, **different** grievance text | 40 | One paper form carrying several concerns, typed as separate rows under the form's reference | Keep every row as its own grievance. Store the shared reference as `legacy_tracking_id`. |
-| Same person, **same** text | 10 | Double entry | Flag as a duplicate candidate for review. Not deleted. |
+| Same person, **same** text | 10 | Double entry | **Removed** (decision 5): one copy becomes the grievance, and the others are archived as source rows linked to it |
 | **Different people** under one ID | 7 | ID collision / typing error | Keep both. Flag the ID collision. |
 
-Separately, **24 rows share name and text with another row** (18 surplus copies), including some under different IDs or communities. For example, one complainant appears under Okerewa, Elelenwo, Akpajo and Ubima with the same ID. All of these are flagged for review.
+Separately, **24 rows share name and text with another row** (18 surplus copies), including some under different IDs or communities. For example, one complainant appears under Okerewa, Elelenwo, Akpajo and Ubima with the same ID. Most of these fall in the removed "2024" block. Any that remain are de-duplicated the same way.
 
 ### 3.3 Duplicates in 2018–2023
 **12 rows (6 pairs)** have identical community and text: 2 pairs in 2020 and 4 pairs in 2021. They may be genuine repeat submissions, so they are flagged and not merged.
@@ -257,8 +257,11 @@ The mapping lives in a `legacy_value_mappings` table, not in code. Each imported
 | blank | Submitted + flag | |
 | A=Closed vs B=Resolved conflict (2025 overlap) | Closed | Workbook A is the later compilation. Both raw values are kept. |
 
-### 8.4 Record reconciliation
-- Import **Workbook A 2018–2024 (120 rows)** and **Tracker 2026.1 (425 rows)** as grievances: **545 candidate grievances**.
+### 8.4 Record reconciliation (updated with the confirmed decisions)
+- Import **Workbook A 2018–2024 (120 rows)** and **Tracker 2026.1 2025–2026 rows (400)** as grievance candidates.
+- The **25 tracker "2024" rows are excluded** (decision 5). Their raw rows are archived.
+- **Exact duplicates are removed** (decision 5: "duplicates can be removed"). Of each set of rows with the same person and the same text, one becomes the grievance. The others are archived as `excluded_duplicate` source rows linked to it.
+- "Same ID, different grievance" rows (one form, several concerns) and "different people under one ID" are **not** duplicates. They stay as separate grievances.
 - **Workbook A 2025 (63 rows)** duplicates tracker rows. Each is stored as a *second source record* linked to the matching tracker grievance, so both versions remain traceable. They are **not** imported as separate grievances.
 - Duplicate candidates (§3.2–3.3) are imported **and** flagged `needs_review`. Nothing is dropped automatically.
 - Historical complainants are **not** turned into user accounts. Linking a new account to past grievances is a staff-verified action.

@@ -1,6 +1,6 @@
-# Phases 2–4 · Architecture Proposal (for approval)
+# Phases 2–4 · Architecture (approved 23 Sep 2026)
 
-Read with `01-data-audit.md`. **No application code has been written yet.** This document is for review, and implementation starts once it is approved.
+Read with `01-data-audit.md`. The decisions confirmed on approval are in §8. Implementation status is tracked in the README.
 
 Guiding loop: **SUBMIT → TRACK → RESOLVE → ACKNOWLEDGE.**
 
@@ -303,18 +303,18 @@ Expected result for the supplied files: **545 grievances**, plus 63 overlap sour
 
 ---
 
-## 8. Decisions needed before implementation
+## 8. Decisions (confirmed 23 Sep 2026)
 
-1. **Akpajo (Host + Pipeline Cluster 1).** Should its grievances default to **Host** (primary affiliation, changeable by staff), or should staff decide per grievance? *Recommendation: default Host, staff can change.*
-2. **The 32nd pipeline community.** What is its name? Until you confirm it, the master holds 31.
-3. **Officer names.** Is it "Godspower" or "Godpower" Jaka? Is "Jima Bebe" the same person as "Jima Ngofa" or "Godwin Bebe-Okpabi" in the workbook, or someone else?
-4. **Overdue clock.** Calendar days or working days (Mon–Fri excluding holidays)? *Recommendation: working days, which is fairer to officers and avoids weekend false alarms.*
-5. **Tracker "2024" block (25 rows).** Are these really 2024, or 2026 forms with a typing error? They will be imported as recorded and flagged until you answer.
-6. **The 177 open tracker grievances and 3 open WIPs from 2020–21.** Should they be imported as open and worked in the new app? *Recommendation: yes. The 2020–21 WIPs go to an officer review queue.*
-7. **Hosting and WhatsApp provider.** Supabase cloud or self-hosted on IPL infrastructure? Which WhatsApp provider (Meta Cloud API directly, Twilio or Termii)? The app works without one; messages queue until a provider is configured.
-8. **Missing reference files.** Please attach the grievance form (.docx), Host Communities (.docx) and the Pipeline and Jetty PDFs so the master data can be checked against them.
-
----
+| # | Question | Decision | Implemented as |
+|---|---|---|---|
+| 1 | Akpajo is Host **and** Pipeline Cluster 1 | Both affiliations are real | Two `community_affiliations` rows; Host is primary (the default for new grievances). Staff can switch a grievance to Pipeline / Cluster 1 in triage, and the change is audited. The officer is the same either way. |
+| 2 | 32nd pipeline community | Leave it blank | The master holds 31. An admin adds the 32nd when it is known. |
+| 3 | Officer names | **Godpower Jaka** (Host + Pipeline), **Godwin Bebe-Okpabi** (Indirectly Impacted), **Esther Walter Anga** (Jetty) | Accounts are created by the Super Admin, then `admin_set_officer_scopes()` sets their responsibility |
+| 4 | Overdue clock | **Working days** | Mon–Fri minus `holidays`, Africa/Lagos, 3 days (configurable) |
+| 5 | Tracker "2024" block | Really 2024, duplicates, **remove** | Excluded from grievances. The raw rows are kept in `legacy_source_records` (`match_role = excluded_duplicate`) for traceability. See the audit §3.1. |
+| 6 | Open 2026.1 items | Import as live work | Imported open. The three 2020–21 WIPs get `legacy_needs_review` (no alerts until reviewed). |
+| 7 | WhatsApp provider | **Meta WhatsApp Cloud API** directly | `notify-dispatch` Edge Function + signed webhook |
+| 8 | Reference files | Received | They match the brief. The pipeline PDF also states 32 and lists 31. |
 
 ## 9. Build phases (after approval)
 
