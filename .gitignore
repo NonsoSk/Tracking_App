@@ -12,3 +12,6 @@ dist/
 .env.*
 !.env.example
 __pycache__/
+apps/web/dev-dist/
+test-results/
+playwright-report/
