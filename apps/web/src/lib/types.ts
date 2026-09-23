@@ -147,6 +147,7 @@ export interface StaffDetail extends StaffRow {
   responsibility: string | null;
   text_amended: boolean;
   legacy_needs_review: boolean;
+  archived_at: string | null;
   closure_officer_name: string | null;
   legacy: Record<string, string | number>;
   affiliations: { community_type_id: number; type: string; cluster: string | null; is_primary: boolean }[] | null;

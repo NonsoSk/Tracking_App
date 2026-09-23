@@ -31,6 +31,14 @@ export default defineConfig({
       workbox: {
         // The app shell is precached; data lives in IndexedDB and is synced by the app itself.
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'],
+        // Install-only icons and the Excel writer are not needed offline on a first visit.
+        globIgnores: ['**/icons/icon-512.png', '**/icons/icon-maskable-512.png', '**/assets/excel-*', '**/assets/StaffApp-*'],
+        // ...but once someone uses them (staff), keep them for offline use.
+        runtimeCaching: [{
+          urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/assets/'),
+          handler: 'CacheFirst',
+          options: { cacheName: 'lazy-assets', expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 60 } },
+        }],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/(auth|rest|functions)\//],
         cleanupOutdatedCaches: true,
@@ -44,6 +52,7 @@ export default defineConfig({
         manualChunks: {
           react: ['react', 'react-dom', 'react-router-dom'],
           data: ['@supabase/supabase-js', '@tanstack/react-query', 'dexie'],
+          excel: ['write-excel-file'],
         },
       },
     },

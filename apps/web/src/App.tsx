@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth';
-import { useAutoSync } from '@/app/hooks';
+import { useAutoSync, useMasterData } from '@/app/hooks';
 import { Spinner, useToast } from '@/design/ui';
 import { hasOnboarded, SignIn, SignUp, Welcome } from '@/auth/screens';
 import { MemberShell } from '@/member/shell';
@@ -51,6 +51,9 @@ function MemberApp() {
     qc.invalidateQueries();
   }, [toast, qc]);
   useAutoSync(userId, onSynced);
+  // Load communities/categories now, while there is signal, so the submit
+  // wizard works fully later even with no connection.
+  useMasterData();
   return (
     <MemberShell>
       <Routes>

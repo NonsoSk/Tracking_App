@@ -242,11 +242,13 @@ begin
       from _d),
     'by_year', (select coalesce(jsonb_agg(jsonb_build_object('key', year, 'total', n, 'open', o) order by year), '[]')
                 from (select year, count(*) n, count(*) filter (where is_open) o from _d group by year) x),
-    'by_month', (select coalesce(jsonb_agg(jsonb_build_object('key', m, 'received', n, 'resolved', r) order by m), '[]')
-                 from (select to_char(date_trunc('month', date_received), 'YYYY-MM') m, count(*) n,
-                              count(*) filter (where resolved_at is not null) r
-                       from _d where date_received >= (date_trunc('month', coalesce((f ->> 'date_to')::date, current_date)) - interval '11 months')
-                       group by 1) x),
+    'by_month', (select coalesce(jsonb_agg(jsonb_build_object('key', to_char(m, 'YYYY-MM'),
+                         'received', (select count(*) from _d where date_trunc('month', date_received) = m),
+                         'resolved', (select count(*) from _d where date_trunc('month', resolved_at at time zone app.tz()) = m))
+                       order by m), '[]')
+                 -- every one of the last 12 months, including months with none
+                 from generate_series(date_trunc('month', coalesce((f ->> 'date_to')::date, current_date)) - interval '11 months',
+                                      date_trunc('month', coalesce((f ->> 'date_to')::date, current_date)), interval '1 month') m),
     'by_type', (select coalesce(jsonb_agg(jsonb_build_object('key', coalesce(community_type, 'Unclassified'), 'id', community_type_id,
                                                              'total', n, 'open', o) order by n desc), '[]')
                 from (select community_type, community_type_id, count(*) n, count(*) filter (where is_open) o

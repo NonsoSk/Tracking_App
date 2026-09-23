@@ -19,7 +19,9 @@ begin
   values (new.id,
           coalesce(nullif(btrim(m ->> 'full_name'), ''), 'Community member'),
           app.normalize_phone(coalesce(new.phone, m ->> 'phone')),
-          coalesce(new.email, nullif(btrim(m ->> 'email'), '')),
+          -- Members sign in with a phone mapped to a login-only address; that address
+          -- is not their email. Staff accounts use their real email.
+          case when m ? 'phone' then nullif(btrim(m ->> 'email'), '') else coalesce(new.email, nullif(btrim(m ->> 'email'), '')) end,
           v_comm,
           nullif(btrim(m ->> 'address'), ''),
           case when m ->> 'gender' in ('male','female') then m ->> 'gender' end);

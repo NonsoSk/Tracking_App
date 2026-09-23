@@ -9,7 +9,7 @@
     "preview": "vite preview --port 4173",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "PW_CHROMIUM=${PW_CHROMIUM:-/opt/pw-browsers/chromium} playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.1",
@@ -18,7 +18,8 @@
     "lucide-react": "^1.47.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.30.6"
+    "react-router-dom": "^6.30.6",
+    "write-excel-file": "^2.3.10"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -40,3 +40,11 @@ describe('dates', () => {
     expect(formatDate('2026-09-23')).toBe('23 Sept 2026'.replace('Sept', new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date('2026-09-23T12:00:00Z'))));
   });
 });
+
+import { toCsv } from '@/staff/export';
+describe('CSV export', () => {
+  it('quotes, escapes and neutralises formulas', () => {
+    const csv = toCsv([{ a: 'x,y', b: 'say "hi"', c: '=HYPERLINK("evil")', d: true, e: null }]);
+    expect(csv.split('\r\n')[1]).toBe(`"x,y","say ""hi""","'=HYPERLINK(""evil"")",Yes,`);
+  });
+});
