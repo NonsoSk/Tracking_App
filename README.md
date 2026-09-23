@@ -87,3 +87,9 @@ PGHOST=… PGUSER=postgres python3 import_workbooks.py --complete … --tracker 
 Import after the officer accounts and scopes exist, so open items are assigned. To undo, run `select app.rollback_legacy_batch('<batch id>')`.
 
 The source workbooks contain complainant names and phone numbers. **Do not commit them.** `.gitignore` blocks `*.xlsx`, `*.csv` and `audit-output/`.
+
+## Quick setup on Supabase (no command line)
+
+1. SQL Editor → run [`supabase/setup/all-in-one.sql`](supabase/setup/all-in-one.sql) once on the empty project.
+2. Authentication → Users → Add user (Auto Confirm) for yourself and the officers; then run [`supabase/setup/02-staff.sql`](supabase/setup/02-staff.sql) with the real emails.
+3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml) holds the build settings) with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (the publishable key).
