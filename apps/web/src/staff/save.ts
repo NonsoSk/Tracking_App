@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toAppError } from '@/lib/errors';
+import { describeError } from '@/lib/errors';
 import { useToast } from '@/design/ui';
 
 /** Run a change, show a toast (with Undo when given), refresh the listed queries. */
@@ -16,7 +16,7 @@ export function useSave() {
       toast(ok, 'success', undo && { label: 'Undo', run: () => { void save(undo, 'Undone', keys); } });
       await Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })));
       return true;
-    } catch (e) { toast(toAppError(e).message, 'warning'); return false; }
+    } catch (e) { toast(describeError(e), 'warning'); return false; }
     finally { setBusy(false); }
   };
   return { busy, save };

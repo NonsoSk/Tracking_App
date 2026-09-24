@@ -5,7 +5,7 @@ import { useAuth } from '@/app/auth';
 import { useMasterData, useOnline } from '@/app/hooks';
 import { Banner, Button, Field, Input, SearchInput, Stepper, ThemeSwitch, cx } from '@/design/ui';
 import { CommunityScene, Logo } from '@/design/art';
-import { toAppError } from '@/lib/errors';
+import { describeError } from '@/lib/errors';
 import { normalizePhone } from '@/lib/phone';
 
 const ONBOARDED = 'ipl.onboarded';
@@ -142,7 +142,7 @@ export function SignUp() {
     setBusy(true);
     signUp({ fullName: name, phone, communityId: community!.id, pin })
       .then(() => nav('/', { replace: true }))
-      .catch((err) => setError(toAppError(err).message))
+      .catch((err) => setError(describeError(err)))
       .finally(() => setBusy(false));
   };
 
@@ -202,7 +202,7 @@ export function SignIn() {
     setBusy(true);
     signIn(identifier, secret)
       .then(() => { try { localStorage.setItem('ipl.lastLogin', identifier.trim()); } catch { /* ignore */ } nav('/', { replace: true }); })
-      .catch((err) => setError(toAppError(err).message))
+      .catch((err) => setError(describeError(err)))
       .finally(() => setBusy(false));
   };
 

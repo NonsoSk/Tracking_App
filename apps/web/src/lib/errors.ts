@@ -12,6 +12,12 @@ const MESSAGES: Record<string, string> = {
   account_disabled: 'This account has been disabled. Please contact the Community Relations office.',
   weak_pin: 'Your PIN must be 6 digits.',
   rate_limited: 'Too many attempts. Please wait a few minutes and try again.',
+  email_not_confirmed: 'This account is waiting for confirmation. The administrator must turn off "Confirm email" in Supabase (Authentication → Sign In / Providers → Email), then you can sign in.',
+  email_send_failed: 'The account could not be created because the server tried to send a confirmation email. The administrator must turn off "Confirm email" in Supabase (Authentication → Sign In / Providers → Email).',
+  email_address_invalid: 'The server rejected the sign-in address. The administrator should check the Supabase email settings.',
+  signup_disabled: 'New accounts are switched off. The administrator must allow new users to sign up in Supabase (Authentication → Sign In / Providers).',
+  weak_password: 'The PIN was rejected by the server\'s password rules. The administrator should set the minimum password length to 6 and turn off extra character requirements in Supabase (Authentication → Sign In / Providers → Email).',
+  signup_db_error: 'The account could not be saved. The database setup may be incomplete; the administrator should re-run the latest update script.',
 
   code_invalid: "That submission code isn't correct. Please check it with your community leader.",
   code_expired: 'This submission code has expired. Grievance collection for your community is closed.',
@@ -52,8 +58,11 @@ const PERMANENT = new Set([
 ]);
 
 export class AppError extends Error {
-  constructor(public key: string, message?: string) {
+  /** The original technical message, shown small under unexpected errors so it can be reported. */
+  detail?: string;
+  constructor(public key: string, message?: string, detail?: string) {
     super(message ?? MESSAGES[key] ?? 'Something went wrong. Please try again.');
+    this.detail = detail;
   }
   /** true when the request may succeed later (network, server busy) */
   get transient() {
@@ -70,6 +79,14 @@ export function messageFor(key: string): string {
 
 type PgLikeError = { message?: string; code?: string; status?: number; name?: string } | null | undefined;
 
+/** Supabase Auth error codes → our keys. */
+const AUTH_CODES: Record<string, string> = {
+  invalid_credentials: 'invalid_login', email_not_confirmed: 'email_not_confirmed', user_already_exists: 'account_exists',
+  email_exists: 'account_exists', weak_password: 'weak_password', signup_disabled: 'signup_disabled', email_provider_disabled: 'signup_disabled',
+  email_address_invalid: 'email_address_invalid', email_address_not_authorized: 'email_send_failed', over_email_send_rate_limit: 'email_send_failed',
+  over_request_rate_limit: 'rate_limited', user_banned: 'account_disabled', unexpected_failure: 'signup_db_error',
+};
+
 /** Normalise anything thrown by fetch / supabase-js into an AppError. */
 export function toAppError(e: unknown): AppError {
   if (e instanceof AppError) return e;
@@ -79,11 +96,24 @@ export function toAppError(e: unknown): AppError {
     return new AppError('network');
   }
   if (msg in MESSAGES) return new AppError(msg);
+  if (err?.code && AUTH_CODES[err.code]) return new AppError(AUTH_CODES[err.code], undefined, msg);
+  if (/email not confirmed/i.test(msg)) return new AppError('email_not_confirmed', undefined, msg);
+  if (/confirmation email|sending .*email|not authorized/i.test(msg)) return new AppError('email_send_failed', undefined, msg);
+  if (/email address .* is invalid|invalid format/i.test(msg)) return new AppError('email_address_invalid', undefined, msg);
+  if (/signups? not allowed|signup.* disabled/i.test(msg)) return new AppError('signup_disabled', undefined, msg);
+  if (/password should|weak password|password is known/i.test(msg)) return new AppError('weak_password', undefined, msg);
+  if (/database error saving new user/i.test(msg)) return new AppError('signup_db_error', undefined, msg);
   if (/invalid login credentials/i.test(msg)) return new AppError('invalid_login');
   if (/already registered|already exists/i.test(msg)) return new AppError('account_exists');
   if (/rate limit|too many/i.test(msg)) return new AppError('rate_limited');
   if (/JWT|not_signed_in|session/i.test(msg)) return new AppError('not_signed_in');
   if (err?.code === '42501') return new AppError('not_allowed');
-  if (err?.status && err.status >= 500) return new AppError('server', 'The service is busy. Please try again shortly.');
-  return new AppError('unknown');
+  if (err?.status && err.status >= 500) return new AppError('server', 'The service is busy. Please try again shortly.', msg || undefined);
+  return new AppError('unknown', undefined, [err?.code, msg].filter(Boolean).join(': ') || undefined);
+}
+
+/** Plain message, plus the technical detail for unexpected errors so it can be reported. */
+export function describeError(e: unknown): string {
+  const a = toAppError(e);
+  return a.detail && (a.key === 'unknown' || a.key === 'server') ? `${a.message} (Details: ${a.detail})` : a.message;
 }

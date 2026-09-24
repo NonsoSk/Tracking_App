@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizePhone, formatPhone } from './phone';
-import { AppError, toAppError } from './errors';
+import { AppError, describeError, toAppError } from './errors';
 import { formatDate } from './format';
 
 describe('phone numbers', () => {
@@ -46,5 +46,17 @@ describe('CSV export', () => {
   it('quotes, escapes and neutralises formulas', () => {
     const csv = toCsv([{ a: 'x,y', b: 'say "hi"', c: '=HYPERLINK("evil")', d: true, e: null }]);
     expect(csv.split('\r\n')[1]).toBe(`"x,y","say ""hi""","'=HYPERLINK(""evil"")",Yes,`);
+  });
+});
+
+describe('Supabase Auth errors get a clear message', () => {
+  it('maps auth error codes and messages', () => {
+    expect(toAppError({ code: 'email_not_confirmed', message: 'Email not confirmed', status: 400 }).key).toBe('email_not_confirmed');
+    expect(toAppError({ message: 'Error sending confirmation email', status: 500 }).key).toBe('email_send_failed');
+    expect(toAppError({ code: 'weak_password', message: 'Password should contain…' }).key).toBe('weak_password');
+    expect(toAppError({ message: 'Database error saving new user', status: 500 }).key).toBe('signup_db_error');
+  });
+  it('keeps the technical detail for anything unexpected', () => {
+    expect(describeError({ code: 'odd_thing', message: 'Something odd', status: 400 })).toContain('Details: odd_thing: Something odd');
   });
 });
