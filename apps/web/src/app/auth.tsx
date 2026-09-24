@@ -81,9 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error && isPin && /invalid login credentials/i.test(error.message)) {
       ({ data, error } = await supabase.auth.signInWithPassword({ email, password: secret }));
     }
-    if (error) throw toAppError(error);
+    if (error || !data.session) throw toAppError(error);
     setSession(data.session);
-    await load(data.user.id);
+    await load(data.session.user.id);
     if (access && !access.is_active) throw new AppError('account_disabled');
   }, [load, access]);
 
