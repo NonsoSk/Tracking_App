@@ -37,7 +37,7 @@ export function Codes() {
 
   return (
     <div>
-      <PageTitle title="Submission codes" subtitle="A code opens grievance collection for a community (or group of communities) for a set period."
+      <PageTitle title="Submission codes" subtitle="Only the Super Admin creates codes. Share a code with the community leaders; members must type it exactly to submit. Each grievance still gets its own tracking ID."
         actions={<Button icon={Plus} onClick={() => setCreating(true)}>New code</Button>} />
       {q.isLoading ? <Skeleton className="h-64" /> : q.isError ? <ErrorState message={toAppError(q.error).message} onRetry={() => q.refetch()} />
         : !q.data?.length ? <EmptyState icon={KeyRound} title="No codes yet" body="Create a code to open grievance collection for a community." action={<Button icon={Plus} onClick={() => setCreating(true)}>New code</Button>} />
@@ -65,7 +65,7 @@ export function Codes() {
                   {c.deactivated_at && <div className="flex justify-between"><dt className="text-ink-500">Deactivated</dt><dd>{c.deactivated_by} · {formatDate(c.deactivated_at)}</dd></div>}
                 </dl>
                 <div className="mt-4 flex gap-2 pt-1">
-                  {c.state === 'draft' && <Button size="sm" icon={Rocket} loading={busy} onClick={() => act(() => api.releaseCode(c.id), 'Released: members in scope have been notified')}>Release</Button>}
+                  {c.state === 'draft' && <Button size="sm" icon={Rocket} loading={busy} onClick={() => act(() => api.releaseCode(c.id), 'Activated. Members are told collection is open (without the code); share the code with the leaders.')}>Release</Button>}
                   {['draft', 'active', 'scheduled', 'full'].includes(c.state) && <Button size="sm" variant="secondary" icon={Ban} onClick={() => setDeactivate(c)}>Deactivate</Button>}
                 </div>
               </Card>
@@ -141,7 +141,7 @@ function CreateCode({ open, onClose }: { open: boolean; onClose: () => void }) {
         </div>
         <Field label="Maximum submissions" htmlFor="max" optional><Input id="max" type="number" min={1} inputMode="numeric" value={max} onChange={(e) => setMax(e.target.value)} /></Field>
         <Field label="Label" htmlFor="lbl" optional hint="e.g. September town hall"><Input id="lbl" value={label} onChange={(e) => setLabel(e.target.value)} /></Field>
-        <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={release} onChange={(e) => setRelease(e.target.checked)} />Release now (members in scope are notified in the app)</label>
+        <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={release} onChange={(e) => setRelease(e.target.checked)} />Activate now (members are told collection is open, but never shown the code)</label>
         {error && <Banner tone="warning">{error}</Banner>}
       </div>
     </Modal>

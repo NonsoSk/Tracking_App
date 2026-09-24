@@ -52,6 +52,8 @@ export const api = {
 
   // community member
   submissionStatus: (communityId?: string | null) => rpc<SubmissionStatus>('get_submission_status', { p_community: communityId ?? null }),
+  checkCode: (code: string, communityId?: string | null) =>
+    rpc<{ ok: boolean; error?: string; scope?: string; valid_until?: string }>('check_submission_code', { p_code: code, p_community: communityId ?? null }),
   submitGrievance: (p: SubmitPayload) => rpc<SubmitResult>('submit_grievance', { p }),
   myGrievances: (since?: string | null) => rpc<MyGrievance[]>('my_grievances', { p_since: since ?? null }),
   myGrievanceDetail: (id: string) => rpc<MyGrievanceDetail>('my_grievance_detail', { p_id: id }),

@@ -42,7 +42,7 @@ export function Home() {
             <Chip3D />
           </div>
           <p className="relative mt-3 max-w-[30ch] text-[14px] leading-snug text-white/85">
-            {open ? `Grievances are being collected for ${status.data?.community_name} until ${formatDate(status.data?.valid_until)}.`
+            {open ? `Grievances are being collected for ${status.data?.community_name} until ${formatDate(status.data?.valid_until)}. Get the submission code from your community leader.`
                   : status.data ? 'Collection is closed for your community right now.' : "We'll check when you're back online."}
           </p>
           <p className="embossed relative mt-4 text-[17px] text-white/95">{profile?.phone ? formatPhone(profile.phone) : '•••• •••• ••••'}</p>
@@ -56,7 +56,7 @@ export function Home() {
       <Button size="lg" icon={PenLine} onClick={() => nav('/submit')} className="h-16 text-lg">
         Submit a grievance
       </Button>
-      {!open && status.data && <p className="-mt-2 text-center text-sm text-ink-500">You can write it now; you'll need the code from your community leader when collection resumes.</p>}
+      <p className="-mt-2 text-center text-sm text-ink-500">You'll need the submission code from your community leader.</p>
 
       <QuickActions items={[
         { label: 'Mine', icon: FileText, onClick: () => nav('/grievances') },
@@ -76,7 +76,7 @@ export function Home() {
           {needAck === 1 ? 'One grievance was resolved. Please tell us if you agree.' : `${needAck} grievances were resolved. Please tell us if you agree.`}
         </NextStep>
       ) : (
-        <NextStep>{list.length ? 'Nothing needs you right now. We will send you an alert when there is news.' : 'When you have a concern, tap “Submit a grievance”. It takes about 2 minutes.'}</NextStep>
+        <NextStep>{list.length ? 'Nothing needs you right now. We will send you an alert when there is news.' : 'Get the submission code from your community leader, then tap “Submit a grievance”. It takes about 2 minutes.'}</NextStep>
       )}
 
       {list.length > 0 && (

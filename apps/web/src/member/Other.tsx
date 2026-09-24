@@ -125,7 +125,7 @@ function Row({ label, value, onEdit, icon: Icon }: { label: string; value: strin
 /* ---------------------------------------------------------------- Help */
 export function Help() {
   const steps = [
-    { icon: PenLine, title: 'Submit', body: 'When grievance collection is open for your community, write your concern in your own words. You get a tracking ID.' },
+    { icon: PenLine, title: 'Submit', body: 'Get the submission code from your community leader. Enter it, then write your concern in your own words. Every grievance gets its own tracking ID.' },
     { icon: Search, title: 'Track', body: 'Open "My grievances" to see where your grievance is. We notify you when something changes.' },
     { icon: FileText, title: 'Resolve', body: 'The officer responsible for your community works on it and records how it was resolved.' },
     { icon: CircleCheck, title: 'Acknowledge', body: 'You tell us whether you agree with the resolution. If not, it is looked at again.' },

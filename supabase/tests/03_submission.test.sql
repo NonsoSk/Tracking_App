@@ -10,25 +10,28 @@ insert into ids values
   ('member2', tests.create_user('Grace Okoro', 'Onne')),
   ('officer', tests.create_user('Godpower Jaka', null, array['officer'])),
   ('jetty',   tests.create_user('Esther Walter Anga', null, array['officer'])),
-  ('clerk',   tests.create_user('Data Clerk', null, array['data_entry']));
+  ('clerk',   tests.create_user('Data Clerk', null, array['data_entry'])),
+  ('admin',   tests.create_user('Super Admin', null, array['super_admin']));
 select tests.set_scopes((select v from ids where k = 'officer'), '[{"community_type":"HOST"},{"community_type":"PIPELINE"}]');
 select tests.set_scopes((select v from ids where k = 'jetty'),   '[{"community_type":"JETTY"}]');
 
 -- ---- codes -------------------------------------------------------------------------
-select tests.login((select v from ids where k = 'officer'));
+select tests.login((select v from ids where k = 'admin'));
 create temp table c1 as select * from public.create_submission_code(jsonb_build_object(
   'scope_type', 'community', 'community_id', tests.community('Agbonchia'),
   'valid_until', now() + interval '2 days', 'release', true));
 select matches((select code from c1), '^AGB-2026-[0-9]{4}-[2-9A-HJ-NP-Z]{4}$', 'code format AGB-YYYY-MMDD-XXXX, unambiguous characters');
 select is((select status from c1), 'active', 'released code is active');
+select tests.logout();
+select tests.login((select v from ids where k = 'officer'));
 select throws_ok($$select public.create_submission_code(jsonb_build_object('scope_type','community',
-                   'community_id', tests.community('Onne'), 'valid_until', now() + interval '1 day'))$$,
-  '42501', 'outside_your_responsibility', 'a Host/Pipeline officer cannot open collection for a Jetty community');
+                   'community_id', tests.community('Agbonchia'), 'valid_until', now() + interval '1 day'))$$,
+  '42501', 'not_allowed', 'only the Super Admin can generate codes; an officer cannot');
 select tests.logout();
 
 select tests.login((select v from ids where k = 'member'));
 select is((public.get_submission_status() ->> 'open')::boolean, true, 'member sees collection OPEN for their community');
-select is(public.get_submission_status() ->> 'code', (select code from c1), 'Get Code returns the released code');
+select ok(not (public.get_submission_status() ? 'code'), 'the member is never shown the code; they must get it from their leader');
 select tests.logout();
 
 select tests.login((select v from ids where k = 'member2'));

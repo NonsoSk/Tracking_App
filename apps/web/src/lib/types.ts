@@ -35,7 +35,6 @@ export interface SubmissionStatus {
   open: boolean;
   community_id: string | null;
   community_name: string | null;
-  code: string | null;
   valid_from: string | null;
   valid_until: string | null;
   server_time: string;

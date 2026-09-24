@@ -7,12 +7,17 @@ export async function signIn(page: Page, id: string, secret: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
+/** The code the Super Admin generated for Agbonchia in the dev seed; leaders pass it on. */
+export const CODE = 'AGB-2026-0923-X7P4';
+
 export const MEMBER = ['0803 123 4567', '123456'] as const;
 export const OFFICER = ['godpower@ipl.test', 'Officer#2026'] as const;
 export const JETTY_OFFICER = ['esther@ipl.test', 'Officer#2026'] as const;
 
 export async function writeGrievance(page: Page, text: string) {
   await page.getByRole('button', { name: 'Submit a grievance' }).click();
+  await page.getByLabel('Submission code').fill(CODE);            // typed by the member, never filled in
+  await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: /^Yes, / }).click();
   await page.getByLabel('What is your concern?').fill(text);
   await page.getByRole('button', { name: 'Continue' }).click();

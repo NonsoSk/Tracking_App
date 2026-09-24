@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, Briefcase, CircleHelp, Factory, GraduationCap, Handshake, HeartPulse, KeyRound, Leaf, MapPin,
+  CheckCircle2, ArrowLeft, ArrowRight, Briefcase, CircleHelp, Factory, GraduationCap, Handshake, HeartPulse, KeyRound, Leaf, MapPin,
   Pencil, Route, Send, Users, type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/app/auth';
@@ -51,9 +51,8 @@ export function Submit() {
     });
   }, [userId]);
 
-  // The released code is filled in for the member; they only type one if they were given it offline.
-  const autoCode = status.data?.open && status.data.code ? status.data.code : null;
-  useEffect(() => { if (autoCode && !draft.submission_code) setDraft((d) => ({ ...d, submission_code: autoCode })); }, [autoCode, draft.submission_code]);
+  // Members always type the code their community leader gave them; the app never fills it in.
+  const [codeOk, setCodeOk] = useState<string | null>(null);
 
   // Autosave (the draft survives closing the app or losing power).
   const first = useRef(true);
@@ -64,7 +63,7 @@ export function Submit() {
     return () => clearTimeout(t);
   }, [draft, localId, userId, createdAt]);
 
-  const steps = useMemo(() => [...(autoCode ? [] : ['Code']), 'Community', 'Your concern', 'Type of concern', 'What should we do?', 'Review'], [autoCode]);
+  const steps = useMemo(() => ['Code', 'Community', 'Your concern', 'Type of concern', 'What should we do?', 'Review'], []);
   const name = steps[step];
   const set = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
@@ -74,10 +73,22 @@ export function Submit() {
     if (name === 'Your concern' && draft.description.trim().length < 10) return messageFor('description_too_short');
     return null;
   };
-  const next = () => {
+  const next = async () => {
     const e = validate();
     setError(e);
-    if (!e) { setStep((s) => Math.min(s + 1, steps.length - 1)); window.scrollTo({ top: 0 }); }
+    if (e) return;
+    // With a connection, check the code now so nobody writes a whole grievance with a wrong code.
+    // Offline, it is checked when the grievance is sent.
+    if (name === 'Code' && online) {
+      setBusy(true);
+      try {
+        const r = await api.checkCode(draft.submission_code.trim().toUpperCase(), draft.community_id || null);
+        if (!r.ok) { setError(messageFor(r.error ?? 'code_invalid')); return; }
+        setCodeOk(r.scope ?? null);
+      } catch { /* weak signal: carry on; the code is checked again on sending */ }
+      finally { setBusy(false); }
+    }
+    setStep((s) => Math.min(s + 1, steps.length - 1)); window.scrollTo({ top: 0 });
   };
   const back = () => { setError(null); if (step === 0) nav('/'); else setStep(step - 1); };
 
@@ -106,18 +117,19 @@ export function Submit() {
         {name === 'Code' && (
           <div className="space-y-4 animate-fade-up" key="code">
             <div className="flex items-start gap-3"><KeyRound className="mt-1 h-6 w-6 shrink-0 text-brand-700" aria-hidden />
-              <p className="text-ink-700">{status.data && !status.data.open
-                ? 'Collection is closed right now. If your community leader gave you a code, enter it below. Otherwise you can write your grievance and send it when collection opens.'
-                : 'Enter the grievance submission code from your community leader.'}</p></div>
+              <p className="text-ink-700">Enter the submission code your community leader gave you, exactly as written.
+                {status.data && !status.data.open && ' Collection is closed for your community right now, so a code may not work yet.'}</p></div>
             <Field label="Submission code" htmlFor="code">
               <Input id="code" autoCapitalize="characters" autoComplete="off" placeholder="AGB-2026-0923-X7P4" className="font-mono text-lg uppercase tracking-wide"
-                value={draft.submission_code} onChange={(e) => set({ submission_code: e.target.value.toUpperCase() })} />
+                value={draft.submission_code} onChange={(e) => { setCodeOk(null); set({ submission_code: e.target.value.toUpperCase() }); }} />
             </Field>
+            {!online && <p className="text-sm text-ink-500">You're offline. The code will be checked when your grievance is sent.</p>}
           </div>
         )}
 
         {name === 'Community' && (
           <div className="space-y-4 animate-fade-up" key="community">
+            {codeOk && <p className="flex items-center gap-2 rounded-2xl bg-success-soft px-3 py-2 text-sm font-bold text-success"><CheckCircle2 className="h-4 w-4" aria-hidden />Code accepted: it opens collection for {codeOk}.</p>}
             {!pickCommunity && draft.community_id ? (
               <>
                 <p className="text-lg text-ink-700">Is this grievance about your community?</p>
@@ -198,7 +210,7 @@ export function Submit() {
         <div className="sticky bottom-20 mt-6 flex gap-3 bg-canvas/90 py-3 backdrop-blur">
           {name === 'Review'
             ? <Button size="lg" icon={Send} loading={busy} onClick={submit} className="h-16 text-lg">{online ? 'Send grievance' : 'Save and send later'}</Button>
-            : <Button size="lg" iconRight={ArrowRight} onClick={next}>{name === 'What should we do?' && !draft.desired_resolution?.trim() && !draft.suggestions?.trim() ? 'Skip' : 'Continue'}</Button>}
+            : <Button size="lg" iconRight={ArrowRight} loading={busy && name === 'Code'} onClick={next}>{name === 'What should we do?' && !draft.desired_resolution?.trim() && !draft.suggestions?.trim() ? 'Skip' : 'Continue'}</Button>}
         </div>
       ) : null}
     </div>
