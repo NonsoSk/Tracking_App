@@ -40,8 +40,10 @@ export function Communities() {
     if (c.error) throw c.error; if (a.error) throw a.error;
     return { communities: c.data as { id: string; name: string; short_code: string | null; active: boolean; notes: string | null }[], affiliations: a.data as { id: number; community_id: string; community_type_id: number; cluster_id: number | null; is_primary: boolean; active: boolean }[] };
   } });
+  const officers = useQuery({ queryKey: ['community-officers'], queryFn: api.communityOfficers });
   const { busy, save } = useSave();
   const [edit, setEdit] = useState<null | { id?: string; name: string; short_code: string; notes: string; type: string; cluster: string }>(null);
+  const [assign, setAssign] = useState<null | { id: string; name: string }>(null);
   const [q, setQ] = useState('');
   const d = master.data;
   const typeName = (id: number) => d?.community_types.find((t) => t.id === id)?.name;
@@ -71,7 +73,7 @@ export function Communities() {
       {all.isLoading ? <Skeleton className="h-96" /> : all.isError ? <ErrorState message={toAppError(all.error).message} /> : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"><tr><th className="px-4 py-3">Community</th><th className="px-4 py-3">Classification</th><th className="px-4 py-3">Code prefix</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead>
+            <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"><tr><th className="px-4 py-3">Community</th><th className="px-4 py-3">Classification</th><th className="px-4 py-3">Officer in charge</th><th className="px-4 py-3">Code prefix</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead>
             <tbody className="divide-y divide-line/70">
               {all.data!.communities.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).map((c) => {
                 const affs = all.data!.affiliations.filter((a) => a.community_id === c.id && a.active);
@@ -83,6 +85,20 @@ export function Communities() {
                         <span key={a.id} className={cx('rounded-full px-2 py-0.5 text-xs font-semibold', a.is_primary ? 'bg-brand-100 text-brand-800' : 'bg-canvas text-ink-700')}>
                           {typeName(a.community_type_id)}{a.cluster_id ? ` · ${clusterName(a.cluster_id)}` : ''}{affs.length > 1 && a.is_primary ? ' (default)' : ''}
                         </span>))}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const o = officers.data?.find((x) => x.community_id === c.id);
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className="min-w-0">
+                              <p className={cx('font-medium', !o?.officer && 'text-danger')}>{o?.officer ?? 'Nobody'}</p>
+                              {o?.officer && <p className="text-xs text-ink-500">{o.via === 'community' ? 'this community' : `via ${o.via}`}</p>}
+                            </div>
+                            <Button size="sm" variant="secondary" onClick={() => setAssign({ id: c.id, name: c.name })}>Change</Button>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{c.short_code}</td>
                     <td className="px-4 py-3">{c.active ? <StatusBadge label="Active" tone="success" size="sm" /> : <StatusBadge label="Inactive" tone="muted" size="sm" />}</td>
@@ -97,6 +113,7 @@ export function Communities() {
           </table>
         </Card>
       )}
+      {assign && <AssignCommunityOfficer community={assign} current={officers.data?.find((x) => x.community_id === assign.id) ?? null} onClose={() => setAssign(null)} />}
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? 'Edit community' : 'Add community'}
         footer={<><Button variant="secondary" onClick={() => setEdit(null)}>Cancel</Button><Button loading={busy} disabled={!edit?.name.trim() || (!edit?.id && !edit?.type)} onClick={saveCommunity}>Save</Button></>}>
         {edit && d && (
@@ -116,6 +133,53 @@ export function Communities() {
         )}
       </Modal>
     </div>
+  );
+}
+
+/** Put anyone in charge of one community (they get the Officer role if they don't have it). */
+function AssignCommunityOfficer({ community, current, onClose }: {
+  community: { id: string; name: string };
+  current: { officer_id: string | null; officer: string | null; via: string | null; open_grievances: number } | null;
+  onClose: () => void;
+}) {
+  const { busy, save } = useSave();
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState<UserRow | null>(null);
+  const [handover, setHandover] = useState(true);
+  const people = useQuery({ queryKey: ['users', 'all', q], queryFn: () => api.users({ kind: 'all', q }) });
+  const keys = [['community-officers'], ['users'], ['staff-directory'], ['staff-list']];
+  const list = (people.data ?? []).filter((u) => u.is_active).slice(0, 30);
+  return (
+    <Modal open onClose={onClose} title={`Officer in charge of ${community.name}`}
+      footer={<>
+        {current?.via === 'community' && <Button variant="ghost" loading={busy} onClick={async () => { if (await save(() => api.clearCommunityOfficer(community.id), 'Removed. The default officer for its group now covers it.', keys)) onClose(); }}>Remove (use the group's officer)</Button>}
+        <Button loading={busy} disabled={!picked} onClick={async () => {
+          if (picked && await save(() => api.setCommunityOfficer(community.id, picked.id, handover), `${picked.full_name} is now in charge of ${community.name}`, keys)) onClose();
+        }}>Put in charge</Button>
+      </>}>
+      <div className="space-y-4">
+        <p className="text-sm text-ink-700">Currently: <b>{current?.officer ?? 'nobody'}</b>{current?.officer && current.via !== 'community' ? ` (covers all ${current.via === 'cluster' ? 'communities in its cluster' : 'communities of its type'})` : ''}.</p>
+        <SearchInput placeholder="Search anyone by name, phone or email" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+        <ul className="max-h-72 space-y-1 overflow-y-auto">
+          {people.isLoading && <li className="py-3 text-center text-sm text-ink-500">Loading…</li>}
+          {list.map((u) => (
+            <li key={u.id}>
+              <button onClick={() => setPicked(u)} aria-pressed={picked?.id === u.id}
+                className={cx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset', picked?.id === u.id ? 'bg-brand-700 text-white ring-brand-700' : 'ring-line hover:bg-canvas')}>
+                <span className="min-w-0 flex-1"><span className="block font-semibold">{u.full_name}</span>
+                  <span className={cx('block truncate text-xs', picked?.id === u.id ? 'text-white/80' : 'text-ink-500')}>{u.job_title ?? u.community ?? ''} · {u.roles.includes('officer') ? 'Officer' : u.roles.includes('super_admin') ? 'Super Admin' : 'Not an officer yet'}</span></span>
+              </button>
+            </li>
+          ))}
+          {!people.isLoading && !list.length && <li className="py-3 text-center text-sm text-ink-500">No one found. They need to have an account first.</li>}
+        </ul>
+        {picked && !picked.roles.includes('officer') && <Banner tone="info">{picked.full_name} will be given the Officer role. They will then see and work grievances from {community.name} when they sign in.</Banner>}
+        {(current?.open_grievances ?? 0) > 0 && (
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-700" checked={handover} onChange={(e) => setHandover(e.target.checked)} />
+            Also hand over the {current!.open_grievances} open grievance(s) from {community.name}</label>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -314,7 +378,8 @@ function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) 
         <Field label="Job title" htmlFor="sfj" optional><Input id="sfj" value={f.job_title} onChange={(e) => setF({ ...f, job_title: e.target.value })} /></Field>
         <Field label="Role" htmlFor="sfr"><Select id="sfr" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{ROLES.filter(([k]) => k !== 'community_member').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select></Field>
         <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Ask them to change it after first sign-in."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
-        {f.role === 'officer' && <p className="text-sm text-ink-500">After creating the account, use “Manage” to set which communities they are responsible for.</p>}
+        {f.role === 'officer' && <p className="text-sm text-ink-500">After creating the account, use “Manage” here, or <b>Communities → Change</b>, to set which communities they are responsible for.</p>}
+        <p className="rounded-xl bg-canvas p-3 text-sm text-ink-700"><b>Other way:</b> ask the person to create an account in the app themselves. Then find them under <b>Community members</b>, click <b>Manage</b> and give them a role, or put them in charge of a community on the <b>Communities</b> page.</p>
       </div>
     </Modal>
   );

@@ -90,6 +90,13 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
 
 ## Quick setup on Supabase (no command line)
 
-1. SQL Editor → run [`supabase/setup/all-in-one.sql`](supabase/setup/all-in-one.sql) once on the empty project.
-2. Authentication → Users → Add user (Auto Confirm) for yourself and the officers; then run [`supabase/setup/02-staff.sql`](supabase/setup/02-staff.sql) with the real emails.
-3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml) holds the build settings) with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (the publishable key).
+1. SQL Editor → run [`supabase/setup/all-in-one.sql`](supabase/setup/all-in-one.sql) once on the empty project
+   (if you ran an earlier version, run [`03-update-2026-09-24.sql`](supabase/setup/03-update-2026-09-24.sql) instead).
+2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
+   [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
+3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_ANON_KEY` (the publishable key).
+4. Everything else happens in the app: **Communities → Change** puts anyone in charge of a community;
+   **Users & officers** manages roles. Optional: paste `supabase/functions/admin-create-user/index.ts` and
+   `admin-reset-pin/index.ts` into Supabase → Edge Functions → Deploy a new function → Via editor, so you can also
+   create staff logins and reset PINs from the app.

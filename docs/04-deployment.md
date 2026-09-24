@@ -26,7 +26,11 @@
     where id = (select id from auth.users where email = 'your.email@indorama.com');
    ```
    Sign in to the app with that email and password.
-6. In the app go to **Users & officers → Add staff member** and create the three officers. Then use **Manage** to set their responsibility:
+6. Add the officers **from inside the app** (no SQL needed):
+   - *Either* ask each person to create an account in the app (phone + PIN), then in **Communities** click **Change** next to a community and pick them (they are given the Officer role automatically), or use **Users & officers → Community members → Manage** to give a role and a whole group of communities;
+   - *or*, once the `admin-create-user` function is deployed (Supabase → Edge Functions → Deploy a new function → Via editor → paste `supabase/functions/admin-create-user/index.ts`), use **Users & officers → Add staff member** to create an email login directly.
+
+   Default responsibility:
    - **Godpower Jaka**: All Host + All Pipeline
    - **Godwin Bebe-Okpabi**: All Indirectly Impacted
    - **Esther Walter Anga**: All Jetty
