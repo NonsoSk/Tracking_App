@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const { user_id } = await req.json();
     const pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-    const { error } = await admin.auth.admin.updateUserById(user_id, { password: pin });
+    const { error } = await admin.auth.admin.updateUserById(user_id, { password: `Ipl#Pin-${pin}-Grv` });  // same format as apps/web/src/lib/pin.ts
     if (error) return json({ error: error.message }, 400);
     await caller.rpc('log_pin_reset', { p_user: user_id });
     return json({ pin });

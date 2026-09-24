@@ -115,7 +115,10 @@ async function handle(req, res) {
   // ---- auth
   if (path === '/auth/v1/signup' && req.method === 'POST') {
     const b = await readBody(req);
-    if (!b.password || b.password.length < 6) return send(res, 422, { code: 422, error_code: 'weak_password', msg: 'Password should be at least 6 characters.' });
+    // Mimics a strict hosted project (length + required letters/symbols), like many real Supabase projects.
+    if (!b.password || b.password.length < 8 || !/[a-z]/.test(b.password) || !/[A-Z]/.test(b.password) || !/\d/.test(b.password) || !/[^A-Za-z0-9]/.test(b.password)) {
+      return send(res, 422, { code: 422, error_code: 'weak_password', msg: 'Password should contain at least one character of each: abcdefghijklmnopqrstuvwxyz, ABCDEFGHIJKLMNOPQRSTUVWXYZ, 0123456789, !@#$%^&*()_+-=[]{};\'\\:"|<>?,./`~.' });
+    }
     const exists = await pool.query('select 1 from auth.users where email = $1', [b.email?.toLowerCase()]);
     if (exists.rowCount) return send(res, 422, { code: 422, error_code: 'user_already_exists', msg: 'User already registered' });
     const { rows } = await pool.query(
@@ -201,7 +204,7 @@ async function handle(req, res) {
       const allowed = await asRole(claims, (c) => c.query("select app.has_perm('users.manage') as ok"));
       if (!allowed.rows[0]?.ok) return send(res, 403, { error: 'not_allowed' });
       const pin = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-      await pool.query(`update auth.users set encrypted_password = extensions.crypt($2, extensions.gen_salt('bf')) where id = $1`, [b.user_id, pin]);
+      await pool.query(`update auth.users set encrypted_password = extensions.crypt($2, extensions.gen_salt('bf')) where id = $1`, [b.user_id, `Ipl#Pin-${pin}-Grv`]);
       await asRole(claims, (c) => c.query('select public.log_pin_reset($1)', [b.user_id]));
       return send(res, 200, { pin });
     } catch (e) { return pgError(res, e); }

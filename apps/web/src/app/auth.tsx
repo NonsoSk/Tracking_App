@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { AppError, toAppError } from '@/lib/errors';
+import { pinPassword } from '@/lib/pin';
 import { normalizePhone } from '@/lib/phone';
 import type { Access, Profile } from '@/lib/types';
 import { cacheGet, cachePut, clearUserData } from '@/offline/db';
@@ -74,7 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (identifier: string, secret: string) => {
     const email = loginEmailFor(identifier);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: secret });
+    const isPin = email.endsWith(`@${config.memberLoginDomain}`) && /^\d{6}$/.test(secret);
+    let { data, error } = await supabase.auth.signInWithPassword({ email, password: isPin ? pinPassword(secret) : secret });
+    // Accounts created before PINs were stored in the password-safe format use the bare PIN.
+    if (error && isPin && /invalid login credentials/i.test(error.message)) {
+      ({ data, error } = await supabase.auth.signInWithPassword({ email, password: secret }));
+    }
     if (error) throw toAppError(error);
     setSession(data.session);
     await load(data.user.id);
@@ -87,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!/^\d{6}$/.test(p.pin)) throw new AppError('weak_pin');
     const { data, error } = await supabase.auth.signUp({
       email: loginEmailFor(e164),
-      password: p.pin,
+      password: pinPassword(p.pin),
       options: { data: { full_name: p.fullName.trim(), phone: e164, community_id: p.communityId } },
     });
     if (error) throw toAppError(error);
