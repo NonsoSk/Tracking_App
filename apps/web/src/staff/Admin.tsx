@@ -10,7 +10,7 @@ import { formatDate, formatDateTime } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
 import type { Filters, UserRow } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { Banner, Button, Card, ConfirmDialog, ErrorState, Field, Input, Modal, SearchInput, Select, Skeleton, StatusBadge, Tabs, cx, useToast } from '@/design/ui';
+import { Avatar, Banner, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineConfirm, Input, Modal, Pill, SearchInput, Select, Skeleton, StatusBadge, Tabs, cx, useToast } from '@/design/ui';
 import { PageTitle, listHref } from './shell';
 import { downloadCsv, downloadXlsx } from './export';
 
@@ -18,12 +18,12 @@ function useSave() {
   const qc = useQueryClient();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const save = async (fn: () => PromiseLike<{ error: unknown } | unknown>, ok: string, keys: string[][] = [['master']]) => {
+  const save = async (fn: () => PromiseLike<{ error: unknown } | unknown>, ok: string, keys: string[][] = [['master']], undo?: () => PromiseLike<unknown>) => {
     setBusy(true);
     try {
       const r = (await fn()) as { error?: unknown } | undefined;
       if (r && typeof r === 'object' && 'error' in r && r.error) throw r.error;
-      toast(ok);
+      toast(ok, 'success', undo && { label: 'Undo', run: () => { void save(undo, 'Undone', keys); } });
       await Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })));
       return true;
     } catch (e) { toast(toAppError(e).message, 'warning'); return false; }
@@ -73,7 +73,7 @@ export function Communities() {
       {all.isLoading ? <Skeleton className="h-96" /> : all.isError ? <ErrorState message={toAppError(all.error).message} /> : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"><tr><th className="px-4 py-3">Community</th><th className="px-4 py-3">Classification</th><th className="px-4 py-3">Officer in charge</th><th className="px-4 py-3">Code prefix</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead>
+            <thead className="bg-sunken/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"><tr><th className="px-4 py-3">Community</th><th className="px-4 py-3">Classification</th><th className="px-4 py-3">Officer in charge</th><th className="px-4 py-3">Code prefix</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead>
             <tbody className="divide-y divide-line/70">
               {all.data!.communities.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).map((c) => {
                 const affs = all.data!.affiliations.filter((a) => a.community_id === c.id && a.active);
@@ -82,7 +82,7 @@ export function Communities() {
                     <td className="px-4 py-3 font-semibold">{c.name}{c.notes && <p className="text-xs font-normal text-ink-500">{c.notes}</p>}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">{affs.map((a) => (
-                        <span key={a.id} className={cx('rounded-full px-2 py-0.5 text-xs font-semibold', a.is_primary ? 'bg-brand-100 text-brand-800' : 'bg-canvas text-ink-700')}>
+                        <span key={a.id} className={cx('rounded-full px-2 py-0.5 text-xs font-semibold', a.is_primary ? 'bg-brand-100 text-brand-800' : 'bg-sunken text-ink-700')}>
                           {typeName(a.community_type_id)}{a.cluster_id ? ` · ${clusterName(a.cluster_id)}` : ''}{affs.length > 1 && a.is_primary ? ' (default)' : ''}
                         </span>))}</div>
                     </td>
@@ -104,7 +104,11 @@ export function Communities() {
                     <td className="px-4 py-3">{c.active ? <StatusBadge label="Active" tone="success" size="sm" /> : <StatusBadge label="Inactive" tone="muted" size="sm" />}</td>
                     <td className="px-4 py-3 text-right">
                       <Button size="sm" variant="ghost" onClick={() => setEdit({ id: c.id, name: c.name, short_code: c.short_code ?? '', notes: c.notes ?? '', type: '', cluster: '' })}>Edit</Button>
-                      <Button size="sm" variant="ghost" loading={busy} onClick={() => save(() => supabase.from('communities').update({ active: !c.active }).eq('id', c.id), c.active ? 'Deactivated' : 'Activated', keys)}>{c.active ? 'Deactivate' : 'Activate'}</Button>
+                      {c.active
+                        ? <InlineConfirm label="Deactivate" question="Stop new grievances here?" confirmLabel="Yes, deactivate" loading={busy}
+                            onConfirm={() => save(() => supabase.from('communities').update({ active: false }).eq('id', c.id), `${c.name} deactivated`, keys,
+                              () => supabase.from('communities').update({ active: true }).eq('id', c.id))} />
+                        : <Button size="sm" variant="ghost" loading={busy} onClick={() => save(() => supabase.from('communities').update({ active: true }).eq('id', c.id), 'Activated', keys)}>Activate</Button>}
                     </td>
                   </tr>
                 );
@@ -165,7 +169,7 @@ function AssignCommunityOfficer({ community, current, onClose }: {
           {list.map((u) => (
             <li key={u.id}>
               <button onClick={() => setPicked(u)} aria-pressed={picked?.id === u.id}
-                className={cx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset', picked?.id === u.id ? 'bg-brand-700 text-white ring-brand-700' : 'ring-line hover:bg-canvas')}>
+                className={cx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset', picked?.id === u.id ? 'bg-btn text-white ring-transparent shadow-halo' : 'ring-line hover:bg-sunken')}>
                 <span className="min-w-0 flex-1"><span className="block font-semibold">{u.full_name}</span>
                   <span className={cx('block truncate text-xs', picked?.id === u.id ? 'text-white/80' : 'text-ink-500')}>{u.job_title ?? u.community ?? ''} · {u.roles.includes('officer') ? 'Officer' : u.roles.includes('super_admin') ? 'Super Admin' : 'Not an officer yet'}</span></span>
               </button>
@@ -192,32 +196,59 @@ export function Categories() {
   const [newSub, setNewSub] = useState<{ category_id: number; name: string } | null>(null);
   const [newCat, setNewCat] = useState<{ name: string; public_label: string } | null>(null);
   const [hol, setHol] = useState({ day: '', name: '' });
+  const [catSel, setCatSel] = useState<number | null>(null);
   const d = master.data;
   return (
     <div>
-      <PageTitle title="Categories & statuses" subtitle="The values staff and community members choose from. Changes apply immediately." />
-      <Tabs value={tab} onChange={setTab} items={[{ value: 'categories', label: 'Categories' }, { value: 'statuses', label: 'Statuses' }, { value: 'severities', label: 'Severity' }, { value: 'holidays', label: 'Public holidays' }]} />
-      <div className="mt-5">
-        {tab === 'categories' && d && (
-          <div className="space-y-3">
-            <div className="flex justify-end"><Button icon={Plus} onClick={() => setNewCat({ name: '', public_label: '' })}>Add category</Button></div>
-            {d.categories.map((c) => (
-              <Card key={c.id} className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div><p className="font-semibold">{c.name}</p><p className="text-sm text-ink-500">Community members see: “{c.public_label}”</p></div>
-                  <Button size="sm" variant="secondary" icon={Plus} onClick={() => setNewSub({ category_id: c.id, name: '' })}>Sub-category</Button>
-                </div>
-                <ul className="mt-3 flex flex-wrap gap-1.5">
-                  {d.subcategories.filter((s) => s.category_id === c.id).map((s) => <li key={s.id} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-medium text-ink-700">{s.name}</li>)}
+      <PageTitle title="Categories & statuses" subtitle="The values staff and community members choose from. Changes apply immediately."
+        actions={<Tabs value={tab} onChange={setTab} items={[{ value: 'categories', label: 'Categories', count: d?.categories.length }, { value: 'statuses', label: 'Statuses', count: d?.statuses.length }, { value: 'severities', label: 'Severity' }, { value: 'holidays', label: 'Holidays', count: holidays.data?.length }]} />} />
+      <div>
+        {tab === 'categories' && d && (() => {
+          const sel = d.categories.find((c) => c.id === catSel) ?? d.categories[0];
+          const subs = (id: number) => d.subcategories.filter((x) => x.category_id === id);
+          return (
+            <div className="flex flex-col gap-4 lg:flex-row">
+              {/* Master: a list on desktop, a horizontal scroller on phones */}
+              <div className="lg:w-80 lg:shrink-0">
+                <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0" aria-label="Categories">
+                  {d.categories.map((c) => {
+                    const on = c.id === sel?.id;
+                    return (
+                      <li key={c.id} className="shrink-0">
+                        <button onClick={() => setCatSel(c.id)} aria-current={on || undefined}
+                          className={cx('flex w-full items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-left text-sm font-bold transition-colors lg:whitespace-normal lg:rounded-2xl',
+                            on ? 'bg-btn text-white shadow-halo' : 'bg-surface text-ink-700 shadow-card hover:text-brand-700')}>
+                          <span className="flex-1">{c.name}</span>
+                          <span className={cx('rounded-full px-1.5 text-xs tabular', on ? 'bg-white/20' : 'bg-sunken')}>{subs(c.id).length}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                  <li className="shrink-0"><Button variant="ghost" icon={Plus} onClick={() => setNewCat({ name: '', public_label: '' })}>Add category</Button></li>
                 </ul>
-              </Card>
-            ))}
-          </div>
-        )}
+              </div>
+              {/* Detail */}
+              {sel && (
+                <Card className="min-w-0 flex-1 p-5 animate-fade-up" key={sel.id}>
+                  <p className="eyebrow text-brand-700">Category</p>
+                  <h2 className="text-xl font-extrabold">{sel.name}</h2>
+                  <p className="mt-1 text-sm text-ink-500">Community members see: “{sel.public_label}”</p>
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <h3 className="font-extrabold">Sub-categories <span className="text-ink-400 tabular">{subs(sel.id).length}</span></h3>
+                    <Button size="sm" variant="secondary" icon={Plus} onClick={() => setNewSub({ category_id: sel.id, name: '' })}>Sub-category</Button>
+                  </div>
+                  <ul className="mt-3 flex flex-wrap gap-1.5">
+                    {subs(sel.id).map((x) => <li key={x.id}><Pill className="!whitespace-normal">{x.name}</Pill></li>)}
+                  </ul>
+                </Card>
+              )}
+            </div>
+          );
+        })()}
         {tab === 'statuses' && d && (
           <Card className="overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase text-ink-500"><tr><th className="px-4 py-3">Staff label</th><th className="px-4 py-3">Complainant sees</th><th className="px-4 py-3">Counts as open</th></tr></thead>
+              <thead className="bg-sunken/70 text-left text-xs font-semibold uppercase text-ink-500"><tr><th className="px-4 py-3">Staff label</th><th className="px-4 py-3">Complainant sees</th><th className="px-4 py-3">Counts as open</th></tr></thead>
               <tbody className="divide-y divide-line/70">{d.statuses.map((s) => (
                 <tr key={s.id}><td className="px-4 py-3"><StatusBadge label={s.staff_label} tone={s.tone} size="sm" /></td><td className="px-4 py-3"><b>{s.public_label}</b><p className="text-ink-500">{s.public_message}</p></td><td className="px-4 py-3">{s.is_open ? 'Yes' : 'No'}</td></tr>
               ))}</tbody>
@@ -236,7 +267,7 @@ export function Categories() {
             </div>
             <ul className="divide-y divide-line/70">{holidays.data?.map((h) => (
               <li key={h.day} className="flex items-center justify-between py-2"><span><b>{formatDate(h.day)}</b> · {h.name}</span>
-                <Button size="sm" variant="ghost" onClick={() => save(() => supabase.from('holidays').delete().eq('day', h.day), 'Removed', [['holidays']])}>Remove</Button></li>
+                <InlineConfirm label="Remove" question="Remove this holiday?" confirmLabel="Yes, remove" loading={busy} onConfirm={() => save(() => supabase.from('holidays').delete().eq('day', h.day), 'Holiday removed', [['holidays']], () => supabase.from('holidays').insert(h))} /></li>
             ))}</ul>
           </Card>
         )}
@@ -259,6 +290,8 @@ export function Categories() {
 /* ---------------------------------------------------------------- Users & officers */
 const ROLES: [string, string][] = [['super_admin', 'Super Administrator'], ['officer', 'Officer in Charge'], ['supervisor', 'Supervisor'], ['cr_staff', 'Community Relations Staff'], ['data_entry', 'Data Entry Officer'], ['viewer', 'Viewer'], ['community_member', 'Community Member']];
 
+const titleCase = (t: string | null) => (t ? t.charAt(0) + t.slice(1).toLowerCase().replace(/_/g, ' ') : '');
+
 export function Users() {
   const [kind, setKind] = useState<'staff' | 'members'>('staff');
   const [q, setQ] = useState('');
@@ -270,27 +303,39 @@ export function Users() {
       <PageTitle title="Users & officers" subtitle="Roles decide what someone can do; responsibility decides which grievances an officer sees."
         actions={<Button icon={UserPlus} onClick={() => setCreating(true)}>Add staff member</Button>} />
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Tabs value={kind} onChange={setKind} items={[{ value: 'staff', label: 'Staff' }, { value: 'members', label: 'Community members' }]} />
+        <Tabs value={kind} onChange={setKind} items={[{ value: 'staff', label: 'Staff', count: kind === 'staff' ? users.data?.length : undefined }, { value: 'members', label: 'Community members', count: kind === 'members' ? users.data?.length : undefined }]} />
         <div className="flex-1 sm:max-w-sm"><SearchInput placeholder="Search name, phone or email" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </div>
       {users.isLoading ? <Skeleton className="h-64" /> : users.isError ? <ErrorState message={toAppError(users.error).message} /> : (
-        <Card className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase text-ink-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Roles</th><th className="px-4 py-3">Responsibility</th><th className="px-4 py-3">Status</th><th /></tr></thead>
-            <tbody className="divide-y divide-line/70">
-              {users.data!.map((u) => (
-                <tr key={u.id} className={cx(!u.is_active && 'opacity-60')}>
-                  <td className="px-4 py-3"><p className="font-semibold">{u.full_name}</p><p className="text-xs text-ink-500">{u.job_title ?? u.community ?? ''}</p></td>
-                  <td className="px-4 py-3 text-ink-700">{u.email?.endsWith('iplgrievance.app') ? formatPhone(u.phone) : u.email ?? formatPhone(u.phone)}</td>
-                  <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{u.roles.map((r) => <span key={r} className="rounded-full bg-canvas px-2 py-0.5 text-xs font-semibold">{ROLES.find(([k]) => k === r)?.[1] ?? r}</span>)}</div></td>
-                  <td className="px-4 py-3 text-xs text-ink-700">{u.scopes.map((s) => s.community ?? s.cluster ?? s.community_type).join(', ') || '—'}</td>
-                  <td className="px-4 py-3">{u.is_active ? <StatusBadge label="Active" tone="success" size="sm" /> : <StatusBadge label="Disabled" tone="muted" size="sm" />}</td>
-                  <td className="px-4 py-3 text-right"><Button size="sm" variant="ghost" onClick={() => setEdit(u)}>Manage</Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+        users.data!.length === 0 ? <EmptyState icon={UserPlus} title="No one found" body="Try another name or phone number." /> : (
+          <ul className="grid gap-3 md:grid-cols-2">
+            {users.data!.map((u) => {
+              const resp = u.scopes.map((s) => s.community ?? s.cluster ?? titleCase(s.community_type)).filter(Boolean).join(', ');
+              return (
+                <li key={u.id} className={cx('flex flex-col gap-3 rounded-2xl bg-surface p-4 shadow-card', !u.is_active && 'opacity-60')}>
+                  <div className="flex items-start gap-3">
+                    <Avatar name={u.full_name} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-extrabold">{u.full_name}</p>
+                      <p className="truncate text-sm text-ink-500">{[u.job_title ?? u.community, u.email?.endsWith('iplgrievance.app') ? formatPhone(u.phone) : u.email ?? formatPhone(u.phone)].filter(Boolean).join(' · ')}</p>
+                    </div>
+                    {u.is_active ? <StatusBadge label="Active" tone="success" size="sm" /> : <StatusBadge label="Disabled" tone="muted" size="sm" />}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {u.roles.map((r) => <Pill key={r} tone={r === 'super_admin' ? 'gold' : r === 'officer' ? 'brand' : 'neutral'}>{ROLES.find(([k]) => k === r)?.[1] ?? r}</Pill>)}
+                  </div>
+                  {u.roles.includes('officer') && (
+                    <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm">
+                      <p className="eyebrow text-brand-700">In charge of</p>
+                      <p className="font-semibold text-ink-900">{resp || 'Nothing yet. Open Manage to give them communities.'}</p>
+                    </div>
+                  )}
+                  <div className="mt-auto flex justify-end"><Button size="sm" variant="secondary" onClick={() => setEdit(u)}>Manage</Button></div>
+                </li>
+              );
+            })}
+          </ul>
+        )
       )}
       {edit && <ManageUser user={edit} onClose={() => setEdit(null)} />}
       <CreateStaff open={creating} onClose={() => setCreating(false)} />
@@ -322,7 +367,7 @@ function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
       </>}>
       <div className="space-y-6">
         {isMember && (
-          <section className="rounded-2xl bg-canvas p-4">
+          <section className="rounded-2xl bg-sunken p-4">
             <h3 className="font-semibold">Forgotten PIN</h3>
             <p className="mt-1 text-sm text-ink-700">Only reset a PIN after confirming the person's identity (in person or by calling their registered number {formatPhone(user.phone)}).</p>
             {pin ? <p className="mt-3 text-sm">Temporary PIN: <span className="rounded-lg bg-surface px-2 py-1 font-mono text-lg font-bold tracking-widest ring-1 ring-line">{pin}</span> · give it to the member; it is not shown again.</p>
@@ -379,7 +424,7 @@ function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) 
         <Field label="Role" htmlFor="sfr"><Select id="sfr" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{ROLES.filter(([k]) => k !== 'community_member').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select></Field>
         <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Ask them to change it after first sign-in."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
         {f.role === 'officer' && <p className="text-sm text-ink-500">After creating the account, use “Manage” here, or <b>Communities → Change</b>, to set which communities they are responsible for.</p>}
-        <p className="rounded-xl bg-canvas p-3 text-sm text-ink-700"><b>Other way:</b> ask the person to create an account in the app themselves. Then find them under <b>Community members</b>, click <b>Manage</b> and give them a role, or put them in charge of a community on the <b>Communities</b> page.</p>
+        <p className="rounded-xl bg-sunken p-3 text-sm text-ink-700"><b>Other way:</b> ask the person to create an account in the app themselves. Then find them under <b>Community members</b>, click <b>Manage</b> and give them a role, or put them in charge of a community on the <b>Communities</b> page.</p>
       </div>
     </Modal>
   );
@@ -397,7 +442,7 @@ export function ImportPage() {
           <h2 className="font-semibold">Import batches</h2>
           {batches.isLoading ? <Skeleton className="mt-3 h-24" /> : !batches.data?.length ? <p className="mt-3 text-ink-500">Nothing imported yet.</p> : (
             <ul className="mt-3 space-y-3">{batches.data.map((b) => (
-              <li key={b.id} className="rounded-xl bg-canvas p-3">
+              <li key={b.id} className="rounded-xl bg-sunken p-3">
                 <div className="flex items-center justify-between gap-2"><p className="font-semibold">{b.workbook}</p><StatusBadge label={b.status} tone={b.status === 'imported' ? 'success' : 'muted'} size="sm" /></div>
                 <p className="text-xs text-ink-500">{b.file_name} · {formatDateTime(b.imported_at)}</p>
                 <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-sm sm:grid-cols-5">
@@ -438,7 +483,7 @@ export function AuditLog() {
       {q.isLoading ? <Skeleton className="h-96" /> : q.isError ? <ErrorState message={toAppError(q.error).message} /> : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase text-ink-500"><tr><th className="px-4 py-3">When</th><th className="px-4 py-3">Who</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Record</th><th className="px-4 py-3">Change</th></tr></thead>
+            <thead className="bg-sunken/70 text-left text-xs font-semibold uppercase text-ink-500"><tr><th className="px-4 py-3">When</th><th className="px-4 py-3">Who</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Record</th><th className="px-4 py-3">Change</th></tr></thead>
             <tbody className="divide-y divide-line/70">{q.data!.rows.map((r) => (
               <tr key={r.id} className="align-top">
                 <td className="whitespace-nowrap px-4 py-2.5 text-ink-700">{formatDateTime(r.at)}</td>

@@ -54,7 +54,7 @@ export function Codes() {
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <Kbd>{c.code}</Kbd>
-                  <button className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-canvas" aria-label="Copy code"
+                  <button className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-sunken" aria-label="Copy code"
                     onClick={() => navigator.clipboard?.writeText(c.code).then(() => toast('Code copied'))}><Copy className="h-4 w-4" /></button>
                 </div>
                 <dl className="mt-3 space-y-1 text-sm">

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Eye, EyeOff, LogIn, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useMasterData, useOnline } from '@/app/hooks';
-import { Banner, Button, Field, Input, SearchInput, Stepper, cx } from '@/design/ui';
+import { Banner, Button, Field, Input, SearchInput, Stepper, ThemeSwitch, cx } from '@/design/ui';
 import { CommunityScene, Logo } from '@/design/art';
 import { toAppError } from '@/lib/errors';
 import { normalizePhone } from '@/lib/phone';
@@ -16,9 +16,10 @@ function AuthLayout({ children, back }: { children: React.ReactNode; back?: stri
   return (
     <div className="member min-h-dvh bg-canvas">
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-8 pt-4">
-        <div className="flex h-12 items-center">
-          {back ? <Link to={back} className="-ml-2 grid h-11 w-11 place-items-center rounded-full text-ink-700 hover:bg-surface" aria-label="Back"><ArrowLeft className="h-6 w-6" /></Link>
-                : <div className="flex items-center gap-2 font-semibold text-brand-800"><Logo size={28} /> IPL Community</div>}
+        <div className="flex h-12 items-center justify-between">
+          {back ? <Link to={back} className="-ml-1 grid h-11 w-11 place-items-center rounded-full bg-surface text-ink-700 shadow-card hover:text-brand-700" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
+                : <div className="flex items-center gap-2 font-extrabold text-brand-700"><Logo size={30} /> IPL Community</div>}
+          <ThemeSwitch />
         </div>
         {children}
       </div>
@@ -33,11 +34,11 @@ export function Welcome() {
     <AuthLayout>
       <div className="flex flex-1 flex-col animate-fade-up">
         <CommunityScene className="mx-auto mt-4 w-full max-w-sm drop-shadow-sm" />
-        <h1 className="mt-8 text-[28px] font-bold leading-tight text-ink-900">We're listening.</h1>
+        <h1 className="mt-8 text-[2rem] font-extrabold leading-tight tracking-[-0.02em] text-ink-900">We're listening.</h1>
         <p className="mt-3 text-lg text-ink-700">Tell Indorama Community Relations about a concern in your community, and follow it until it is resolved.</p>
         <ol className="mt-6 grid grid-cols-4 gap-2 text-center text-[13px] font-semibold text-ink-700">
           {['Submit', 'Track', 'Resolve', 'Confirm'].map((s, i) => (
-            <li key={s} className="rounded-xl bg-surface px-1 py-2.5 shadow-card"><span className="block text-lg text-brand-700">{i + 1}</span>{s}</li>
+            <li key={s} className="rounded-2xl bg-surface px-1 py-2.5 shadow-card"><span className={cx('mx-auto mb-1 grid h-7 w-7 place-items-center rounded-full text-sm font-extrabold text-white', i === 3 ? 'bg-gold-500' : 'bg-btn')}>{i + 1}</span>{s}</li>
           ))}
         </ol>
         <div className="mt-auto space-y-3 pt-8">
@@ -57,7 +58,7 @@ function PinInput({ id, value, onChange, autoFocus, invalid }: { id: string; val
       <Input id={id} value={value} inputMode="numeric" autoComplete="current-password" maxLength={6} autoFocus={autoFocus} invalid={invalid}
         type={show ? 'text' : 'password'} placeholder="••••••" className="h-14 pr-14 text-center text-2xl tracking-[.5em]"
         onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))} />
-      <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-ink-500 hover:bg-canvas"
+      <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-ink-500 hover:bg-sunken"
         aria-label={show ? 'Hide PIN' : 'Show PIN'}>{show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button>
     </div>
   );
@@ -96,7 +97,7 @@ export function CommunityPicker({ value, onChange }: { value: string | null; onC
               {cs.map((c) => (
                 <button type="button" key={c.id} onClick={() => onChange(c.id, c.name)} aria-pressed={value === c.id}
                   className={cx('flex min-h-12 items-center gap-2 rounded-xl px-3 text-left font-semibold ring-1 ring-inset transition-colors',
-                    value === c.id ? 'bg-brand-700 text-white ring-brand-700' : 'bg-surface text-ink-900 ring-line hover:bg-brand-50')}>
+                    value === c.id ? 'bg-btn text-white ring-brand-700' : 'bg-surface text-ink-900 ring-line hover:bg-brand-50')}>
                   <MapPin className="h-4 w-4 shrink-0 opacity-70" aria-hidden />{c.name}
                 </button>
               ))}

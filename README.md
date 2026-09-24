@@ -26,9 +26,27 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
 | 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
 | 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
-| 14 Tests: 156 pgTAP · 29 unit · 3 browser end-to-end (incl. offline) | ✅ |
+| 14 Tests: 165 pgTAP · 29 unit · 4 browser end-to-end (incl. offline) | ✅ |
+| Visual design: royal blue / white with #C00000 accents, separate navy dark theme | ✅ |
 
 Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).
+
+## Design
+
+Styled like a mobile banking app: royal blue does the work, gold rewards good outcomes, and red / orange / green
+appear only when something needs attention (with #C00000 accents). Font: Nunito Sans, self-hosted (no Google request).
+
+- **Tokens** live in `apps/web/src/index.css` as CSS variables: a light palette and a separately designed navy dark
+  palette (`#0B1224` background, not black). The theme follows the phone until the person uses the switch; the choice
+  is kept on that device (`public/theme-init.js` applies it before the first paint).
+- **Layout**: desktop has a solid blue sidebar (white pill for the active page, progress ring card, dark-mode switch);
+  phones get a blue top bar and a bottom tab bar with 4 tabs + **More**. Forms open as a drawer from the right on
+  desktop and a bottom sheet on phones.
+- **Components** (`src/design/ui.tsx`): pill buttons and sub-tabs with counts, stat tiles, progress rings, quick
+  actions, people cards, "Next step" boxes, on-page delete confirmation (`InlineConfirm`) and toasts with **Undo**.
+- **Illustrations** (`src/design/art.tsx`): small floating 3D objects in page headers, drawn in SVG (no images to
+  download). All motion stops when the phone asks for reduced motion.
+- Charts take their colours from the theme: received `#0A4FD1` / resolved `#B0700E` (dark: `#5B8CFF` / `#B7802A`).
 
 ## Database
 
@@ -51,7 +69,7 @@ Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the a
 
 ### Running the tests
 
-The suite has 156 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
+The suite has 165 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
 
 ```bash
 # needs PostgreSQL 15+ with pgtap + pg_trgm, and pg_prove

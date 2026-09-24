@@ -7,13 +7,13 @@ import { api } from '@/lib/api';
 import { toAppError } from '@/lib/errors';
 import { firstName } from '@/lib/format';
 import type { Filters, Tone } from '@/lib/types';
-import { Card, ErrorState, Select, Skeleton, cx } from '@/design/ui';
+import { Card, ErrorState, ProgressRing, Select, Skeleton, cx } from '@/design/ui';
 import { BarList, ChartCard, ColumnChart, Kpi, LegendKey, SERIES_1, SERIES_2, TrendChart } from './charts';
 import { PageTitle, listHref, useUrlFilters } from './shell';
 import { RowsTable } from './Grievances';
 
 const TONE_BAR: Record<Tone, string> = {
-  info: '#2463a8', progress: SERIES_1, warning: '#a0650d', success: '#247748', muted: '#8d877e', neutral: '#8d877e', danger: '#b03228',
+  info: 'rgb(var(--brand-700))', progress: SERIES_1, warning: 'rgb(var(--warning))', success: 'rgb(var(--success))', muted: 'rgb(var(--ink-400))', neutral: 'rgb(var(--ink-400))', danger: 'rgb(var(--danger))',
 };
 
 /* ---------------------------------------------------------------- Admin / organisation overview */
@@ -117,37 +117,72 @@ export function OfficerHome() {
     { label: 'Awaiting acknowledgement', value: h?.awaiting_ack, tone: 'neutral', icon: ThumbsUp, f: { needs_ack: true }, hint: 'resolved, waiting for complainant' },
     { label: 'Needs review', value: h?.needs_review, tone: 'warning', icon: Flag, f: { flagged: true, open: true }, hint: 'historical items to check' },
   ];
+  const open = h?.assigned_open ?? 0;
+  const onTime = h ? (open ? Math.round(((open - h.overdue) / open) * 100) : 100) : 0;
+  const oldest = overdue.data?.rows[0];
   return (
     <div>
-      <PageTitle title={`Good ${greeting()}, ${firstName(profile?.full_name)}`} subtitle={h ? `${h.assigned_open} open grievances assigned to you` : ' '} />
+      <PageTitle title={`Good ${greeting()}, ${firstName(profile?.full_name)}`} subtitle={h ? `${open} open grievances assigned to you` : ' '} />
+
+      {/* Hero: today's standing */}
+      <section className="relative mb-[18px] overflow-hidden rounded-3xl bg-gradient-to-br from-[rgb(var(--hero-a))] via-[rgb(var(--hero-b))] to-[rgb(var(--hero-c))] p-5 text-white shadow-[0_14px_32px_rgb(0_37_122/0.3)] sm:p-6">
+        <span className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-white/10" aria-hidden />
+        <span className="pointer-events-none absolute -bottom-28 -right-16 h-44 w-96 rotate-[8deg] rounded-[50%] border-t-[10px] border-[#C00000]/90" aria-hidden />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+          <ProgressRing value={onTime} size={96} stroke={9} onBlue label={`${onTime}% on time`}>
+            <span className="text-center leading-none"><span className="block text-[22px] font-extrabold tabular">{home.isLoading ? '…' : `${onTime}%`}</span><span className="text-[10px] font-bold uppercase tracking-wider text-white/70">on time</span></span>
+          </ProgressRing>
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow text-white/70">Next step</p>
+            <p className="mt-1 text-[1.15rem] font-extrabold leading-snug">
+              {!h ? 'Loading your work…'
+                : h.overdue ? `Now: ${h.overdue} overdue. Start with ${oldest?.tracking_id ?? 'the oldest one'}.`
+                : h.new ? `Now: review ${h.new} new grievance${h.new === 1 ? '' : 's'}.`
+                : h.due_soon ? `Now: ${h.due_soon} due within 24 hours.`
+                : 'You are up to date. Nothing is overdue.'}
+            </p>
+            <p className="mt-1 text-sm text-white/75">Every grievance should be acted on within 3 working days.</p>
+          </div>
+          {h && (h.overdue || h.new || h.due_soon) ? (
+            <button onClick={() => nav(oldest && h.overdue ? `/grievances/${oldest.id}` : listHref(h.overdue ? { overdue: true } : h.new ? { status: ['SUBMITTED', 'ASSIGNED'] } : { due_soon: true }))}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-5 font-extrabold text-[#0033A1] shadow-[0_8px_20px_rgb(0_0_0/0.2)] transition-transform active:scale-[.98]">
+              Open it <ArrowRight className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+      </section>
+
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
           <button key={c.label} onClick={() => nav(listHref(c.f))}
-            className={cx('flex flex-col rounded-2xl bg-surface p-4 text-left shadow-card ring-1 transition-shadow hover:shadow-raised',
-              c.tone === 'danger' && c.value ? 'ring-2 ring-danger/50' : 'ring-line/70')}>
-            <span className={cx('flex items-center gap-1.5 text-sm font-semibold', c.tone === 'danger' && c.value ? 'text-danger' : 'text-ink-500')}>
-              <c.icon className="h-4 w-4" aria-hidden />{c.label.toUpperCase()}
+            className={cx('flex flex-col rounded-2xl bg-surface p-4 text-left shadow-card ring-inset transition-shadow hover:shadow-raised focus-visible:shadow-halo',
+              c.tone === 'danger' && c.value ? 'ring-2 ring-danger/40' : '')}>
+            <span className={cx('flex items-center gap-1.5 text-[13px] font-bold', c.tone === 'danger' && c.value ? 'text-danger' : 'text-ink-500')}>
+              <c.icon className="h-4 w-4" aria-hidden />{c.label}
             </span>
             {home.isLoading ? <Skeleton className="mt-2 h-9 w-12" /> : (
-              <span className={cx('mt-1 text-[34px] font-bold leading-none tabular', c.tone === 'danger' && c.value ? 'text-danger' : 'text-ink-900')}>{c.value ?? 0}</span>
+              <span className={cx('mt-1.5 text-[1.6rem] font-extrabold leading-none tabular', c.tone === 'danger' && c.value ? 'text-danger' : 'text-ink-900')}>
+                {c.value ?? 0}{open > 0 && <span className="text-sm font-bold text-ink-400">/{open}</span>}
+              </span>
             )}
+            <span className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunken"><span className={cx('block h-full rounded-full', c.tone === 'danger' ? 'bg-danger' : c.tone === 'warning' ? 'bg-warning' : 'bg-btn')} style={{ width: `${open ? Math.min(100, ((c.value ?? 0) / open) * 100) : 0}%` }} /></span>
             <span className="mt-2 text-xs text-ink-500">{c.hint}</span>
           </button>
         ))}
       </section>
 
-      <Card className="mt-6 p-5">
+      <Card className="mt-[18px] p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold"><AlertTriangle className="h-5 w-5 text-danger" aria-hidden />Attention required</h2>
-          <Link to={listHref({ overdue: true })} className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700">All overdue <ArrowRight className="h-4 w-4" /></Link>
+          <h2 className="flex items-center gap-2 text-base font-extrabold"><AlertTriangle className="h-5 w-5 text-danger" aria-hidden />Attention required</h2>
+          <Link to={listHref({ overdue: true })} className="inline-flex items-center gap-1 text-sm font-bold text-brand-700">All overdue <ArrowRight className="h-4 w-4" /></Link>
         </div>
         {overdue.isLoading ? <Skeleton className="h-40" />
           : overdue.data?.rows.length ? <RowsTable rows={overdue.data.rows} />
           : <p className="flex items-center gap-2 py-6 text-ink-500"><CheckCircle2 className="h-5 w-5 text-success" aria-hidden />Nothing overdue. Well done.</p>}
       </Card>
 
-      <div className="mt-6">
-        <Link to="/grievances" className="flex items-center gap-3 rounded-2xl bg-surface p-4 font-semibold shadow-card ring-1 ring-line/70 hover:shadow-raised">
+      <div className="mt-[18px]">
+        <Link to="/grievances" className="flex items-center gap-3 rounded-2xl bg-surface p-4 font-bold shadow-card hover:shadow-raised">
           <Search className="h-5 w-5 text-brand-700" /> Search all grievances in my responsibility <ArrowRight className="ml-auto h-5 w-5 text-ink-400" />
         </Link>
       </div>

@@ -197,7 +197,7 @@ function RemarkForm({ g }: { g: StaffDetail }) {
   };
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-canvas p-1 text-sm font-semibold">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-sunken p-1 text-sm font-semibold">
         {([['internal', 'Internal remark'], ['action', 'Action taken'], ['complainant', 'Message complainant']] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setKind(k)} className={cx('rounded-lg px-2 py-2', kind === k ? 'bg-surface shadow-card text-brand-800' : 'text-ink-500')}>{l}</button>
         ))}
@@ -369,7 +369,7 @@ function HistoryTimeline({ items, monthOnly }: { items: HistoryItem[]; monthOnly
         return (
           <li key={idx} className="relative flex gap-3">
             <span className={cx('relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full ring-4 ring-surface',
-              i.kind === 'status' ? 'bg-brand-100 text-brand-800' : i.kind === 'acknowledgement' ? 'bg-success-soft text-success' : 'bg-canvas text-ink-500')}><Icon className="h-4 w-4" aria-hidden /></span>
+              i.kind === 'status' ? 'bg-brand-100 text-brand-800' : i.kind === 'acknowledgement' ? 'bg-success-soft text-success' : 'bg-sunken text-ink-500')}><Icon className="h-4 w-4" aria-hidden /></span>
             <div className="min-w-0 flex-1 pt-1">
               <p className="text-[15px]">
                 {i.kind === 'status' && <><b>{i.label}</b>{i.from_label && <span className="text-ink-500"> (from {i.from_label})</span>}</>}
@@ -433,7 +433,7 @@ function SourceRecords({ g }: { g: StaffDetail }) {
       )}
       <button onClick={() => setOpen((o) => !o)} className="mt-3 text-sm font-semibold text-brand-700">{open ? 'Hide' : 'Show'} every original cell ({g.sources.length} source row{g.sources.length > 1 ? 's' : ''})</button>
       {open && g.sources.map((s, i) => (
-        <div key={i} className="mt-3 overflow-x-auto rounded-xl bg-canvas p-3">
+        <div key={i} className="mt-3 overflow-x-auto rounded-xl bg-sunken p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{s.workbook} · {s.sheet} · row {s.row} · {s.role.replace('_', ' ')}{s.note && ` · ${s.note}`}</p>
           <table className="text-sm"><tbody>{Object.entries(s.raw).map(([k, v]) => <tr key={k}><th className="whitespace-nowrap pr-4 text-left align-top font-medium text-ink-500">{k}</th><td className="whitespace-pre-wrap">{v}</td></tr>)}</tbody></table>
         </div>

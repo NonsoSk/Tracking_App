@@ -151,15 +151,15 @@ export function Submit() {
                 return (
                   <button key={c.id} type="button" onClick={() => set({ category_id: c.id, category_label: c.public_label })} aria-pressed={active}
                     className={cx('flex min-h-[104px] flex-col items-start gap-2 rounded-2xl p-3.5 text-left ring-1 ring-inset transition-all',
-                      active ? 'bg-brand-700 text-white ring-brand-700 shadow-raised' : 'bg-surface ring-line shadow-card hover:bg-brand-50')}>
-                    <Icon className={cx('h-7 w-7', active ? 'text-accent-500' : 'text-brand-700')} aria-hidden />
+                      active ? 'bg-btn text-white ring-transparent shadow-halo' : 'bg-surface ring-line shadow-card hover:bg-brand-50')}>
+                    <Icon className={cx('h-7 w-7', active ? 'text-white' : 'text-brand-700')} aria-hidden />
                     <span className="font-semibold leading-tight">{c.public_label}</span>
                   </button>
                 );
               })}
               <button type="button" onClick={() => set({ category_id: null, category_label: "I'm not sure" })} aria-pressed={draft.category_id === null && draft.category_label === "I'm not sure"}
                 className={cx('col-span-2 flex min-h-14 items-center gap-3 rounded-2xl px-4 text-left font-semibold ring-1 ring-inset',
-                  draft.category_id === null && draft.category_label === "I'm not sure" ? 'bg-brand-700 text-white ring-brand-700' : 'bg-surface ring-line')}>
+                  draft.category_id === null && draft.category_label === "I'm not sure" ? 'bg-btn text-white ring-brand-700' : 'bg-surface ring-line')}>
                 <CircleHelp className="h-6 w-6 shrink-0" aria-hidden /> <span>I'm not sure <span className="font-normal opacity-80">· the team will decide</span></span>
               </button>
             </div>
@@ -290,7 +290,7 @@ export function SubmitDone() {
           : "You're offline. Your grievance is saved on this phone and will be submitted automatically when connection returns."}
       </p>
       <Card className="mt-6 w-full p-4 text-left">
-        <p className="flex items-center gap-2 font-semibold text-warning"><span className="h-2.5 w-2.5 rounded-full bg-accent-500" aria-hidden /> Not yet received by IPL</p>
+        <p className="flex items-center gap-2 font-semibold text-warning"><span className="h-2.5 w-2.5 rounded-full bg-warning" aria-hidden /> Not yet received by IPL</p>
         <p className="mt-1 text-sm text-ink-500">Written {formatDate(item.createdAt)} · {item.payload.community_name}. You'll get a tracking ID once it arrives.</p>
       </Card>
       <div className="mt-6 w-full space-y-3">

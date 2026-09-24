@@ -35,7 +35,7 @@ export function Notifications({ basePath = '/grievances' }: { basePath?: string 
           <ul className="space-y-2">
             {q.data.map((n) => {
               const inner = (
-                <div className={cx('flex gap-3 rounded-2xl p-4 ring-1 transition-colors', n.read_at ? 'bg-surface ring-line/70' : 'bg-brand-50 ring-brand-200')}>
+                <div className={cx('flex gap-3 rounded-2xl p-4 ring-1 transition-colors', n.read_at ? 'bg-surface shadow-card ring-transparent' : 'bg-brand-50 ring-brand-200')}>
                   <span className={cx('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', n.read_at ? 'bg-transparent' : 'bg-accent-500')} aria-label={n.read_at ? undefined : 'Unread'} />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">{n.title}</p>
@@ -83,7 +83,7 @@ export function Profile() {
         <Row label="Community" value={profile.community_name ?? 'Not set'} icon={MapPin} onEdit={() => setEdit('community')} />
         <Row label="Email and address" value={[profile.email, profile.address].filter(Boolean).join(' · ') || 'Not added (optional)'} onEdit={() => { setEmail(profile.email ?? ''); setAddress(profile.address ?? ''); setEdit('contact'); }} />
       </Card>
-      <Link to="/help" className="flex items-center gap-3 rounded-2xl bg-surface p-4 font-semibold shadow-card ring-1 ring-line/70"><ShieldCheck className="h-5 w-5 text-brand-700" /> Help and privacy</Link>
+      <Link to="/help" className="flex items-center gap-3 rounded-2xl bg-surface p-4 font-semibold shadow-card"><ShieldCheck className="h-5 w-5 text-brand-700" /> Help and privacy</Link>
       <Button size="lg" variant="secondary" icon={LogOut} onClick={() => setConfirmOut(true)}>Sign out</Button>
 
       <Modal open={edit === 'name'} onClose={() => setEdit(null)} title="Your name"

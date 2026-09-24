@@ -55,7 +55,7 @@ export function FilterBar({ filters, onChange, compact }: { filters: Filters; on
         {(active > 0 || filters.q) && <button onClick={() => { setQ(''); onChange({}); }} className="inline-flex h-9 items-center gap-1 px-2 text-sm font-semibold text-brand-700"><X className="h-4 w-4" />Clear all</button>}
       </div>
       {(more || compact) && d && (
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-surface p-3 shadow-card ring-1 ring-line/70 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-surface p-3 shadow-card sm:grid-cols-3 lg:grid-cols-5">
           <FilterSelect label="Year" value={filters.year} onChange={(v) => set('year', v ? Number(v) : undefined)} options={years.map((y) => [y, String(y)])} />
           <FilterSelect label="Community type" value={filters.community_type_id} onChange={(v) => onChange({ ...filters, community_type_id: v ? Number(v) : undefined, cluster_id: undefined, community_id: undefined })} options={d.community_types.map((t) => [t.id, t.name])} />
           <FilterSelect label="Cluster" value={filters.cluster_id} onChange={(v) => set('cluster_id', v ? Number(v) : undefined)} options={clusters.map((c) => [c.id, c.name])} />
@@ -149,9 +149,9 @@ export function RowsTable({ rows, dim }: { rows: StaffRow[]; dim?: boolean }) {
   return (
     <div className={cx('transition-opacity', dim && 'opacity-60')}>
       {/* desktop table */}
-      <div className="hidden overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-line/70 md:block">
+      <div className="hidden overflow-hidden rounded-2xl bg-surface shadow-card md:block">
         <table className="w-full text-[14px]">
-          <thead className="bg-canvas/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">
+          <thead className="bg-sunken/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">
             <tr><th className="px-4 py-3">Tracking ID</th><th className="px-4 py-3">Grievance</th><th className="px-4 py-3">Community</th><th className="px-4 py-3">Received</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Officer</th></tr>
           </thead>
           <tbody className="divide-y divide-line/70">
@@ -184,7 +184,7 @@ export function RowsTable({ rows, dim }: { rows: StaffRow[]; dim?: boolean }) {
       <ul className="space-y-2 md:hidden">
         {rows.map((r) => (
           <li key={r.id}>
-            <Link to={`/grievances/${r.id}`} className="block rounded-2xl bg-surface p-4 shadow-card ring-1 ring-line/70">
+            <Link to={`/grievances/${r.id}`} className="block rounded-2xl bg-surface p-4 shadow-card">
               <div className="flex items-start justify-between gap-2"><span className="font-mono text-[13px] font-semibold text-brand-800">{r.tracking_id}</span><StatusBadge label={r.status_label} tone={r.status_tone} size="sm" /></div>
               <p className="mt-1.5 line-clamp-2 font-medium">{r.title}</p>
               <p className="mt-1 text-sm text-ink-500">{r.community_name} · {formatDate(r.date_received, r.date_received_precision)}</p>
