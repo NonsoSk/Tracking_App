@@ -205,3 +205,21 @@ export type Filters = Partial<{
   officer_id: string; unassigned: boolean; open: boolean; overdue: boolean; due_soon: boolean; flagged: boolean;
   legacy: boolean; needs_ack: boolean; archived: boolean;
 }>;
+
+/** Who is in charge: a whole community type, a pipeline cluster, or one community. */
+export type Scope = { community_type: string } | { cluster_id: number } | { community_id: string };
+
+export interface ScopePerson { id: string; name: string; job_title: string | null; active: boolean; open_grievances: number }
+
+export interface TypeResponsibility {
+  id: number; code: string; name: string; has_clusters: boolean;
+  communities: number; open_grievances: number; unassigned: number;
+  officers: ScopePerson[];
+  clusters: { id: number; name: string; communities: number; open_grievances: number; officers: ScopePerson[] }[];
+}
+
+export interface CommunityPeople {
+  community_id: string; community: string; active: boolean;
+  officer_id: string | null; officer: string | null; via: string | null; open_grievances: number;
+  officers: { id: string; name: string; via: 'community' | 'cluster' | 'community type'; group: string | null }[];
+}

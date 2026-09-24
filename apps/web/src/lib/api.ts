@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { AppError, toAppError } from './errors';
 import type {
   Access, AppNotification, AuditRow, DashboardStats, Filters, MasterData, MyGrievance, MyGrievanceDetail,
-  OfficerHome, Profile, StaffDetail, StaffList, SubmissionCode, SubmissionStatus, UserRow,
+  CommunityPeople, OfficerHome, Profile, Scope, StaffDetail, StaffList, SubmissionCode, SubmissionStatus, TypeResponsibility, UserRow,
 } from './types';
 
 /** Call a database function; every failure becomes an AppError with a friendly message. */
@@ -119,7 +119,12 @@ export const api = {
     return data as { pin: string };
   },
 
-  communityOfficers: () => rpc<{ community_id: string; community: string; active: boolean; officer_id: string | null; officer: string | null; via: string | null; open_grievances: number }[]>('list_community_officers'),
+  communityOfficers: () => rpc<CommunityPeople[]>('list_community_officers'),
+  responsibilities: () => rpc<TypeResponsibility[]>('list_responsibilities'),
+  addResponsibility: (officerId: string, scope: Scope) =>
+    rpc<{ label: string; picked_up: number }>('admin_add_responsibility', { p_officer: officerId, p_scope: scope }),
+  removeResponsibility: (officerId: string, scope: Scope) =>
+    rpc<{ label: string; handed_over: number; unassigned: number }>('admin_remove_responsibility', { p_officer: officerId, p_scope: scope }),
   setCommunityOfficer: (communityId: string, officerId: string, reassignOpen: boolean) =>
     rpc<{ reassigned: number }>('admin_set_community_officer', { p_community: communityId, p_officer: officerId, p_reassign_open: reassignOpen }),
   clearCommunityOfficer: (communityId: string) => rpc<void>('admin_clear_community_officer', { p_community: communityId }),

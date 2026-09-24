@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Plus, Printer, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useMasterData } from '@/app/hooks';
@@ -10,27 +10,12 @@ import { formatDate, formatDateTime } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
 import type { Filters, UserRow } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { Avatar, Banner, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineConfirm, Input, Modal, Pill, SearchInput, Select, Skeleton, StatusBadge, Tabs, cx, useToast } from '@/design/ui';
+import { Avatar, Banner, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineConfirm, Input, Modal, Pill, SearchInput, Select, Skeleton, StatusBadge, Tabs, cx } from '@/design/ui';
 import { PageTitle, listHref } from './shell';
 import { downloadCsv, downloadXlsx } from './export';
+import { useSave } from './save';
+import { CommunityPeopleDrawer, ResponsibilityBoard } from './Responsibility';
 
-function useSave() {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const save = async (fn: () => PromiseLike<{ error: unknown } | unknown>, ok: string, keys: string[][] = [['master']], undo?: () => PromiseLike<unknown>) => {
-    setBusy(true);
-    try {
-      const r = (await fn()) as { error?: unknown } | undefined;
-      if (r && typeof r === 'object' && 'error' in r && r.error) throw r.error;
-      toast(ok, 'success', undo && { label: 'Undo', run: () => { void save(undo, 'Undone', keys); } });
-      await Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })));
-      return true;
-    } catch (e) { toast(toAppError(e).message, 'warning'); return false; }
-    finally { setBusy(false); }
-  };
-  return { busy, save };
-}
 
 /* ---------------------------------------------------------------- Communities */
 export function Communities() {
@@ -45,6 +30,7 @@ export function Communities() {
   const [edit, setEdit] = useState<null | { id?: string; name: string; short_code: string; notes: string; type: string; cluster: string }>(null);
   const [assign, setAssign] = useState<null | { id: string; name: string }>(null);
   const [q, setQ] = useState('');
+  const [view, setView] = useState<'types' | 'communities'>('types');
   const d = master.data;
   const typeName = (id: number) => d?.community_types.find((t) => t.id === id)?.name;
   const clusterName = (id: number | null) => d?.clusters.find((c) => c.id === id)?.name;
@@ -64,16 +50,20 @@ export function Communities() {
 
   return (
     <div>
-      <PageTitle title="Communities" subtitle="Community type and cluster are set here once and applied automatically to every grievance."
-        actions={<Button icon={Plus} onClick={() => setEdit({ name: '', short_code: '', notes: '', type: String(d?.community_types[0]?.id ?? ''), cluster: '' })}>Add community</Button>} />
+      <PageTitle title="Communities" subtitle="Who is in charge of each community type, and each community's classification."
+        actions={<Tabs value={view} onChange={setView} items={[{ value: 'types', label: 'People in charge', count: d?.community_types.length }, { value: 'communities', label: 'Communities', count: all.data?.communities.length }]} />} />
+      {view === 'types' ? <ResponsibilityBoard /> : <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="w-full max-w-sm"><SearchInput placeholder="Search communities" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <Button icon={Plus} onClick={() => setEdit({ name: '', short_code: '', notes: '', type: String(d?.community_types[0]?.id ?? ''), cluster: '' })}>Add community</Button>
+      </div>
       {pipelineCount !== undefined && pipelineCount < 32 && (
         <div className="mb-4"><Banner tone="info" title={`${pipelineCount} pipeline communities are listed; the structure document states 32.`}>Add the missing community here when its name is confirmed.</Banner></div>
       )}
-      <div className="mb-3 max-w-sm"><SearchInput placeholder="Search communities" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       {all.isLoading ? <Skeleton className="h-96" /> : all.isError ? <ErrorState message={toAppError(all.error).message} /> : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-sunken/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"><tr><th className="px-4 py-3">Community</th><th className="px-4 py-3">Classification</th><th className="px-4 py-3">Officer in charge</th><th className="px-4 py-3">Code prefix</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead>
+            <thead className="bg-sunken/70 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"><tr><th className="px-4 py-3">Community</th><th className="px-4 py-3">Classification</th><th className="px-4 py-3">People in charge</th><th className="px-4 py-3">Code prefix</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead>
             <tbody className="divide-y divide-line/70">
               {all.data!.communities.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())).map((c) => {
                 const affs = all.data!.affiliations.filter((a) => a.community_id === c.id && a.active);
@@ -89,13 +79,17 @@ export function Communities() {
                     <td className="px-4 py-3">
                       {(() => {
                         const o = officers.data?.find((x) => x.community_id === c.id);
+                        const ppl = o?.officers ?? [];
                         return (
-                          <div className="flex items-center gap-2">
-                            <div className="min-w-0">
-                              <p className={cx('font-medium', !o?.officer && 'text-danger')}>{o?.officer ?? 'Nobody'}</p>
-                              {o?.officer && <p className="text-xs text-ink-500">{o.via === 'community' ? 'this community' : `via ${o.via}`}</p>}
-                            </div>
-                            <Button size="sm" variant="secondary" onClick={() => setAssign({ id: c.id, name: c.name })}>Change</Button>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {!ppl.length && <Pill tone="red">Nobody</Pill>}
+                            {ppl.slice(0, 3).map((p) => (
+                              <Pill key={p.id} tone={p.via === 'community' ? 'brand' : 'neutral'}>
+                                {p.name}<span className="font-normal opacity-75">· {p.via === 'community' ? 'this community' : p.via === 'cluster' ? p.group : `all ${p.group}`}</span>
+                              </Pill>
+                            ))}
+                            {ppl.length > 3 && <Pill>+{ppl.length - 3} more</Pill>}
+                            <Button size="sm" variant="ghost" icon={UserPlus} onClick={() => setAssign({ id: c.id, name: c.name })}>Add person</Button>
                           </div>
                         );
                       })()}
@@ -117,7 +111,8 @@ export function Communities() {
           </table>
         </Card>
       )}
-      {assign && <AssignCommunityOfficer community={assign} current={officers.data?.find((x) => x.community_id === assign.id) ?? null} onClose={() => setAssign(null)} />}
+      </>}
+      {assign && <CommunityPeopleDrawer community={assign} current={officers.data?.find((x) => x.community_id === assign.id)} onClose={() => setAssign(null)} />}
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? 'Edit community' : 'Add community'}
         footer={<><Button variant="secondary" onClick={() => setEdit(null)}>Cancel</Button><Button loading={busy} disabled={!edit?.name.trim() || (!edit?.id && !edit?.type)} onClick={saveCommunity}>Save</Button></>}>
         {edit && d && (
@@ -141,52 +136,6 @@ export function Communities() {
 }
 
 /** Put anyone in charge of one community (they get the Officer role if they don't have it). */
-function AssignCommunityOfficer({ community, current, onClose }: {
-  community: { id: string; name: string };
-  current: { officer_id: string | null; officer: string | null; via: string | null; open_grievances: number } | null;
-  onClose: () => void;
-}) {
-  const { busy, save } = useSave();
-  const [q, setQ] = useState('');
-  const [picked, setPicked] = useState<UserRow | null>(null);
-  const [handover, setHandover] = useState(true);
-  const people = useQuery({ queryKey: ['users', 'all', q], queryFn: () => api.users({ kind: 'all', q }) });
-  const keys = [['community-officers'], ['users'], ['staff-directory'], ['staff-list']];
-  const list = (people.data ?? []).filter((u) => u.is_active).slice(0, 30);
-  return (
-    <Modal open onClose={onClose} title={`Officer in charge of ${community.name}`}
-      footer={<>
-        {current?.via === 'community' && <Button variant="ghost" loading={busy} onClick={async () => { if (await save(() => api.clearCommunityOfficer(community.id), 'Removed. The default officer for its group now covers it.', keys)) onClose(); }}>Remove (use the group's officer)</Button>}
-        <Button loading={busy} disabled={!picked} onClick={async () => {
-          if (picked && await save(() => api.setCommunityOfficer(community.id, picked.id, handover), `${picked.full_name} is now in charge of ${community.name}`, keys)) onClose();
-        }}>Put in charge</Button>
-      </>}>
-      <div className="space-y-4">
-        <p className="text-sm text-ink-700">Currently: <b>{current?.officer ?? 'nobody'}</b>{current?.officer && current.via !== 'community' ? ` (covers all ${current.via === 'cluster' ? 'communities in its cluster' : 'communities of its type'})` : ''}.</p>
-        <SearchInput placeholder="Search anyone by name, phone or email" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-        <ul className="max-h-72 space-y-1 overflow-y-auto">
-          {people.isLoading && <li className="py-3 text-center text-sm text-ink-500">Loading…</li>}
-          {list.map((u) => (
-            <li key={u.id}>
-              <button onClick={() => setPicked(u)} aria-pressed={picked?.id === u.id}
-                className={cx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset', picked?.id === u.id ? 'bg-btn text-white ring-transparent shadow-halo' : 'ring-line hover:bg-sunken')}>
-                <span className="min-w-0 flex-1"><span className="block font-semibold">{u.full_name}</span>
-                  <span className={cx('block truncate text-xs', picked?.id === u.id ? 'text-white/80' : 'text-ink-500')}>{u.job_title ?? u.community ?? ''} · {u.roles.includes('officer') ? 'Officer' : u.roles.includes('super_admin') ? 'Super Admin' : 'Not an officer yet'}</span></span>
-              </button>
-            </li>
-          ))}
-          {!people.isLoading && !list.length && <li className="py-3 text-center text-sm text-ink-500">No one found. They need to have an account first.</li>}
-        </ul>
-        {picked && !picked.roles.includes('officer') && <Banner tone="info">{picked.full_name} will be given the Officer role. They will then see and work grievances from {community.name} when they sign in.</Banner>}
-        {(current?.open_grievances ?? 0) > 0 && (
-          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-700" checked={handover} onChange={(e) => setHandover(e.target.checked)} />
-            Also hand over the {current!.open_grievances} open grievance(s) from {community.name}</label>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
 /* ---------------------------------------------------------------- Categories, statuses, severities, holidays */
 export function Categories() {
   const [tab, setTab] = useState<'categories' | 'statuses' | 'severities' | 'holidays'>('categories');

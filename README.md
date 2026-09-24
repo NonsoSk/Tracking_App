@@ -26,7 +26,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
 | 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
 | 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
-| 14 Tests: 165 pgTAP · 29 unit · 4 browser end-to-end (incl. offline) | ✅ |
+| 14 Tests: 178 pgTAP · 29 unit · 4 browser end-to-end (incl. offline) | ✅ |
 | Visual design: royal blue / white with #C00000 accents, separate navy dark theme | ✅ |
 
 Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).
@@ -66,10 +66,12 @@ appear only when something needs attention (with #C00000 accents). Font: Nunito 
 | `…1000_legacy_import_fn` | `app.import_legacy_batch` / `app.rollback_legacy_batch`, batched overdue alerts |
 | `…1100_app_api` | app read API: master data, staff list/detail (search, filters, paging), dashboards, officer home, export, admin lists |
 | `…1200_ops` | audit hook for PIN resets |
+| `20260924…community_officers` | put a person in charge of one community from the app |
+| `20260925…shared_responsibility` | several people in charge; responsibility per community type / cluster; hand-over on removal |
 
 ### Running the tests
 
-The suite has 165 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
+The suite has 178 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
 
 ```bash
 # needs PostgreSQL 15+ with pgtap + pg_trgm, and pg_prove
@@ -108,13 +110,19 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
 
 ## Quick setup on Supabase (no command line)
 
-1. SQL Editor → run [`supabase/setup/all-in-one.sql`](supabase/setup/all-in-one.sql) once on the empty project
-   (if you ran an earlier version, run [`03-update-2026-09-24.sql`](supabase/setup/03-update-2026-09-24.sql) instead).
+1. SQL Editor → run [`supabase/setup/all-in-one.sql`](supabase/setup/all-in-one.sql) once on the empty project.
+   If you ran an earlier version, run only the update scripts dated after it, in order:
+   [`03-update-2026-09-24.sql`](supabase/setup/03-update-2026-09-24.sql), then
+   [`04-update-2026-09-25.sql`](supabase/setup/04-update-2026-09-25.sql).
 2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
    [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
 3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_ANON_KEY` (the publishable key).
-4. Everything else happens in the app: **Communities → Change** puts anyone in charge of a community;
+4. Everything else happens in the app: **Communities → People in charge** puts anyone in charge of a whole
+   community type (Host, Pipeline, Indirectly Impacted, Jetty) or one pipeline cluster, and the **Communities** tab
+   adds someone for a single community. Several people can share the same responsibility: they all see its
+   grievances, and new ones go to whoever has the fewest open. Removing someone hands their open grievances to
+   the others;
    **Users & officers** manages roles. Optional: paste `supabase/functions/admin-create-user/index.ts` and
    `admin-reset-pin/index.ts` into Supabase → Edge Functions → Deploy a new function → Via editor, so you can also
    create staff logins and reset PINs from the app.
