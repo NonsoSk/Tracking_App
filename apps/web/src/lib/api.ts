@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { AppError, toAppError } from './errors';
+import { toAppError } from './errors';
 import type {
   Access, AppNotification, AuditRow, DashboardStats, Filters, MasterData, MyGrievance, MyGrievanceDetail,
   CommunityPeople, OfficerHome, Profile, Scope, StaffDetail, StaffList, SubmissionCode, SubmissionStatus, TypeResponsibility, UserRow,
@@ -17,17 +17,6 @@ async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
   return res.data as T;
 }
 
-/** Server-function errors: a missing function gets a clear explanation; a message from the function is shown as-is if known. */
-async function functionError(error: unknown, missingMessage: string): Promise<AppError> {
-  const e = error as { name?: string; context?: Response; message?: string };
-  const status = e.context?.status;
-  if (e.name === 'FunctionsFetchError' || e.name === 'FunctionsRelayError' || status === 404) return new AppError('function_missing', missingMessage);
-  try {
-    const body = await e.context?.json();
-    if (body?.error) return toAppError({ message: body.error });
-  } catch { /* not JSON */ }
-  return toAppError(error);
-}
 
 export interface SubmitPayload {
   client_submission_id: string;
@@ -108,18 +97,10 @@ export const api = {
   settings: () => rpc<{ key: string; value: unknown; description: string | null; is_public: boolean; updated_at: string }[]>('list_settings'),
   updateSetting: (key: string, value: unknown) => rpc<void>('update_setting', { p_key: key, p_value: value }),
 
-  /** Staff account creation needs the Auth admin API, so it runs in an Edge Function (service role). */
-  async createStaffUser(p: { email: string; full_name: string; job_title?: string; roles: string[]; password: string }) {
-    const { data, error } = await supabase.functions.invoke('admin-create-user', { body: p });
-    if (error) throw await functionError(error, 'Adding staff here needs the “admin-create-user” server function, which is not set up yet. Meanwhile, ask the person to create an account in the app, then promote them under Users & officers → Community members → Manage.');
-    return data as { id: string };
-  },
-
-  async resetMemberPin(userId: string) {
-    const { data, error } = await supabase.functions.invoke('admin-reset-pin', { body: { user_id: userId } });
-    if (error) throw await functionError(error, 'Resetting a PIN needs the “admin-reset-pin” server function, which is not set up yet.');
-    return data as { pin: string };
-  },
+  // Both run inside the database (no server functions to deploy).
+  createStaffUser: (p: { email: string; full_name: string; job_title?: string; roles: string[]; password: string }) =>
+    rpc<{ id: string }>('admin_create_staff', { p }),
+  resetMemberPin: (userId: string) => rpc<{ pin: string }>('admin_reset_member_pin', { p_user: userId }),
 
   communityOfficers: () => rpc<CommunityPeople[]>('list_community_officers'),
   responsibilities: () => rpc<TypeResponsibility[]>('list_responsibilities'),

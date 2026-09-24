@@ -253,7 +253,7 @@ export function SubmitDone() {
       <div className="flex min-h-[80vh] flex-col items-center justify-center text-center animate-fade-up">
         <SuccessMark />
         <h1 className="mt-6 text-2xl font-bold">Your grievance has been submitted.</h1>
-        <p className="mt-2 text-ink-700">It has reached the IPL Community Relations team.</p>
+        <p className="mt-2 text-ink-700">It has reached the Indorama Community Relations team.</p>
         <Card className="mt-6 w-full p-5">
           <p className="text-sm font-semibold text-ink-500">Tracking ID</p>
           <p className="mt-1 font-mono text-2xl font-bold tracking-wide text-brand-800" data-testid="tracking-id">{item.trackingId}</p>

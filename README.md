@@ -1,4 +1,4 @@
-# IPL Community Grievance Management System
+# Indorama Grievance Portal
 
 Offline-first PWA for the Community Relations Department of Indorama Eleme Petrochemicals Limited.
 **Submit → Track → Resolve → Acknowledge.**
@@ -26,7 +26,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
 | 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
 | 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
-| 14 Tests: 186 pgTAP · 31 unit · 7 browser end-to-end (incl. offline, sign-up and code entry) | ✅ |
+| 14 Tests: 196 pgTAP · 31 unit · 8 browser end-to-end (incl. offline, sign-up, code entry, adding staff) | ✅ |
 | Visual design: royal blue / white with #C00000 accents, separate navy dark theme | ✅ |
 
 Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).
@@ -69,10 +69,11 @@ appear only when something needs attention (with #C00000 accents). Font: Nunito 
 | `20260924…community_officers` | put a person in charge of one community from the app |
 | `20260925…shared_responsibility` | several people in charge; responsibility per community type / cluster; hand-over on removal |
 | `20260926…code_entry_only` | only the Super Admin creates codes; members must type the exact code (never shown to them); wrong-guess limit |
+| `20260927…staff_accounts` | create staff logins and reset member PINs from the app, inside the database; app name |
 
 ### Running the tests
 
-The suite has 186 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
+The suite has 196 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
 
 ```bash
 # needs PostgreSQL 15+ with pgtap + pg_trgm, and pg_prove
@@ -115,7 +116,8 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
    If you ran an earlier version, run only the update scripts dated after it, in order:
    [`03-update-2026-09-24.sql`](supabase/setup/03-update-2026-09-24.sql), then
    [`04-update-2026-09-25.sql`](supabase/setup/04-update-2026-09-25.sql), then
-   [`06-update-2026-09-26.sql`](supabase/setup/06-update-2026-09-26.sql).
+   [`06-update-2026-09-26.sql`](supabase/setup/06-update-2026-09-26.sql), then
+   [`07-update-2026-09-27.sql`](supabase/setup/07-update-2026-09-27.sql).
 2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
    [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
 3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and
@@ -124,7 +126,5 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
    community type (Host, Pipeline, Indirectly Impacted, Jetty) or one pipeline cluster, and the **Communities** tab
    adds someone for a single community. Several people can share the same responsibility: they all see its
    grievances, and new ones go to whoever has the fewest open. Removing someone hands their open grievances to
-   the others;
-   **Users & officers** manages roles. Optional: paste `supabase/functions/admin-create-user/index.ts` and
-   `admin-reset-pin/index.ts` into Supabase → Edge Functions → Deploy a new function → Via editor, so you can also
-   create staff logins and reset PINs from the app.
+   the others. **Users & officers** manages roles, **Add staff member** creates an email login, and **Manage →
+   Reset PIN** gives a community member a new PIN (both run in the database; no server functions to deploy).

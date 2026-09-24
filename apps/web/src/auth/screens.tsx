@@ -18,7 +18,7 @@ function AuthLayout({ children, back }: { children: React.ReactNode; back?: stri
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-8 pt-4">
         <div className="flex h-12 items-center justify-between">
           {back ? <Link to={back} className="-ml-1 grid h-11 w-11 place-items-center rounded-full bg-surface text-ink-700 shadow-card hover:text-brand-700" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
-                : <div className="flex items-center gap-2 font-extrabold text-brand-700"><Logo size={30} /> IPL Community</div>}
+                : <div className="flex items-center gap-2 font-extrabold text-brand-700"><Logo size={30} /> Indorama Grievance Portal</div>}
           <ThemeSwitch />
         </div>
         {children}

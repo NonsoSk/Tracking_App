@@ -68,7 +68,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col bg-gradient-to-b from-[rgb(var(--bar-from))] to-[rgb(var(--bar-to))] text-white lg:flex no-print">
         <div className="flex items-center gap-2.5 px-6 pb-4 pt-6">
           <span className="rounded-2xl bg-white p-1 shadow-card"><Logo size={30} /></span>
-          <div className="leading-tight"><p className="font-extrabold">IPL Grievance</p><p className="text-xs text-white/70">Community Relations</p></div>
+          <div className="leading-tight"><p className="font-extrabold">Indorama Grievance Portal</p><p className="text-xs text-white/70">Community Relations</p></div>
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4" aria-label="Main">
           <ul className="space-y-1">{main.map(sideLink)}</ul>
@@ -89,7 +89,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
         {/* Phone: blue top bar */}
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 bg-gradient-to-r from-[rgb(var(--bar-from))] to-[rgb(var(--bar-to))] px-4 text-white shadow-[0_4px_16px_rgb(0_37_122/0.25)] safe-top lg:hidden no-print">
           <span className="rounded-xl bg-white p-0.5"><Logo size={26} /></span>
-          <span className="min-w-0 flex-1 truncate text-[17px] font-extrabold">{current?.label ?? 'IPL Grievance'}</span>
+          <span className="min-w-0 flex-1 truncate text-[17px] font-extrabold">{current?.label ?? 'Indorama Grievance Portal'}</span>
           <ThemeSwitch onBlue />
         </header>
         {!online && <div className="flex items-center justify-center gap-2 bg-[#1A1F36] px-4 py-2 text-sm font-bold text-white"><WifiOff className="h-4 w-4" /> You're offline. Showing the last data loaded; changes need a connection.</div>}

@@ -12,8 +12,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'IPL Community Grievance',
-        short_name: 'IPL Grievance',
+        name: 'Indorama Grievance Portal',
+        short_name: 'Indorama Grievance',
         description: 'Submit and track grievances with Indorama Eleme Petrochemicals Community Relations.',
         lang: 'en-NG',
         start_url: '/',

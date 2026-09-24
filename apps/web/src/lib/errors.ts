@@ -8,7 +8,7 @@ const MESSAGES: Record<string, string> = {
   not_allowed: "You don't have permission to do that.",
   not_found: "We couldn't find that grievance.",
   invalid_login: 'That phone number/email and PIN do not match. Please check and try again.',
-  account_exists: 'An account with this phone number already exists. Please sign in instead.',
+  account_exists: 'An account with this phone number or email already exists. Sign in instead, or use a different one.',
   account_disabled: 'This account has been disabled. Please contact the Community Relations office.',
   weak_pin: 'Your PIN must be 6 digits.',
   rate_limited: 'Too many attempts. Please wait a few minutes and try again.',
@@ -48,6 +48,10 @@ const MESSAGES: Record<string, string> = {
   phone_invalid: 'Please enter a valid Nigerian phone number.',
   name_required: "Please enter the complainant's name.",
   file_already_imported: 'This file has already been imported.',
+  email_invalid: 'Please enter a valid email address.',
+  password_too_short: 'The temporary password must be at least 10 characters.',
+  role_invalid: 'Please choose a role.',
+  not_a_member: 'PIN reset is only for community member accounts.',
 };
 
 /** Errors after which retrying the same request can never succeed. */

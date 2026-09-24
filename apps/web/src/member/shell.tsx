@@ -27,7 +27,7 @@ export function MemberShell({ children }: { children: ReactNode }) {
   const nav = useNavigate();
   const [more, setMore] = useState(false);
   useEffect(() => setMore(false), [loc.pathname]);
-  const title = TITLES.find(([p]) => loc.pathname.startsWith(p))?.[1] ?? 'IPL Grievance';
+  const title = TITLES.find(([p]) => loc.pathname.startsWith(p))?.[1] ?? 'Indorama Grievance Portal';
   const moreActive = ['/profile', '/help', '/submit'].some((p) => loc.pathname.startsWith(p));
   return (
     <div className="member min-h-dvh bg-canvas">

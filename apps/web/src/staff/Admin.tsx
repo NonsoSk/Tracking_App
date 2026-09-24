@@ -371,9 +371,8 @@ function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) 
         <Field label="Work email" htmlFor="sfe"><Input id="sfe" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         <Field label="Job title" htmlFor="sfj" optional><Input id="sfj" value={f.job_title} onChange={(e) => setF({ ...f, job_title: e.target.value })} /></Field>
         <Field label="Role" htmlFor="sfr"><Select id="sfr" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{ROLES.filter(([k]) => k !== 'community_member').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select></Field>
-        <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Ask them to change it after first sign-in."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
-        {f.role === 'officer' && <p className="text-sm text-ink-500">After creating the account, use “Manage” here, or <b>Communities → Change</b>, to set which communities they are responsible for.</p>}
-        <p className="rounded-xl bg-sunken p-3 text-sm text-ink-700"><b>Other way:</b> ask the person to create an account in the app themselves. Then find them under <b>Community members</b>, click <b>Manage</b> and give them a role, or put them in charge of a community on the <b>Communities</b> page.</p>
+        <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Give it to them privately; they sign in with their work email and this password."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+        {f.role === 'officer' && <p className="text-sm text-ink-500">Next, put them in charge under <b>Communities → People in charge</b> (a whole community type) or on the <b>Communities</b> tab (one community).</p>}
       </div>
     </Modal>
   );

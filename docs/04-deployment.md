@@ -6,7 +6,7 @@
 |---|---|
 | Database, auth, API | Supabase project (PostgreSQL 15+). Can be Supabase Cloud or self-hosted on IPL infrastructure |
 | PWA (`apps/web`) | Any static host with an SPA fallback to `index.html` (Cloudflare Pages, Netlify, Vercel, Nginx) over HTTPS |
-| Edge Functions | Supabase: `notify-dispatch`, `whatsapp-webhook`, `admin-create-user`, `admin-reset-pin` |
+| Edge Functions | Supabase: `notify-dispatch`, `whatsapp-webhook` (WhatsApp only; staff accounts and PIN resets run in the database) |
 | WhatsApp | Meta WhatsApp Cloud API (business account, phone number, approved templates) |
 
 ## 2. Supabase project
@@ -28,7 +28,7 @@
    Sign in to the app with that email and password.
 6. Add the officers **from inside the app** (no SQL needed):
    - *Either* ask each person to create an account in the app (phone + PIN), then in **Communities** click **Change** next to a community and pick them (they are given the Officer role automatically), or use **Users & officers → Community members → Manage** to give a role and a whole group of communities;
-   - *or*, once the `admin-create-user` function is deployed (Supabase → Edge Functions → Deploy a new function → Via editor → paste `supabase/functions/admin-create-user/index.ts`), use **Users & officers → Add staff member** to create an email login directly.
+   - *or* use **Users & officers → Add staff member** to create an email login directly.
 
    Default responsibility:
    - **Godpower Jaka**: All Host + All Pipeline
@@ -64,7 +64,7 @@ Expected result: 608 source rows → 504 grievances, 63 linked copies, 41 duplic
    ```bash
    supabase secrets set WHATSAPP_TOKEN=… WHATSAPP_PHONE_NUMBER_ID=… WHATSAPP_APP_SECRET=… \
                         WHATSAPP_VERIFY_TOKEN=<random> DISPATCH_SECRET=<random> APP_ORIGIN=https://grievance.example.com
-   supabase functions deploy notify-dispatch whatsapp-webhook admin-create-user admin-reset-pin
+   supabase functions deploy notify-dispatch whatsapp-webhook
    ```
 4. In the Meta app, configure the webhook URL `https://<ref>.supabase.co/functions/v1/whatsapp-webhook` with the same verify token, and subscribe to **messages**. Delivery receipts then update each message's status.
 5. Schedule the dispatcher every minute:

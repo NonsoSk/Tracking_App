@@ -4,7 +4,6 @@
 //   /auth/v1/signup, /auth/v1/token (password, refresh_token), /auth/v1/user, /auth/v1/logout
 //   /rest/v1/rpc/<function>   (PostgREST-style RPC, executed as the caller's role)
 //   /rest/v1/<table>          (select/insert/update/delete with eq filters)
-//   /functions/v1/admin-create-user
 // Every request runs in a transaction with request.jwt.claims + SET ROLE, the
 // same way PostgREST does, so RLS and function permissions are exercised for
 // real. NEVER deploy this.
@@ -178,37 +177,7 @@ async function handle(req, res) {
     } catch (e) { return pgError(res, e); }
   }
 
-  // ---- edge function stand-in
-  if (path === '/functions/v1/admin-create-user' && req.method === 'POST') {
-    const claims = claimsFrom(req);
-    const b = await readBody(req);
-    try {
-      const allowed = await asRole(claims, (c) => c.query("select app.has_perm('users.manage') as ok"));
-      if (!allowed.rows[0]?.ok) return send(res, 403, { error: 'not_allowed' });
-      const { rows } = await pool.query(
-        `insert into auth.users (email, raw_user_meta_data, encrypted_password)
-         values ($1, $2, extensions.crypt($3, extensions.gen_salt('bf'))) returning id`,
-        [b.email.toLowerCase(), { full_name: b.full_name }, b.password]);
-      await asRole(claims, async (c) => {
-        await c.query('select public.admin_set_user_roles($1, $2)', [rows[0].id, b.roles]);
-        if (b.job_title) await c.query('select public.admin_update_profile($1, $2)', [rows[0].id, { job_title: b.job_title }]);
-      });
-      return send(res, 200, { id: rows[0].id });
-    } catch (e) { return pgError(res, e); }
-  }
 
-  if (path === '/functions/v1/admin-reset-pin' && req.method === 'POST') {
-    const claims = claimsFrom(req);
-    const b = await readBody(req);
-    try {
-      const allowed = await asRole(claims, (c) => c.query("select app.has_perm('users.manage') as ok"));
-      if (!allowed.rows[0]?.ok) return send(res, 403, { error: 'not_allowed' });
-      const pin = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-      await pool.query(`update auth.users set encrypted_password = extensions.crypt($2, extensions.gen_salt('bf')) where id = $1`, [b.user_id, `Ipl#Pin-${pin}-Grv`]);
-      await asRole(claims, (c) => c.query('select public.log_pin_reset($1)', [b.user_id]));
-      return send(res, 200, { pin });
-    } catch (e) { return pgError(res, e); }
-  }
 
   // ---- simple table access (master data screens)
   const tbl = path.match(/^\/rest\/v1\/([a-z_0-9]+)$/);
