@@ -1,8 +1,8 @@
-import { supabase } from './supabase';
+import { mailer, supabase } from './supabase';
 import { toAppError } from './errors';
 import type {
   Access, AppNotification, AuditRow, DashboardStats, Filters, MasterData, MyGrievance, MyGrievanceDetail,
-  CommunityPeople, OfficerHome, Profile, Scope, StaffDetail, StaffList, SubmissionCode, SubmissionStatus, TypeResponsibility, UserRow,
+  CommunityPeople, OfficerHome, Profile, Scope, StaffDetail, StaffInvitation, StaffList, SubmissionCode, SubmissionStatus, TypeResponsibility, UserRow,
 } from './types';
 
 /** Call a database function; every failure becomes an AppError with a friendly message. */
@@ -101,6 +101,24 @@ export const api = {
   createStaffUser: (p: { email: string; full_name: string; job_title?: string; roles: string[]; password: string }) =>
     rpc<{ id: string }>('admin_create_staff', { p }),
   resetMemberPin: (userId: string) => rpc<{ pin: string }>('admin_reset_member_pin', { p_user: userId }),
+
+  // Staff invitations by email
+  inviteStaff: (p: { email: string; full_name: string; job_title?: string; roles: string[] }) =>
+    rpc<{ id: string; email: string }>('admin_invite_staff', { p }),
+  invitations: () => rpc<StaffInvitation[]>('list_staff_invitations'),
+  cancelInvitation: (id: string) => rpc<void>('admin_cancel_invitation', { p_id: id }),
+  /** Ask Supabase to email the sign-in link (after the invitation is recorded). */
+  async sendInviteEmail(email: string) {
+    const { error } = await mailer.auth.signInWithOtp({
+      email, options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/` },
+    });
+    if (error) throw toAppError(error);
+  },
+  async setMyPassword(password: string) {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw toAppError(error);
+    await rpc<void>('complete_password_setup');
+  },
 
   communityOfficers: () => rpc<CommunityPeople[]>('list_community_officers'),
   responsibilities: () => rpc<TypeResponsibility[]>('list_responsibilities'),

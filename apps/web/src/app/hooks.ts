@@ -67,12 +67,21 @@ export function useAutoSync(userId: string | null, onSynced?: (n: number) => voi
     };
     run(true);
     pruneSynced(userId);
-    const onOnline = () => run(true);
+    // A phone that has just reconnected often fails the very first request, and a failed
+    // try waits longer before the next one. So try again a few seconds after reconnecting.
+    const retries: number[] = [];
+    const onOnline = () => {
+      run(true);
+      retries.push(window.setTimeout(() => run(true), 3_000), window.setTimeout(() => run(true), 10_000));
+    };
     const onVisible = () => document.visibilityState === 'visible' && run(true);
     window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisible);
     const t = window.setInterval(() => run(false), 20_000);
-    return () => { stopped = true; window.removeEventListener('online', onOnline); document.removeEventListener('visibilitychange', onVisible); clearInterval(t); };
+    return () => {
+      stopped = true; window.removeEventListener('online', onOnline); document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(t); retries.forEach((r) => clearTimeout(r));
+    };
   }, [userId, onSynced]);
 }
 

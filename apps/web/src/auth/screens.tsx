@@ -5,7 +5,8 @@ import { useAuth } from '@/app/auth';
 import { useMasterData, useOnline } from '@/app/hooks';
 import { Banner, Button, Field, Input, SearchInput, Stepper, ThemeSwitch, cx } from '@/design/ui';
 import { CommunityScene, Logo } from '@/design/art';
-import { describeError } from '@/lib/errors';
+import { describeError, messageFor } from '@/lib/errors';
+import { api } from '@/lib/api';
 import { normalizePhone } from '@/lib/phone';
 
 const ONBOARDED = 'ipl.onboarded';
@@ -186,7 +187,7 @@ export function SignUp() {
 
 /* ------------------------------------------------------------------ Sign in */
 export function SignIn() {
-  const { signIn } = useAuth();
+  const { signIn, linkError } = useAuth();
   const nav = useNavigate();
   const online = useOnline();
   const [identifier, setIdentifier] = useState(() => { try { return localStorage.getItem('ipl.lastLogin') ?? ''; } catch { return ''; } });
@@ -222,12 +223,69 @@ export function SignIn() {
             ? <Input id="secret" type="password" autoComplete="current-password" value={secret} onChange={(e) => setSecret(e.target.value)} />
             : <PinInput id="secret" value={secret} onChange={setSecret} autoFocus={!!identifier} />}
         </Field>
+        {linkError && !error && <Banner tone="warning">{messageFor(linkError)}</Banner>}
         {error && <Banner tone="warning">{error}</Banner>}
         {!online && <Banner tone="warning">You're offline. Signing in needs a connection.</Banner>}
         <div className="mt-auto space-y-4">
           <Button type="submit" size="lg" loading={busy} icon={LogIn} disabled={!online}>Sign in</Button>
           <p className="text-center text-ink-500">New here? <Link to="/signup" className="font-semibold text-brand-700 underline-offset-2 hover:underline">Create an account</Link></p>
           <p className="text-center text-sm text-ink-500">Forgot your PIN? Please visit or call the Community Relations office to reset it.</p>
+        </div>
+      </form>
+    </AuthLayout>
+  );
+}
+
+/* ------------------------------------------------------------------ Set password (invited staff) */
+export function SetPassword() {
+  const { profile, refresh, signOut } = useAuth();
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const checks = [
+    { ok: pw.length >= 10, label: 'At least 10 characters' },
+    { ok: /[a-z]/.test(pw) && /[A-Z]/.test(pw), label: 'Capital and small letters' },
+    { ok: /\d/.test(pw), label: 'A number' },
+    { ok: /[^A-Za-z0-9]/.test(pw), label: 'A symbol, e.g. # or !' },
+  ];
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (checks.some((c) => !c.ok)) return setError('Please choose a password that meets all the points below.');
+    if (pw !== pw2) return setError('The two passwords are different. Please type them again.');
+    setBusy(true);
+    try { await api.setMyPassword(pw); await refresh(); }
+    catch (err) { setError(describeError(err)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <AuthLayout>
+      <form onSubmit={submit} className="flex flex-1 flex-col gap-5 animate-fade-up" noValidate>
+        <div className="pt-4">
+          <p className="eyebrow text-brand-700">Welcome{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}</p>
+          <h1 className="text-[28px] font-extrabold leading-tight">Choose your password</h1>
+          <p className="mt-1 text-ink-700">You were invited to the Indorama Grievance Portal. Set a password to finish. Next time, sign in with <b>{profile?.email}</b> and this password.</p>
+        </div>
+        <Field label="New password" htmlFor="npw">
+          <Input id="npw" type={show ? 'text' : 'password'} autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
+        </Field>
+        <Field label="Type it again" htmlFor="npw2">
+          <Input id="npw2" type={show ? 'text' : 'password'} autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm text-ink-700"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={show} onChange={(e) => setShow(e.target.checked)} />Show password</label>
+        <ul className="grid grid-cols-2 gap-2 text-sm">
+          {checks.map((c) => (
+            <li key={c.label} className={cx('flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 font-semibold', c.ok ? 'bg-success-soft text-success' : 'bg-sunken text-ink-500')}>
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />{c.label}
+            </li>
+          ))}
+        </ul>
+        {error && <Banner tone="warning">{error}</Banner>}
+        <div className="mt-auto space-y-3">
+          <Button type="submit" size="lg" loading={busy}>Save password and continue</Button>
+          <Button type="button" size="lg" variant="ghost" onClick={() => signOut()}>Not you? Sign out</Button>
         </div>
       </form>
     </AuthLayout>

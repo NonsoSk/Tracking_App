@@ -24,6 +24,25 @@ interface AuthState {
   signUp: (p: { fullName: string; phone: string; communityId: string; pin: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Set when an emailed sign-in link could not be used (expired or already used). */
+  linkError: string | null;
+}
+
+/**
+ * Invitation emails bring people back with the session in the address
+ * (#access_token=…), or an error (#error=…). Use it once, then tidy the address.
+ */
+async function consumeEmailLink(): Promise<string | null> {
+  const h = typeof window !== 'undefined' ? window.location.hash : '';
+  if (!h || h.length < 2) return null;
+  const p = new URLSearchParams(h.slice(1));
+  const at = p.get('access_token'); const rt = p.get('refresh_token');
+  const failed = p.get('error') || p.get('error_code');
+  if (!at && !failed) return null;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  if (failed) return 'link_expired';
+  const { error } = await supabase.auth.setSession({ access_token: at!, refresh_token: rt ?? '' });
+  return error ? 'link_expired' : null;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -58,9 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const [linkError, setLinkError] = useState<string | null>(null);
+
   useEffect(() => {
     let alive = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    consumeEmailLink().then((e) => { if (e) setLinkError(e); }).then(() => supabase.auth.getSession()).then(async ({ data }) => {
       if (!alive) return;
       setSession(data.session);
       if (data.session) { try { await load(data.session.user.id); } catch { /* shown by screens */ } }
@@ -114,9 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isStaff: !!access?.roles.some((r) => STAFF_ROLES.includes(r)),
     can: (perm) => !!access && (access.roles.includes('super_admin') || access.permissions.includes(perm)),
     hasRole: (role) => !!access?.roles.includes(role),
-    signIn, signUp, signOut,
+    signIn, signUp, signOut, linkError,
     refresh: async () => { if (userId) await load(userId); },
-  }), [ready, session, userId, access, profile, signIn, signUp, signOut, load]);
+  }), [ready, session, userId, access, profile, signIn, signUp, signOut, load, linkError]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,7 +1,8 @@
 // =============================================================================
 // DEVELOPMENT-ONLY stand-in for the parts of Supabase the PWA uses, so the app
 // can run and be tested end-to-end against a local Postgres without Docker:
-//   /auth/v1/signup, /auth/v1/token (password, refresh_token), /auth/v1/user, /auth/v1/logout
+//   /auth/v1/signup, /auth/v1/token (password, refresh_token), /auth/v1/user (GET, PUT), /auth/v1/otp, /auth/v1/logout
+//   /dev/last-link?email=   (the last sign-in link "emailed"; for tests)
 //   /rest/v1/rpc/<function>   (PostgREST-style RPC, executed as the caller's role)
 //   /rest/v1/<table>          (select/insert/update/delete with eq filters)
 // Every request runs in a transaction with request.jwt.claims + SET ROLE, the
@@ -16,6 +17,8 @@ const PORT = Number(process.env.PORT ?? 54321);
 const SECRET = process.env.JWT_SECRET ?? 'dev-only-secret-do-not-use-in-production';
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgres://postgres@localhost:54329/ipl_dev', max: 8 });
 const refreshTokens = new Map();
+/** Sign-in links "emailed" by /auth/v1/otp, kept so tests can open them (DEV ONLY). */
+const sentLinks = new Map();
 
 // ---------------------------------------------------------------- JWT (HS256)
 const b64u = (b) => Buffer.from(b).toString('base64url');
@@ -50,7 +53,7 @@ function session(u) {
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, prefer, accept-profile, content-profile, range, x-supabase-api-version',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Expose-Headers': 'content-range',
 };
 function send(res, status, body) {
@@ -144,6 +147,39 @@ async function handle(req, res) {
       return send(res, 200, session(rows[0]));
     }
     return send(res, 400, { msg: 'unsupported grant_type' });
+  }
+  // Magic-link / invitation email, like GoTrue's /otp (creates the user when allowed).
+  if (path === '/auth/v1/otp' && req.method === 'POST') {
+    const b = await readBody(req);
+    const email = String(b.email ?? '').trim().toLowerCase();
+    if (!email.includes('@')) return send(res, 400, { code: 400, error_code: 'validation_failed', msg: 'Invalid email' });
+    let { rows } = await pool.query('select * from auth.users where email = $1', [email]);
+    if (!rows[0]) {
+      if (b.create_user === false) return send(res, 422, { code: 422, error_code: 'otp_disabled', msg: 'Signups not allowed for otp' });
+      ({ rows } = await pool.query('insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning *', [email, b.data ?? {}]));
+    }
+    const s = session(rows[0]);
+    const redirect = url.searchParams.get('redirect_to') ?? 'http://localhost:4173/';
+    sentLinks.set(email, `${redirect}#access_token=${s.access_token}&expires_in=3600&refresh_token=${s.refresh_token}&token_type=bearer&type=magiclink`);
+    return send(res, 200, {});
+  }
+  if (path === '/dev/last-link') {
+    const link = sentLinks.get(String(url.searchParams.get('email') ?? '').toLowerCase());
+    return link ? send(res, 200, { link }) : send(res, 404, { msg: 'no link sent' });
+  }
+  if (path === '/auth/v1/user' && req.method === 'PUT') {
+    const c = claimsFrom(req);
+    if (!c.sub) return send(res, 401, { msg: 'invalid JWT' });
+    const b = await readBody(req);
+    if (b.password !== undefined) {
+      const pw = String(b.password);
+      if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) {
+        return send(res, 422, { code: 422, error_code: 'weak_password', msg: 'Password is too weak' });
+      }
+      await pool.query(`update auth.users set encrypted_password = extensions.crypt($2, extensions.gen_salt('bf')) where id = $1`, [c.sub, pw]);
+    }
+    const { rows } = await pool.query('select * from auth.users where id = $1', [c.sub]);
+    return send(res, 200, userJson(rows[0]));
   }
   if (path === '/auth/v1/user') {
     const c = claimsFrom(req);

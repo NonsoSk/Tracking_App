@@ -21,6 +21,8 @@ export interface Access {
 
 export interface Profile {
   id: string;
+  /** Invited staff must choose a password before using the app. */
+  must_set_password?: boolean;
   full_name: string;
   phone: string | null;
   email: string | null;
@@ -221,4 +223,9 @@ export interface CommunityPeople {
   community_id: string; community: string; active: boolean;
   officer_id: string | null; officer: string | null; via: string | null; open_grievances: number;
   officers: { id: string; name: string; via: 'community' | 'cluster' | 'community type'; group: string | null }[];
+}
+
+export interface StaffInvitation {
+  id: string; email: string; full_name: string; job_title: string | null; roles: string[];
+  invited_at: string; last_sent_at: string; invited_by: string | null;
 }

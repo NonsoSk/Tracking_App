@@ -14,9 +14,14 @@ const MESSAGES: Record<string, string> = {
   rate_limited: 'Too many attempts. Please wait a few minutes and try again.',
   email_not_confirmed: 'This account is waiting for confirmation. The administrator must turn off "Confirm email" in Supabase (Authentication → Sign In / Providers → Email), then you can sign in.',
   email_send_failed: 'The account could not be created because the server tried to send a confirmation email. The administrator must turn off "Confirm email" in Supabase (Authentication → Sign In / Providers → Email).',
+  email_not_sent: 'The invitation was saved, but Supabase could not send the email. Check Supabase → Authentication → Emails → SMTP Settings, then press Resend.',
+  email_not_authorized: "The invitation was saved, but Supabase's built-in email only sends to members of your Supabase team. Set up your own email sender under Supabase → Authentication → Emails → SMTP Settings, then press Resend.",
+  email_rate_limited: 'The invitation was saved, but too many emails were sent recently (Supabase\'s built-in email allows only a few per hour). Wait and press Resend, or set up your own email sender (SMTP).',
+  link_expired: 'This sign-in link has expired or was already used. Ask the administrator to resend your invitation.',
+  same_password: 'Please choose a different password.',
   email_address_invalid: 'The server rejected the sign-in address. The administrator should check the Supabase email settings.',
   signup_disabled: 'New accounts are switched off. The administrator must allow new users to sign up in Supabase (Authentication → Sign In / Providers).',
-  weak_password: 'The PIN was rejected by the server\'s password rules. The administrator should set the minimum password length to 6 and turn off extra character requirements in Supabase (Authentication → Sign In / Providers → Email).',
+  weak_password: 'That password is too weak for the server\'s rules. Use at least 10 characters with capital and small letters, a number and a symbol.',
   signup_db_error: 'The account could not be saved. The database setup may be incomplete; the administrator should re-run the latest update script.',
 
   code_invalid: "That submission code isn't correct. Please check it with your community leader.",
@@ -87,7 +92,7 @@ type PgLikeError = { message?: string; code?: string; status?: number; name?: st
 const AUTH_CODES: Record<string, string> = {
   invalid_credentials: 'invalid_login', email_not_confirmed: 'email_not_confirmed', user_already_exists: 'account_exists',
   email_exists: 'account_exists', weak_password: 'weak_password', signup_disabled: 'signup_disabled', email_provider_disabled: 'signup_disabled',
-  email_address_invalid: 'email_address_invalid', email_address_not_authorized: 'email_send_failed', over_email_send_rate_limit: 'email_send_failed',
+  email_address_invalid: 'email_address_invalid', email_address_not_authorized: 'email_not_authorized', over_email_send_rate_limit: 'email_rate_limited', same_password: 'same_password',
   over_request_rate_limit: 'rate_limited', user_banned: 'account_disabled', unexpected_failure: 'signup_db_error',
 };
 
@@ -102,7 +107,9 @@ export function toAppError(e: unknown): AppError {
   if (msg in MESSAGES) return new AppError(msg);
   if (err?.code && AUTH_CODES[err.code]) return new AppError(AUTH_CODES[err.code], undefined, msg);
   if (/email not confirmed/i.test(msg)) return new AppError('email_not_confirmed', undefined, msg);
-  if (/confirmation email|sending .*email|not authorized/i.test(msg)) return new AppError('email_send_failed', undefined, msg);
+  if (/confirmation email/i.test(msg)) return new AppError('email_send_failed', undefined, msg);
+  if (/not authorized/i.test(msg)) return new AppError('email_not_authorized', undefined, msg);
+  if (/sending .*email|magic link/i.test(msg)) return new AppError('email_not_sent', undefined, msg);
   if (/email address .* is invalid|invalid format/i.test(msg)) return new AppError('email_address_invalid', undefined, msg);
   if (/signups? not allowed|signup.* disabled/i.test(msg)) return new AppError('signup_disabled', undefined, msg);
   if (/password should|weak password|password is known/i.test(msg)) return new AppError('weak_password', undefined, msg);

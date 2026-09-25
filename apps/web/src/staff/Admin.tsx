@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, ChevronLeft, ChevronRight, Download, Plus, Printer, ShieldCheck, UserPlus } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarDays, ChevronLeft, ChevronRight, Download, Mail, Plus, Printer, Send, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useMasterData } from '@/app/hooks';
 import { api } from '@/lib/api';
-import { toAppError } from '@/lib/errors';
+import { describeError, toAppError } from '@/lib/errors';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
-import type { Filters, UserRow } from '@/lib/types';
+import type { Filters, StaffInvitation, UserRow } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { Avatar, Banner, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineConfirm, Input, Modal, Pill, SearchInput, Select, Skeleton, StatusBadge, Tabs, cx } from '@/design/ui';
+import { Avatar, Banner, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineConfirm, Input, Modal, Pill, SearchInput, Select, Skeleton, StatusBadge, Tabs, cx, useToast } from '@/design/ui';
 import { PageTitle, listHref } from './shell';
 import { downloadCsv, downloadXlsx } from './export';
 import { useSave } from './save';
@@ -255,6 +255,7 @@ export function Users() {
         <Tabs value={kind} onChange={setKind} items={[{ value: 'staff', label: 'Staff', count: kind === 'staff' ? users.data?.length : undefined }, { value: 'members', label: 'Community members', count: kind === 'members' ? users.data?.length : undefined }]} />
         <div className="flex-1 sm:max-w-sm"><SearchInput placeholder="Search name, phone or email" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </div>
+      {kind === 'staff' && <PendingInvitations />}
       {users.isLoading ? <Skeleton className="h-64" /> : users.isError ? <ErrorState message={toAppError(users.error).message} /> : (
         users.data!.length === 0 ? <EmptyState icon={UserPlus} title="No one found" body="Try another name or phone number." /> : (
           <ul className="grid gap-3 md:grid-cols-2">
@@ -361,20 +362,107 @@ function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
 
 function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { busy, save } = useSave();
-  const [f, setF] = useState({ full_name: '', email: '', job_title: '', role: 'officer', password: '' });
+  const toast = useToast();
+  const qc = useQueryClient();
+  const blank = { full_name: '', email: '', job_title: '', role: 'officer', password: '' };
+  const [f, setF] = useState(blank);
+  const [mode, setMode] = useState<'invite' | 'password'>('invite');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const close = () => { setF(blank); setError(null); setMode('invite'); onClose(); };
+  const ready = !!f.full_name.trim() && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) && (mode === 'invite' || f.password.length >= 10);
+
+  const invite = async () => {
+    setSending(true); setError(null);
+    try {
+      const inv = await api.inviteStaff({ email: f.email, full_name: f.full_name, job_title: f.job_title, roles: [f.role] });
+      await qc.invalidateQueries({ queryKey: ['invitations'] });
+      try {
+        await api.sendInviteEmail(inv.email);
+        toast(`Invitation sent to ${inv.email}. They will choose their own password.`);
+      } catch (e) { toast(describeError(e), 'warning'); }
+      close();
+    } catch (e) { setError(describeError(e)); }
+    finally { setSending(false); }
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title="Add a staff member"
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!f.full_name || !f.email.includes('@') || f.password.length < 10}
-        onClick={async () => { if (await save(() => api.createStaffUser({ ...f, roles: [f.role] }), 'Staff account created. Share the temporary password securely.', [['users'], ['staff-directory']])) { setF({ full_name: '', email: '', job_title: '', role: 'officer', password: '' }); onClose(); } }}>Create account</Button></>}>
+    <Modal open={open} onClose={close} title="Add a staff member"
+      footer={<><Button variant="secondary" onClick={close}>Cancel</Button>
+        {mode === 'invite'
+          ? <Button icon={Send} loading={sending} disabled={!ready} onClick={invite}>Send invitation</Button>
+          : <Button loading={busy} disabled={!ready}
+              onClick={async () => { if (await save(() => api.createStaffUser({ ...f, roles: [f.role] }), 'Staff account created. Share the temporary password securely.', [['users'], ['staff-directory']])) close(); }}>Create account</Button>}</>}>
       <div className="space-y-4">
         <Field label="Full name" htmlFor="sfn"><Input id="sfn" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></Field>
         <Field label="Work email" htmlFor="sfe"><Input id="sfe" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         <Field label="Job title" htmlFor="sfj" optional><Input id="sfj" value={f.job_title} onChange={(e) => setF({ ...f, job_title: e.target.value })} /></Field>
         <Field label="Role" htmlFor="sfr"><Select id="sfr" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{ROLES.filter(([k]) => k !== 'community_member').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select></Field>
-        <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Give it to them privately; they sign in with their work email and this password."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+        {mode === 'invite' ? (
+          <div className="rounded-2xl bg-brand-50 p-3 text-sm text-ink-700">
+            <p className="flex items-start gap-2"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" aria-hidden />
+              They get an email with a link. The link opens the portal, where they choose their own password.</p>
+            <button type="button" className="mt-2 font-bold text-brand-700 hover:underline" onClick={() => setMode('password')}>Set a temporary password myself instead</button>
+          </div>
+        ) : (
+          <>
+            <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Give it to them privately; they sign in with their work email and this password."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+            <button type="button" className="text-sm font-bold text-brand-700 hover:underline" onClick={() => setMode('invite')}>Send an email invitation instead</button>
+          </>
+        )}
         {f.role === 'officer' && <p className="text-sm text-ink-500">Next, put them in charge under <b>Communities → People in charge</b> (a whole community type) or on the <b>Communities</b> tab (one community).</p>}
+        {error && <Banner tone="warning">{error}</Banner>}
       </div>
     </Modal>
+  );
+}
+
+/** Invitations sent but not yet accepted, with Resend and Cancel. */
+function PendingInvitations() {
+  const q = useQuery({ queryKey: ['invitations'], queryFn: api.invitations });
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  if (!q.data?.length) return null;
+  const resend = async (i: StaffInvitation) => {
+    setBusyId(i.id);
+    try {
+      await api.inviteStaff({ email: i.email, full_name: i.full_name, job_title: i.job_title ?? undefined, roles: i.roles });
+      await api.sendInviteEmail(i.email);
+      toast(`Invitation sent again to ${i.email}`);
+      await qc.invalidateQueries({ queryKey: ['invitations'] });
+    } catch (e) { toast(describeError(e), 'warning'); }
+    finally { setBusyId(null); }
+  };
+  const cancel = async (i: StaffInvitation) => {
+    setBusyId(i.id);
+    try { await api.cancelInvitation(i.id); toast(`Invitation for ${i.email} cancelled`); await qc.invalidateQueries({ queryKey: ['invitations'] }); }
+    catch (e) { toast(describeError(e), 'warning'); }
+    finally { setBusyId(null); }
+  };
+  return (
+    <section className="mb-5" aria-label="Invitations waiting to be accepted">
+      <h2 className="eyebrow mb-2 text-ink-500">Invited · waiting to accept ({q.data.length})</h2>
+      <ul className="grid gap-3 md:grid-cols-2">
+        {q.data.map((i) => (
+          <li key={i.id} className="flex flex-col gap-3 rounded-2xl bg-surface p-4 shadow-card ring-1 ring-inset ring-brand-200">
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-700"><Mail className="h-5 w-5" aria-hidden /></span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-extrabold">{i.full_name}</p>
+                <p className="truncate text-sm text-ink-500">{i.email}</p>
+                <p className="text-xs text-ink-500">Sent {formatDateTime(i.last_sent_at)}{i.invited_by ? ` by ${i.invited_by}` : ''}</p>
+              </div>
+              <Pill tone="brand">{ROLES.find(([k]) => k === i.roles[0])?.[1] ?? i.roles[0]}</Pill>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="sm" variant="secondary" icon={Send} loading={busyId === i.id} onClick={() => resend(i)}>Resend</Button>
+              <InlineConfirm label="Cancel invitation" question="Cancel it?" confirmLabel="Yes, cancel" loading={busyId === i.id} onConfirm={() => cancel(i)} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

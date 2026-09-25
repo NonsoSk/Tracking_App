@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth';
 import { useAutoSync, useMasterData } from '@/app/hooks';
 import { Spinner, useToast } from '@/design/ui';
-import { hasOnboarded, SignIn, SignUp, Welcome } from '@/auth/screens';
+import { hasOnboarded, SetPassword, SignIn, SignUp, Welcome } from '@/auth/screens';
 import { MemberShell } from '@/member/shell';
 import { Home } from '@/member/Home';
 import { Submit, SubmitDone } from '@/member/Submit';
@@ -16,7 +16,7 @@ import { UpdatePrompt } from '@/app/UpdatePrompt';
 const StaffApp = lazy(() => import('@/staff/StaffApp'));
 
 export default function App() {
-  const { ready, session, isStaff, access } = useAuth();
+  const { ready, session, isStaff, access, profile } = useAuth();
   const loc = useLocation();
   if (!ready) return <Spinner label="Opening" />;
 
@@ -31,6 +31,8 @@ export default function App() {
     );
   }
   if (access && !access.is_active) return <Disabled />;
+  // Invited staff choose their password before anything else.
+  if (profile?.must_set_password) return <SetPassword />;
   if (isStaff) {
     return (
       <Suspense fallback={<Spinner label="Opening workspace" />}>
