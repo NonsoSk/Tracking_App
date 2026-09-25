@@ -3737,6 +3737,9 @@ create table if not exists app.code_attempts (
   at      timestamptz not null default now()
 );
 create index if not exists code_attempts_user_idx on app.code_attempts (user_id, at);
+-- Only the database functions below use it (they run as the table owner); no app user can read it.
+alter table app.code_attempts enable row level security;
+revoke all on app.code_attempts from public, anon, authenticated;
 
 -- Confirm a typed code before the member writes their grievance.
 -- Returns {"ok": true, "scope": "Agbonchia", "valid_until": …} or {"ok": false, "error": "code_invalid" | …}.
