@@ -13,6 +13,7 @@ import { formatPhone } from '@/lib/phone';
 import type { HistoryItem, StaffDetail } from '@/lib/types';
 import { Banner, Button, Card, ConfirmDialog, ErrorState, Field, Input, Modal, OverdueBadge, Select, Skeleton, StatusBadge, Tabs, Textarea, cx, useToast } from '@/design/ui';
 import { useStaffDirectory } from './Grievances';
+import { VoiceText } from './VoiceText';
 
 type Tab = 'update' | 'remark' | 'resolve' | 'assign' | 'ack';
 
@@ -226,17 +227,17 @@ function ResolveForm({ g }: { g: StaffDetail }) {
   const [confirm, setConfirm] = useState(false);
   return (
     <div className="space-y-3">
-      <Field label="How was it resolved?" htmlFor="rd" hint="The complainant will see this and be asked whether they agree.">
-        <Textarea id="rd" value={details} onChange={(e) => setDetails(e.target.value)} />
+      <Field label="How was it resolved?" htmlFor="rd" hint="Type or tap Speak. Then use Correct wording to tidy it. The complainant will read this and be asked to accept it.">
+        <VoiceText id="rd" value={details} onChange={setDetails} />
       </Field>
       <Field label="Short summary for WhatsApp" htmlFor="rs" optional hint="Leave blank to use the text above (first 600 characters).">
-        <Textarea id="rs" className="min-h-[80px]" value={summary} onChange={(e) => setSummary(e.target.value)} />
+        <VoiceText id="rs" minHeight="min-h-[80px]" value={summary} onChange={setSummary} />
       </Field>
       {error && <Banner tone="warning">{error}</Banner>}
       <Button icon={ClipboardCheck} disabled={details.trim().length < 10} onClick={() => setConfirm(true)} className="w-full">Mark as resolved</Button>
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Mark as resolved?" confirmLabel="Resolve and notify" loading={busy}
         onConfirm={async () => { if (await run(() => api.resolve(g.id, details, summary || undefined), 'Resolved. The complainant has been notified.')) setConfirm(false); }}
-        body={<>The complainant{g.complainant_phone ? ' will be notified in the app and by WhatsApp (when enabled), and' : ''} will be asked to acknowledge the resolution. If they don't agree, the grievance reopens.</>} />
+        body={<>The complainant{g.complainant_phone ? ' will be notified in the app and by WhatsApp (when enabled), and' : ''} will be asked to read and accept the resolution.</>} />
     </div>
   );
 }

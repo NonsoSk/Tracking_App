@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { messageFor, toAppError } from '@/lib/errors';
 import { formatDate, formatRelative } from '@/lib/format';
 import type { MyGrievanceDetail } from '@/lib/types';
-import { Banner, Button, Card, EmptyState, ErrorState, Field, Input, Kbd, NextStep, ProgressRing, Skeleton, StatusBadge, Textarea, cx, useToast } from '@/design/ui';
+import { Banner, Button, Card, EmptyState, ErrorState, Field, Input, Kbd, NextStep, ProgressRing, Skeleton, StatusBadge, cx, useToast } from '@/design/ui';
 import { PageHeader } from './shell';
 import { CalmNote } from './CalmNote';
 
@@ -114,7 +114,7 @@ export function GrievanceDetail() {
           {g.resolution.resolved_at && <p className="mt-2 text-sm text-ink-500">Resolved {formatDate(g.resolution.resolved_at)}</p>}
           {g.acknowledgement && (
             <p className={cx('mt-3 flex items-center gap-2 text-sm font-semibold', g.acknowledgement.response === 'acknowledged' ? 'text-success' : 'text-warning')}>
-              {g.acknowledgement.response === 'acknowledged' ? <><Check className="h-4 w-4" aria-hidden /> You acknowledged this resolution</> : <><MessageSquareWarning className="h-4 w-4" aria-hidden /> You told us you were not satisfied</>}
+              {g.acknowledgement.response === 'acknowledged' ? <><Check className="h-4 w-4" aria-hidden /> You accepted this resolution</> : <><MessageSquareWarning className="h-4 w-4" aria-hidden /> You told us you were not satisfied</>}
             </p>
           )}
         </Card>
@@ -197,16 +197,15 @@ function Timeline({ items, current }: { items: MyGrievanceDetail['timeline']; cu
 function Acknowledge({ g }: { g: MyGrievanceDetail }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [mode, setMode] = useState<'ask' | 'dispute'>('ask');
-  const [reason, setReason] = useState('');
+  const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const send = async (response: 'acknowledged' | 'disputed') => {
+  const confirm = async () => {
     setBusy(true); setError(null);
     try {
-      await api.acknowledge(g.id, response, response === 'disputed' ? reason : undefined);
-      toast(response === 'acknowledged' ? 'Thank you. Your acknowledgement was recorded.' : 'Thank you. The team will look at your grievance again.');
+      await api.acknowledge(g.id, 'acknowledged');
+      toast('Thank you. Your acceptance has been recorded.');
       await qc.invalidateQueries();
     } catch (e) { setError(toAppError(e).message); }
     finally { setBusy(false); }
@@ -214,30 +213,24 @@ function Acknowledge({ g }: { g: MyGrievanceDetail }) {
 
   return (
     <Card className="overflow-hidden ring-2 ring-inset ring-brand-200">
-      <div className="bg-brand-50 p-5">
-        <h2 className="text-lg font-bold">Your grievance has been marked as resolved.</h2>
-        <dl className="mt-3 space-y-2 text-[15px]">
-          <div><dt className="font-semibold text-ink-500">Tracking ID</dt><dd><Kbd>{g.tracking_id}</Kbd></dd></div>
-          <div><dt className="font-semibold text-ink-500">Resolution</dt><dd className="whitespace-pre-wrap text-ink-900">{g.resolution?.details}</dd></div>
-          <div><dt className="font-semibold text-ink-500">Date resolved</dt><dd>{formatDate(g.resolution?.resolved_at ?? g.resolved_at)}</dd></div>
+      <div className="space-y-4 bg-brand-50 p-5">
+        <div>
+          <p className="eyebrow text-brand-700">Management's resolution</p>
+          <h2 className="mt-1 text-lg font-extrabold">Your grievance has been resolved.</h2>
+        </div>
+        <dl className="space-y-3 text-[15px]">
+          <div><dt className="text-sm font-bold text-ink-500">Tracking ID</dt><dd><Kbd>{g.tracking_id}</Kbd></dd></div>
+          <div><dt className="text-sm font-bold text-ink-500">Your grievance</dt><dd className="whitespace-pre-wrap text-ink-700">{g.description}</dd></div>
+          <div><dt className="text-sm font-bold text-ink-500">How it was resolved</dt><dd className="whitespace-pre-wrap font-semibold text-ink-900">{g.resolution?.details}</dd></div>
+          <div><dt className="text-sm font-bold text-ink-500">Date resolved</dt><dd>{formatDate(g.resolution?.resolved_at ?? g.resolved_at)}</dd></div>
         </dl>
       </div>
-      <div className="space-y-3 p-5">
-        {mode === 'ask' ? (
-          <>
-            <p className="text-lg font-semibold">Do you acknowledge this resolution?</p>
-            <Button size="lg" icon={ThumbsUp} loading={busy} onClick={() => send('acknowledged')}>Yes, I acknowledge</Button>
-            <Button size="lg" variant="secondary" icon={MessageSquareWarning} onClick={() => setMode('dispute')}>No, I have a concern</Button>
-          </>
-        ) : (
-          <>
-            <Field label="What is still not right?" htmlFor="reason">
-              <Textarea id="reason" autoFocus rows={4} maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Tell us briefly why you are not satisfied." />
-            </Field>
-            <Button size="lg" loading={busy} disabled={reason.trim().length < 3} onClick={() => send('disputed')}>Send my response</Button>
-            <Button size="lg" variant="ghost" onClick={() => setMode('ask')}>Back</Button>
-          </>
-        )}
+      <div className="space-y-4 p-5">
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-sunken p-4">
+          <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0 accent-brand-700" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+          <span className="text-[15px] font-semibold text-ink-900">I have read management's resolution above and I accept it.</span>
+        </label>
+        <Button size="lg" icon={ThumbsUp} loading={busy} disabled={!agree} onClick={confirm}>Confirm</Button>
         {error && <Banner tone="warning">{error}</Banner>}
       </div>
     </Card>

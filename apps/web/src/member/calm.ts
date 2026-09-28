@@ -100,8 +100,9 @@ export function calmLine(place: CalmPlace, c: CalmContext): string {
       break;
     case 'resolved':
       pool.push(
-        `Your honest answer helps us, ${name}, whichever one you choose.`,
-        'Tell us how it really feels. If something is still not right, we want to know.',
+        `Take a quiet moment to read how this was resolved, ${name}.`,
+        `Thank you for your patience while this was worked on, ${name}.`,
+        'Good news is worth reading slowly. Here is what was done.',
       );
       break;
     case 'closed':

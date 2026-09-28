@@ -32,7 +32,7 @@ test('offline: grievance is saved on the phone, then submitted exactly once when
   await expect(page.getByText('Saved on this phone · not yet sent')).toHaveCount(0);
 });
 
-test('full cycle: submit → officer resolves → member acknowledges', async ({ browser }) => {
+test('full cycle: submit → officer resolves (with Correct wording) → member ticks to accept', async ({ browser }) => {
   const member = await (await browser.newContext()).newPage();
   await signIn(member, ...MEMBER);
   await writeGrievance(member, 'Cycle test: street lights on Market Road have been off for a month.');
@@ -44,7 +44,13 @@ test('full cycle: submit → officer resolves → member acknowledges', async ({
   await officer.goto(`/grievances?q=${tid}`);
   await officer.getByRole('link', { name: tid }).click();
   await officer.getByRole('tab', { name: 'Resolve' }).click();
-  await officer.getByLabel('How was it resolved?').fill('New street light fittings were installed on Market Road on Monday.');
+  // Dictated-style text, then "Correct wording" (the AI helper isn't running in tests, so the basic clean-up is offered).
+  await officer.getByLabel('How was it resolved?').fill('uhm new street light fittings were were installed on Market Road on Monday');
+  await officer.getByRole('button', { name: 'Correct wording' }).first().click();
+  const suggestion = officer.getByRole('region', { name: 'Suggested wording' });
+  await expect(suggestion).toContainText('New street light fittings were installed on Market Road on Monday.');
+  await suggestion.getByRole('button', { name: 'Use this' }).click();
+  await expect(officer.getByLabel('How was it resolved?')).toHaveValue('New street light fittings were installed on Market Road on Monday.');
   await officer.getByRole('button', { name: 'Mark as resolved' }).click();
   await officer.getByRole('button', { name: 'Resolve and notify' }).click();
   await expect(officer.getByText('Resolved', { exact: true }).first()).toBeVisible();
@@ -53,9 +59,13 @@ test('full cycle: submit → officer resolves → member acknowledges', async ({
   await expect(member.getByText('Your grievance has been marked as resolved')).toBeVisible();
   await member.goto('/grievances');
   await member.getByText(tid).click();
-  await expect(member.getByText('Do you acknowledge this resolution?')).toBeVisible();
-  await member.getByRole('button', { name: 'Yes, I acknowledge' }).click();
-  await expect(member.getByText('You acknowledged this resolution')).toBeVisible();
+  // The full resolution, then one tick to accept. There is no option to reject.
+  await expect(member.getByText('New street light fittings were installed on Market Road on Monday.')).toBeVisible();
+  await expect(member.getByRole('button', { name: /not satisfied|concern|reject/i })).toHaveCount(0);
+  await expect(member.getByRole('button', { name: 'Confirm' })).toBeDisabled();
+  await member.getByLabel("I have read management's resolution above and I accept it.").check();
+  await member.getByRole('button', { name: 'Confirm' }).click();
+  await expect(member.getByText('You accepted this resolution')).toBeVisible();
 });
 
 test('a member cannot open someone else’s grievance by changing the URL', async ({ browser }) => {

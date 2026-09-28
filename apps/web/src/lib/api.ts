@@ -1,5 +1,5 @@
 import { mailer, supabase } from './supabase';
-import { toAppError } from './errors';
+import { AppError, toAppError } from './errors';
 import type {
   Access, AppNotification, AuditRow, DashboardStats, Filters, MasterData, MyGrievance, MyGrievanceDetail,
   CommunityPeople, OfficerHome, Profile, Scope, StaffDetail, StaffInvitation, StaffList, SubmissionCode, SubmissionStatus, TypeResponsibility, UserRow,
@@ -113,6 +113,16 @@ export const api = {
       email, options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/` },
     });
     if (error) throw toAppError(error);
+  },
+  /** AI rewording of a resolution note (server function; the key never reaches the app). */
+  async polishResolution(text: string): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('polish-resolution', { body: { text } });
+    if (error) {
+      let key = 'ai_not_configured';
+      try { const b = await (error as { context?: Response }).context?.json(); if (b?.error) key = b.error; } catch { /* not deployed */ }
+      throw new AppError(key);
+    }
+    return (data as { text: string }).text;
   },
   async setMyPassword(password: string) {
     const { error } = await supabase.auth.updateUser({ password });

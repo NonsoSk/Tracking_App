@@ -26,7 +26,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
 | 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
 | 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
-| 14 Tests: 208 pgTAP · 35 unit · 9 browser end-to-end (incl. offline, sign-up, code entry, adding and inviting staff) | ✅ |
+| 14 Tests: 208 pgTAP · 38 unit · 9 browser end-to-end (incl. offline, sign-up, code entry, adding and inviting staff) | ✅ |
 | Visual design: royal blue / white with #C00000 accents, separate navy dark theme | ✅ |
 
 Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).
@@ -142,3 +142,21 @@ their own password. Two Supabase settings are needed:
 2. **Authentication → Emails → SMTP Settings**: turn on custom SMTP (e.g. Microsoft 365, Gmail/Google Workspace,
    Brevo, Resend). Supabase's built-in sender only delivers to members of your Supabase team and only a few emails
    per hour. Optionally edit the **Magic Link** email template text under **Authentication → Emails → Templates**.
+
+### Voice and "Correct wording" for officers
+
+In **Resolve**, officers can tap **Speak** (voice typing through the browser's speech service; Chrome, Edge or Safari)
+and then **Correct wording**, which suggests a clear, correct version of the note that keeps the meaning. The officer
+chooses **Use this** or **Keep mine**; nothing is replaced silently. The rewording runs in the Edge Function
+`supabase/functions/polish-resolution` (Claude, `claude-opus-5`), so the AI key stays on the server:
+
+1. Supabase → **Edge Functions → Deploy a new function → Via editor**, name it `polish-resolution`, paste
+   `supabase/functions/polish-resolution/index.ts`, **Deploy**.
+2. Supabase → **Edge Functions → Secrets** → add `ANTHROPIC_API_KEY` (from console.anthropic.com → API keys).
+
+Until then, **Correct wording** does a basic offline clean-up (fillers, repeated words, capitals, punctuation).
+
+### Accepting a resolution
+
+Members read the full resolution and tick **"I have read management's resolution above and I accept it"**, then
+**Confirm**. There is no reject option in the member app.
