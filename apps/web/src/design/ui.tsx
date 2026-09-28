@@ -131,9 +131,8 @@ export function EmptyState({ icon: Icon = Inbox, title, body, action, art }: { i
   return (
     <div className="flex flex-col items-center px-6 py-12 text-center animate-fade-up">
       {art ?? (
-        <div className="relative mb-5 grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-[#3D7BF0] to-[#00257A] text-white shadow-[inset_0_2px_0_rgb(255_255_255/0.25),0_12px_24px_rgb(0_51_161/0.25)] float-3d">
-          <span className="absolute left-3 top-2.5 h-3 w-5 rounded-full bg-white/40 blur-[2px]" />
-          <Icon className="h-9 w-9" aria-hidden />
+        <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200">
+          <Icon className="h-8 w-8" aria-hidden />
         </div>
       )}
       <h3 className="text-lg font-extrabold text-ink-900">{title}</h3>
@@ -356,10 +355,9 @@ export function QuickActions({ items }: { items: { label: string; icon: LucideIc
   return (
     <div className="grid grid-cols-5 gap-1">
       {items.map((it) => {
-        const bg = it.tone === 'red' ? 'from-[#E03A3A] to-[#C00000]' : it.tone === 'gold' ? 'from-[#D4952F] to-[#B0700E]' : 'from-[#3D7BF0] to-[#00257A]';
+        const tone = it.tone === 'red' ? 'bg-accent-50 text-accent-600 ring-accent-100' : it.tone === 'gold' ? 'bg-gold-50 text-gold-700 ring-gold-200' : 'bg-surface text-brand-700 ring-line';
         const inner = (<>
-          <span className={cx('relative grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br text-white shadow-[inset_0_2px_0_rgb(255_255_255/0.3),0_8px_16px_rgb(var(--shadow)/0.18)] transition-transform group-active:scale-95', bg)}>
-            <span className="absolute left-3 top-2 h-2.5 w-4 rounded-full bg-white/35 blur-[1.5px]" aria-hidden />
+          <span className={cx('relative grid h-14 w-14 place-items-center rounded-2xl shadow-card ring-1 ring-inset transition-transform group-active:scale-95', tone)}>
             <it.icon className="h-6 w-6" aria-hidden />
             {!!it.badge && <span className="absolute -right-0.5 -top-0.5 min-w-5 rounded-full bg-accent-500 px-1 text-center text-[11px] font-extrabold leading-5 text-white ring-2 ring-canvas">{it.badge}</span>}
           </span>

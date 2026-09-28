@@ -12,10 +12,11 @@ import { formatRelative } from '@/lib/format';
 import { Banner, Button, Card, ConfirmDialog, EmptyState, Field, Input, Modal, Skeleton, cx, useToast } from '@/design/ui';
 import { CommunityPicker } from '@/auth/screens';
 import { PageHeader } from './shell';
+import { CalmNote } from './CalmNote';
 
 /* ---------------------------------------------------------------- Notifications (members and staff) */
 export function Notifications({ basePath = '/grievances' }: { basePath?: string }) {
-  const { userId } = useAuth();
+  const { userId, isStaff } = useAuth();
   const qc = useQueryClient();
   const q = useCachedQuery(`notifications:${userId}`, () => api.notifications(), { enabled: !!userId });
   const unread = (q.data ?? []).filter((n) => !n.read_at);
@@ -29,6 +30,7 @@ export function Notifications({ basePath = '/grievances' }: { basePath?: string 
   return (
     <div className="animate-fade-up">
       <PageHeader title="Notifications" action={unread.length > 0 && <Button size="sm" variant="ghost" icon={CheckCheck} onClick={() => api.markRead().then(() => qc.invalidateQueries())}>Mark all read</Button>} />
+      {!isStaff && !unread.length && <CalmNote place="alerts" className="mb-4" />}
       {q.isLoading ? <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>
         : !q.data?.length ? <EmptyState icon={Bell} title="No notifications" body="We'll let you know here when there is news about your grievances." />
         : (

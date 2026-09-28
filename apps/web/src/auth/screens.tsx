@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, LogIn, MapPin, Phone, ShieldCheck, 
 import { useAuth } from '@/app/auth';
 import { useMasterData, useOnline } from '@/app/hooks';
 import { Banner, Button, Field, Input, SearchInput, Stepper, ThemeSwitch, cx } from '@/design/ui';
-import { CommunityScene, Logo } from '@/design/art';
+import { IndoramaLogo } from '@/design/brand';
 import { describeError, messageFor } from '@/lib/errors';
 import { api } from '@/lib/api';
 import { normalizePhone } from '@/lib/phone';
@@ -19,10 +19,11 @@ function AuthLayout({ children, back }: { children: React.ReactNode; back?: stri
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-8 pt-4">
         <div className="flex h-12 items-center justify-between">
           {back ? <Link to={back} className="-ml-1 grid h-11 w-11 place-items-center rounded-full bg-surface text-ink-700 shadow-card hover:text-brand-700" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link>
-                : <div className="flex items-center gap-2 font-extrabold text-brand-700"><Logo size={30} /> Indorama Grievance Portal</div>}
+                : <IndoramaLogo height={22} />}
           <ThemeSwitch />
         </div>
         {children}
+        <p className="mt-8 text-center text-xs text-ink-400">Indorama Eleme Petrochemicals Limited · Community Relations</p>
       </div>
     </div>
   );
@@ -34,7 +35,11 @@ export function Welcome() {
   return (
     <AuthLayout>
       <div className="flex flex-1 flex-col animate-fade-up">
-        <CommunityScene className="mx-auto mt-4 w-full max-w-sm drop-shadow-sm" />
+        <div className="mt-6 rounded-3xl bg-surface p-6 shadow-card">
+          <IndoramaLogo height={27} plate={false} />
+          <p className="mt-4 eyebrow text-brand-700">Grievance Portal</p>
+          <p className="mt-1 text-[15px] text-ink-700">A direct, private line between your community and the Indorama Community Relations team.</p>
+        </div>
         <h1 className="mt-8 text-[2rem] font-extrabold leading-tight tracking-[-0.02em] text-ink-900">We're listening.</h1>
         <p className="mt-3 text-lg text-ink-700">Tell Indorama Community Relations about a concern in your community, and follow it until it is resolved.</p>
         <ol className="mt-6 grid grid-cols-4 gap-2 text-center text-[13px] font-semibold text-ink-700">

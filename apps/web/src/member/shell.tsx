@@ -5,7 +5,8 @@ import { useAuth } from '@/app/auth';
 import { useCachedQuery, useOnline } from '@/app/hooks';
 import { api } from '@/lib/api';
 import { Avatar, Modal, ThemeSwitch, cx } from '@/design/ui';
-import { HeaderArt, Logo, type ObjectKind } from '@/design/art';
+import type { ObjectKind } from '@/design/art';
+import { IndoramaLogo } from '@/design/brand';
 import { TabLink } from '@/design/tablink';
 
 export function useUnreadCount() {
@@ -27,14 +28,14 @@ export function MemberShell({ children }: { children: ReactNode }) {
   const nav = useNavigate();
   const [more, setMore] = useState(false);
   useEffect(() => setMore(false), [loc.pathname]);
-  const title = TITLES.find(([p]) => loc.pathname.startsWith(p))?.[1] ?? 'Indorama Grievance Portal';
+  const title = TITLES.find(([p]) => loc.pathname.startsWith(p))?.[1] ?? 'Grievance Portal';
   const moreActive = ['/profile', '/help', '/submit'].some((p) => loc.pathname.startsWith(p));
   return (
     <div className="member min-h-dvh bg-canvas">
       <header className="sticky top-0 z-20 bg-gradient-to-r from-[rgb(var(--bar-from))] to-[rgb(var(--bar-to))] text-white shadow-[0_4px_16px_rgb(0_37_122/0.25)] safe-top no-print">
         <div className="mx-auto flex h-14 max-w-md items-center gap-2.5 px-4">
-          <span className="rounded-xl bg-white p-0.5"><Logo size={26} /></span>
-          <span className="min-w-0 flex-1 truncate text-[17px] font-extrabold">{title}</span>
+          <IndoramaLogo height={18} />
+          <span className="min-w-0 flex-1 truncate text-[16px] font-extrabold">{title}</span>
           <ThemeSwitch onBlue />
         </div>
         {!online && (
@@ -74,7 +75,7 @@ export function MemberShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function PageHeader({ title, back, action, eyebrow, description, art }: {
+export function PageHeader({ title, back, action, eyebrow, description }: {
   title: string; back?: string; action?: ReactNode; eyebrow?: string; description?: ReactNode; art?: [ObjectKind, ObjectKind?, ObjectKind?];
 }) {
   return (
@@ -86,7 +87,6 @@ export function PageHeader({ title, back, action, eyebrow, description, art }: {
         {description && <p className="text-[15px] text-ink-500">{description}</p>}
       </div>
       {action}
-      {art && <HeaderArt items={art} className="scale-[.85]" />}
     </header>
   );
 }

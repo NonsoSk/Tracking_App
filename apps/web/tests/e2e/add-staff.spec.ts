@@ -4,7 +4,7 @@ import { signIn } from './helpers';
 test('Super Admin adds a staff member, who can then sign in', async ({ browser }) => {
   const admin = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
   await signIn(admin, 'admin@ipl.test', 'Admin#2026');
-  await expect(admin.getByText('Indorama Grievance Portal').first()).toBeVisible();
+  await expect(admin.getByRole('img', { name: 'Indorama' }).first()).toBeVisible();   // the Indorama logo is on screen
   await admin.goto('/admin/users');
   await admin.getByRole('button', { name: 'Add staff member' }).click();
   await admin.getByLabel('Full name').fill('Chika Staff');

@@ -13,6 +13,7 @@ import { db, type OutboxItem } from '@/offline/db';
 import { enqueue, newLocalId, onOutboxChange, retryItem, saveDraft, syncOutbox, discardItem } from '@/offline/sync';
 import { Banner, Button, Card, Field, Input, Kbd, Stepper, Textarea, cx } from '@/design/ui';
 import { SavedOnDeviceMark, SuccessMark } from '@/design/art';
+import { CalmNote } from './CalmNote';
 import { CommunityPicker } from '@/auth/screens';
 import { PageHeader } from './shell';
 
@@ -145,6 +146,7 @@ export function Submit() {
 
         {name === 'Your concern' && (
           <div className="animate-fade-up" key="concern">
+            <CalmNote place="concern" className="mb-4" />
             <Field label="What is your concern?" htmlFor="desc" hint="Say what happened, where, and who is affected. Write in your own words.">
               <Textarea id="desc" autoFocus rows={7} maxLength={5000} value={draft.description} onChange={(e) => set({ description: e.target.value })}
                 placeholder="For example: The road to Agbonchia market has been flooded since June. Children cannot get to school." />
@@ -193,6 +195,7 @@ export function Submit() {
         {name === 'Review' && (
           <div className="space-y-3 animate-fade-up" key="review">
             <p className="text-lg text-ink-700">Please check everything before you send it.</p>
+            <CalmNote place="review" />
             <ReviewRow label="Community" value={draft.community_name} onEdit={() => setStep(steps.indexOf('Community'))} />
             <ReviewRow label="Your concern" value={draft.description} onEdit={() => setStep(steps.indexOf('Your concern'))} />
             <ReviewRow label="Type" value={draft.category_label ?? 'Not chosen'} onEdit={() => setStep(steps.indexOf('Type of concern'))} />
@@ -254,6 +257,7 @@ export function SubmitDone() {
         <SuccessMark />
         <h1 className="mt-6 text-2xl font-bold">Your grievance has been submitted.</h1>
         <p className="mt-2 text-ink-700">It has reached the Indorama Community Relations team.</p>
+        <CalmNote place="done" className="mt-4 max-w-sm text-left" />
         <Card className="mt-6 w-full p-5">
           <p className="text-sm font-semibold text-ink-500">Tracking ID</p>
           <p className="mt-1 font-mono text-2xl font-bold tracking-wide text-brand-800" data-testid="tracking-id">{item.trackingId}</p>
@@ -296,6 +300,7 @@ export function SubmitDone() {
     <div className="flex min-h-[80vh] flex-col items-center justify-center text-center animate-fade-up">
       <SavedOnDeviceMark />
       <h1 className="mt-6 text-2xl font-bold">{item.state === 'syncing' ? 'Submitting your grievance…' : 'Saved on this phone'}</h1>
+      {!online && <CalmNote place="saved" className="mt-3 max-w-sm text-left" />}
       <p className="mt-2 max-w-sm text-ink-700">
         {online
           ? "We're sending it to IPL now. Please keep the app open for a moment."

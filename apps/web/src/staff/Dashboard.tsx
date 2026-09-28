@@ -126,8 +126,6 @@ export function OfficerHome() {
 
       {/* Hero: today's standing */}
       <section className="relative mb-[18px] overflow-hidden rounded-3xl bg-gradient-to-br from-[rgb(var(--hero-a))] via-[rgb(var(--hero-b))] to-[rgb(var(--hero-c))] p-5 text-white shadow-[0_14px_32px_rgb(0_37_122/0.3)] sm:p-6">
-        <span className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-white/10" aria-hidden />
-        <span className="pointer-events-none absolute -bottom-28 -right-16 h-44 w-96 rotate-[8deg] rounded-[50%] border-t-[10px] border-[#C00000]/90" aria-hidden />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
           <ProgressRing value={onTime} size={96} stroke={9} onBlue label={`${onTime}% on time`}>
             <span className="text-center leading-none"><span className="block text-[22px] font-extrabold tabular">{home.isLoading ? '…' : `${onTime}%`}</span><span className="text-[10px] font-bold uppercase tracking-wider text-white/70">on time</span></span>

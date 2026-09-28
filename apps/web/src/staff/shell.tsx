@@ -10,7 +10,7 @@ import { useCachedQuery, useOnline } from '@/app/hooks';
 import { api } from '@/lib/api';
 import type { Filters } from '@/lib/types';
 import { Avatar, Modal, ProgressRing, ThemeSwitch, cx } from '@/design/ui';
-import { Logo, type ObjectKind } from '@/design/art';
+import { IndoramaLogo } from '@/design/brand';
 import { PageHero } from '@/design/page';
 import { TabLink } from '@/design/tablink';
 
@@ -67,8 +67,10 @@ export function StaffShell({ children }: { children: ReactNode }) {
       {/* Desktop: solid blue sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col bg-gradient-to-b from-[rgb(var(--bar-from))] to-[rgb(var(--bar-to))] text-white lg:flex no-print">
         <div className="flex items-center gap-2.5 px-6 pb-4 pt-6">
-          <span className="rounded-2xl bg-white p-1 shadow-card"><Logo size={30} /></span>
-          <div className="leading-tight"><p className="font-extrabold">Indorama Grievance Portal</p><p className="text-xs text-white/70">Community Relations</p></div>
+          <div className="space-y-2 leading-tight">
+            <IndoramaLogo height={22} className="!px-3 !py-2" />
+            <div><p className="font-extrabold">Grievance Portal</p><p className="text-xs text-white/70">Community Relations</p></div>
+          </div>
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4" aria-label="Main">
           <ul className="space-y-1">{main.map(sideLink)}</ul>
@@ -88,8 +90,8 @@ export function StaffShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-[264px]">
         {/* Phone: blue top bar */}
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2.5 bg-gradient-to-r from-[rgb(var(--bar-from))] to-[rgb(var(--bar-to))] px-4 text-white shadow-[0_4px_16px_rgb(0_37_122/0.25)] safe-top lg:hidden no-print">
-          <span className="rounded-xl bg-white p-0.5"><Logo size={26} /></span>
-          <span className="min-w-0 flex-1 truncate text-[17px] font-extrabold">{current?.label ?? 'Indorama Grievance Portal'}</span>
+          <IndoramaLogo height={18} />
+          <span className="min-w-0 flex-1 truncate text-[16px] font-extrabold">{current?.label ?? 'Grievance Portal'}</span>
           <ThemeSwitch onBlue />
         </header>
         {!online && <div className="flex items-center justify-center gap-2 bg-[#1A1F36] px-4 py-2 text-sm font-bold text-white"><WifiOff className="h-4 w-4" /> You're offline. Showing the last data loaded; changes need a connection.</div>}
@@ -164,26 +166,15 @@ function roleLabel(roles: string[]) {
   return roles.map((r) => map[r]).filter(Boolean).join(', ');
 }
 
-const PAGE_ART: [string, string, [ObjectKind, ObjectKind?, ObjectKind?]][] = [
-  ['/admin/communities', 'Administration', ['pin', 'sphere', 'gem']],
-  ['/admin/categories', 'Administration', ['book', 'gem', 'sphere']],
-  ['/admin/users', 'Administration', ['shield', 'coin', 'gem']],
-  ['/admin/import', 'Administration', ['box', 'sphere', 'gem']],
-  ['/admin/audit', 'Administration', ['shield', 'book', 'gem']],
-  ['/admin/settings', 'Administration', ['block', 'coin', 'gem']],
-  ['/grievances', 'Case work', ['bubble', 'sphere', 'gem']],
-  ['/new', 'Assisted entry', ['book', 'bubble', 'gem']],
-  ['/codes', 'Collection', ['coin', 'block', 'gem']],
-  ['/reports', 'Reports', ['chart', 'coin', 'gem']],
-  ['/overview', 'Organisation', ['chart', 'sphere', 'gem']],
-  ['/notifications', 'Inbox', ['bell', 'bubble', 'gem']],
-  ['/', 'Today', ['block', 'coin', 'gem']],
+const PAGE_EYEBROW: [string, string][] = [
+  ['/admin/', 'Administration'], ['/grievances', 'Case work'], ['/new', 'Assisted entry'], ['/codes', 'Collection'],
+  ['/reports', 'Reports'], ['/overview', 'Organisation'], ['/notifications', 'Inbox'], ['/', 'Today'],
 ];
 
 export function PageTitle({ title, subtitle, actions, eyebrow }: { title: string; subtitle?: ReactNode; actions?: ReactNode; eyebrow?: string }) {
   const { pathname } = useLocation();
-  const hit = PAGE_ART.find(([p]) => (p === '/' ? pathname === '/' : pathname.startsWith(p)));
-  return <PageHero eyebrow={eyebrow ?? hit?.[1]} title={title} description={subtitle} art={hit?.[2]} right={actions} />;
+  const hit = PAGE_EYEBROW.find(([p]) => (p === '/' ? pathname === '/' : pathname.startsWith(p)));
+  return <PageHero eyebrow={eyebrow ?? hit?.[1]} title={title} description={subtitle} right={actions} />;
 }
 
 /* ---------------------------------------------------------------- filters in the URL (shareable, back-button friendly) */

@@ -26,7 +26,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
 | 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
 | 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
-| 14 Tests: 208 pgTAP · 31 unit · 9 browser end-to-end (incl. offline, sign-up, code entry, adding and inviting staff) | ✅ |
+| 14 Tests: 208 pgTAP · 35 unit · 9 browser end-to-end (incl. offline, sign-up, code entry, adding and inviting staff) | ✅ |
 | Visual design: royal blue / white with #C00000 accents, separate navy dark theme | ✅ |
 
 Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).

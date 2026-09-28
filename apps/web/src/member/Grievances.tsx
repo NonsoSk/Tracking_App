@@ -10,6 +10,7 @@ import { formatDate, formatRelative } from '@/lib/format';
 import type { MyGrievanceDetail } from '@/lib/types';
 import { Banner, Button, Card, EmptyState, ErrorState, Field, Input, Kbd, NextStep, ProgressRing, Skeleton, StatusBadge, Textarea, cx, useToast } from '@/design/ui';
 import { PageHeader } from './shell';
+import { CalmNote } from './CalmNote';
 
 export function MyGrievances() {
   const { userId } = useAuth();
@@ -150,23 +151,20 @@ function TrackingCard({ g }: { g: MyGrievanceDetail }) {
   const stage = STAGE[g.status_code] ?? 1;
   const settled = g.status_code === 'RESOLVED' || g.status_code === 'CLOSED';
   return (
-    <section aria-label="Tracking card" className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[rgb(var(--hero-a))] via-[rgb(var(--hero-b))] to-[rgb(var(--hero-c))] p-5 text-white shadow-[0_14px_32px_rgb(0_37_122/0.3)]">
-      <span className="pointer-events-none absolute -right-12 -top-14 h-44 w-44 rounded-full bg-white/10" aria-hidden />
-      <span className="pointer-events-none absolute -bottom-[150px] -right-28 h-44 w-80 rotate-[-16deg] rounded-[50%] border-t-[8px] border-[#C00000]/90" aria-hidden />
-      <div className="relative flex items-start gap-4">
+    <section aria-label="Tracking" className="rounded-3xl bg-surface p-5 shadow-card">
+      <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <p className="eyebrow text-white/70">Tracking ID</p>
-          <p className="embossed mt-1 whitespace-nowrap text-[15px] !tracking-[0.06em] leading-snug">{g.tracking_id}</p>
-          <span className={cx('mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-extrabold', settled ? 'bg-[#FDF3DF] text-[#8C5709]' : 'bg-white/15 text-white')}>
-            {g.status_label}
-          </span>
+          <p className="eyebrow text-ink-500">Tracking ID</p>
+          <p className="mt-1 whitespace-nowrap font-mono text-[16px] font-bold tracking-[0.04em] text-brand-700">{g.tracking_id}</p>
+          <div className="mt-3"><StatusBadge label={g.status_label} tone={g.status_tone} /></div>
         </div>
-        <ProgressRing value={stage} max={5} size={78} stroke={8} onBlue label={`Step ${stage} of 5`}>
-          <span className="text-center leading-none"><span className="block text-[20px] font-extrabold tabular">{stage}/5</span><span className="text-[10px] font-bold uppercase tracking-wider text-white/70">steps</span></span>
+        <ProgressRing value={stage} max={5} size={76} stroke={8} tone={settled ? 'success' : 'brand'} label={`Step ${stage} of 5`}>
+          <span className="text-center leading-none"><span className="block text-[19px] font-extrabold tabular">{stage}/5</span><span className="text-[10px] font-bold uppercase tracking-wider text-ink-500">steps</span></span>
         </ProgressRing>
       </div>
-      <p className="relative mt-3 text-[15px] leading-snug text-white/90">{g.status_message}</p>
-      <p className="relative mt-2 text-[13px] text-white/65">{g.community_name} · Submitted {formatDate(g.submitted_at ?? g.date_received)}</p>
+      <p className="mt-3 text-[15px] leading-snug text-ink-900">{g.status_message}</p>
+      <p className="mt-1.5 text-[13px] text-ink-500">{g.community_name} · Submitted {formatDate(g.submitted_at ?? g.date_received)}</p>
+      <CalmNote className="mt-4" place={g.status_code === 'CLOSED' ? 'closed' : g.status_code === 'RESOLVED' ? 'resolved' : 'waiting'} />
     </section>
   );
 }

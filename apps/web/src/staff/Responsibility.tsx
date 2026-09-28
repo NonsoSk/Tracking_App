@@ -6,10 +6,11 @@ import { toAppError } from '@/lib/errors';
 import { plural } from '@/lib/format';
 import type { CommunityPeople, Scope, ScopePerson, TypeResponsibility, UserRow } from '@/lib/types';
 import { Avatar, Banner, Button, ErrorState, InlineConfirm, Modal, NextStep, Pill, SearchInput, Skeleton, cx, useToast } from '@/design/ui';
-import { Object3D, type ObjectKind } from '@/design/art';
+import { Anchor, Factory, Route } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 const KEYS = [['responsibilities'], ['community-officers'], ['users'], ['staff-directory'], ['staff-list'], ['officer-home']];
-const TYPE_ART: Record<string, ObjectKind> = { HOST: 'block', PIPELINE: 'sphere', INDIRECT: 'bubble', JETTY: 'box' };
+const TYPE_ICON: Record<string, LucideIcon> = { HOST: Factory, PIPELINE: Route, INDIRECT: Users, JETTY: Anchor };
 
 /** Add / remove a person, with plain-language results and Undo. */
 function useResponsibility() {
@@ -81,7 +82,7 @@ export function ResponsibilityBoard() {
           return (
             <section key={t.id} className="flex flex-col gap-4 rounded-2xl bg-surface p-5 shadow-card" aria-label={`${t.name} communities`}>
               <header className="flex items-start gap-3">
-                <Object3D kind={TYPE_ART[t.code] ?? 'sphere'} size={48} />
+                {(() => { const I = TYPE_ICON[t.code] ?? Users; return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200"><I className="h-6 w-6" aria-hidden /></span>; })()}
                 <div className="min-w-0 flex-1">
                   <p className="eyebrow text-brand-700">Community type</p>
                   <h2 className="text-xl font-extrabold leading-tight">{t.name}</h2>
