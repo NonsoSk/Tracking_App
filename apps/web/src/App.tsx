@@ -16,7 +16,7 @@ import { UpdatePrompt } from '@/app/UpdatePrompt';
 const StaffApp = lazy(() => import('@/staff/StaffApp'));
 
 export default function App() {
-  const { ready, session, isStaff, access, profile } = useAuth();
+  const { ready, session, isStaff, access, profile, hasBoth, mode } = useAuth();
   const loc = useLocation();
   if (!ready) return <Spinner label="Opening" />;
 
@@ -33,7 +33,7 @@ export default function App() {
   if (access && !access.is_active) return <Disabled />;
   // Invited staff choose their password before anything else.
   if (profile?.must_set_password) return <SetPassword />;
-  if (isStaff) {
+  if (isStaff && !(hasBoth && mode === 'member')) {
     return (
       <Suspense fallback={<Spinner label="Opening workspace" />}>
         <StaffApp />

@@ -26,7 +26,7 @@ Offline-first PWA for the Community Relations Department of Indorama Eleme Petro
 | 11 Notifications: in-app + WhatsApp (Meta Cloud API) outbox, delivery receipts, overdue alerts | ✅ code · ⏳ needs Meta account + template approval |
 | 12 Historical import: 608 rows → 504 grievances, verbatim source rows, review queue | ✅ |
 | 13 Reports & exports: Excel, CSV, print/PDF | ✅ |
-| 14 Tests: 208 pgTAP · 38 unit · 9 browser end-to-end (incl. offline, sign-up, code entry, adding and inviting staff) | ✅ |
+| 14 Tests: 225 pgTAP · 38 unit · 10 browser end-to-end (incl. offline, sign-up, code entry, staff invitations, community leaders) | ✅ |
 | Visual design: royal blue / white with #C00000 accents, separate navy dark theme | ✅ |
 
 Not yet done: Super Admin MFA enrolment screens (Supabase TOTP is enabled; the app UI for enrolment is next), evidence file uploads (the table and permission exist; the upload UI is not built), and an in-browser import wizard (the import runs from the command line with a dry-run report).
@@ -71,10 +71,11 @@ appear only when something needs attention (with #C00000 accents). Font: Nunito 
 | `20260926…code_entry_only` | only the Super Admin creates codes; members must type the exact code (never shown to them); wrong-guess limit |
 | `20260927…staff_accounts` | create staff logins and reset member PINs from the app, inside the database; app name |
 | `20260928…staff_invitations` | invite staff by email; the login gets the invited role; they must choose a password first |
+| `20260929…scoped_access` | codes visible per community; Viewers/leaders and CR staff scoped to their communities; only Super Admin + Officers resolve; gender breakdown |
 
 ### Running the tests
 
-The suite has 208 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
+The suite has 225 pgTAP assertions covering access control, classification, codes, idempotency, workflow, SLA, notifications and the historical import.
 
 ```bash
 # needs PostgreSQL 15+ with pgtap + pg_trgm, and pg_prove
@@ -119,7 +120,8 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
    [`04-update-2026-09-25.sql`](supabase/setup/04-update-2026-09-25.sql), then
    [`06-update-2026-09-26.sql`](supabase/setup/06-update-2026-09-26.sql), then
    [`07-update-2026-09-27.sql`](supabase/setup/07-update-2026-09-27.sql), then
-   [`08-update-2026-09-28.sql`](supabase/setup/08-update-2026-09-28.sql).
+   [`08-update-2026-09-28.sql`](supabase/setup/08-update-2026-09-28.sql), then
+   [`09-update-2026-09-29.sql`](supabase/setup/09-update-2026-09-29.sql).
 2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
    [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
 3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and
@@ -160,3 +162,18 @@ Until then, **Correct wording** does a basic offline clean-up (fillers, repeated
 
 Members read the full resolution and tick **"I have read management's resolution above and I accept it"**, then
 **Confirm**. There is no reject option in the member app.
+
+### Who sees what
+
+| Role | Grievances, reports, codes | Resolve | Complainant name & phone |
+|---|---|---|---|
+| Super Administrator | everything; creates codes | yes | yes |
+| Officer in Charge | their communities; sees codes | yes | yes |
+| Supervisor | everything; sees codes | no | yes |
+| Community Relations Staff | their communities; sees codes | no | yes |
+| Viewer (e.g. community leader) | their communities; sees codes; read-only | no | hidden |
+| Data Entry Officer | grievances they entered | no | yes |
+
+Give a Viewer their community under **Users & officers → Add staff member / Manage → Communities they can see**.
+Someone with a staff role **and** Community Member can switch between the staff workspace and the community app
+(sidebar or **More**).

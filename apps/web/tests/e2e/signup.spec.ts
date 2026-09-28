@@ -7,6 +7,7 @@ test('a new member signs up with a 6-digit PIN and signs in again', async ({ bro
   await page.goto('/signup');
   await page.getByLabel('Full name').fill('Ngozi Test');
   await page.getByLabel('Phone number').fill('0809 555 0101');
+  await page.getByRole('radio', { name: 'Female' }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByLabel('Search communities').fill('Agbonchia');
   await page.getByRole('button', { name: /Agbonchia/ }).first().click();

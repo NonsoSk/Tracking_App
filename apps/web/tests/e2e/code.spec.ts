@@ -17,8 +17,10 @@ test('members must type the exact code; the app never shows or fills it in', asy
   await expect(page.getByText('Code accepted: it opens collection for Agbonchia.')).toBeVisible();
 });
 
-test('officers cannot generate codes', async ({ page }) => {
+test('officers see the codes for their communities but cannot generate codes', async ({ page }) => {
   await signIn(page, 'godpower@ipl.test', 'Officer#2026');
-  await expect(page.getByRole('link', { name: 'My work' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Submission codes' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Submission codes' }).click();
+  await expect(page.getByText('AGB-2026-0923-X7P4')).toBeVisible();              // Agbonchia is a Host community (Godpower's)
+  await expect(page.getByRole('button', { name: 'New code' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Deactivate' })).toHaveCount(0);
 });

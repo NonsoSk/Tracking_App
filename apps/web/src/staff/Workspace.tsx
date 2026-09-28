@@ -5,6 +5,7 @@ import {
   Archive, ArrowLeft, ArrowRightLeft, CheckCircle2, ClipboardCheck, FileSpreadsheet, Flag, History, Lock,
   MessageSquare, MessageSquarePlus, Phone, Send, ShieldAlert, Trash2, UserRound, Wrench,
 } from 'lucide-react';
+import { useAuth } from '@/app/auth';
 import { useMasterData } from '@/app/hooks';
 import { api } from '@/lib/api';
 import { toAppError } from '@/lib/errors';
@@ -32,6 +33,8 @@ function BackLink() {
 
 function WorkspaceView({ g }: { g: StaffDetail }) {
   const closed = g.status_code === 'CLOSED';
+  const canContact = useAuth().can('grievance.read.contact');
+  const [reassign, setReassign] = useState(false);
   return (
     <div className="animate-fade-up">
       <BackLink />
@@ -49,6 +52,11 @@ function WorkspaceView({ g }: { g: StaffDetail }) {
             {g.community_name ?? 'Community not recorded'}{g.community_type && ` · ${g.community_type}`}{g.cluster_name && ` · ${g.cluster_name}`}
             {' · '}Received {formatDate(g.date_received, g.date_received_precision)}
             {g.days_outstanding != null && <> · <b className={g.is_overdue ? 'text-danger' : 'text-ink-700'}>{g.days_outstanding} working days outstanding</b></>}
+          </p>
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px]">
+            <span className="text-ink-500">Officer in charge:</span>
+            <b className={g.assigned_officer_name ? 'text-ink-900' : 'text-danger'}>{g.assigned_officer_name ?? 'Nobody yet'}</b>
+            {g.can.assign && !closed && !g.archived_at && <Button size="sm" variant="secondary" onClick={() => setReassign(true)}>{g.assigned_officer_id ? 'Change officer' : 'Assign officer'}</Button>}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 no-print">
@@ -95,12 +103,13 @@ function WorkspaceView({ g }: { g: StaffDetail }) {
           {!closed && !g.archived_at && <ActionPanel g={g} />}
           <Card className="p-5">
             <SectionTitle icon={<UserRound className="h-5 w-5 text-ink-500" />}>Complainant</SectionTitle>
+            {!canContact && <p className="mb-2 rounded-xl bg-sunken px-3 py-2 text-sm text-ink-700">To protect community members, their name and contact details are shown only to Community Relations staff.</p>}
             <dl className="space-y-2 text-[15px]">
-              <Row label="Name">{g.complainant_name ?? <span className="text-ink-400">Not recorded</span>}</Row>
-              {g.complainant_phone && <Row label="Phone"><a className="inline-flex items-center gap-1 font-semibold text-brand-700" href={`tel:${g.complainant_phone}`}><Phone className="h-4 w-4" />{formatPhone(g.complainant_phone)}</a></Row>}
+              {canContact && <Row label="Name">{g.complainant_name ?? <span className="text-ink-400">Not recorded</span>}</Row>}
+              {canContact && g.complainant_phone && <Row label="Phone"><a className="inline-flex items-center gap-1 font-semibold text-brand-700" href={`tel:${g.complainant_phone}`}><Phone className="h-4 w-4" />{formatPhone(g.complainant_phone)}</a></Row>}
               {g.complainant_gender && <Row label="Gender"><span className="capitalize">{g.complainant_gender}</span></Row>}
-              {g.complainant_email && <Row label="Email">{g.complainant_email}</Row>}
-              {g.complainant_address && <Row label="Address">{g.complainant_address}</Row>}
+              {canContact && g.complainant_email && <Row label="Email">{g.complainant_email}</Row>}
+              {canContact && g.complainant_address && <Row label="Address">{g.complainant_address}</Row>}
               <Row label="Channel">{originLabel(g.origin)}</Row>
             </dl>
           </Card>
@@ -120,6 +129,7 @@ function WorkspaceView({ g }: { g: StaffDetail }) {
           {g.flags.some((f) => !f.resolved_at) && <FlagsCard g={g} />}
         </aside>
       </div>
+      {reassign && <ReassignDialog g={g} onClose={() => setReassign(false)} />}
     </div>
   );
 }
@@ -458,4 +468,31 @@ export function ackLabel(s: string) {
 }
 function originLabel(o: string) {
   return ({ app: 'Submitted in the app', assisted: 'Entered by staff (assisted)', paper: 'Paper form', legacy_import: 'Historical spreadsheet' } as Record<string, string>)[o] ?? o;
+}
+
+/** Assign or move a grievance to another officer (Super Admin, Supervisor, CR staff). */
+function ReassignDialog({ g, onClose }: { g: StaffDetail; onClose: () => void }) {
+  const { busy, error, run } = useAct(g);
+  const staff = useStaffDirectory();
+  const [officer, setOfficer] = useState(g.assigned_officer_id ?? '');
+  const [reason, setReason] = useState('');
+  const officers = (staff.data ?? []).filter((s) => s.is_active && s.roles.includes('officer'));
+  return (
+    <Modal open onClose={onClose} title={g.assigned_officer_id ? 'Change the officer in charge' : 'Assign an officer'}
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button loading={busy} disabled={!officer || officer === g.assigned_officer_id}
+          onClick={async () => { if (await run(() => api.assign(g.id, officer, reason || undefined), `Assigned to ${officers.find((o) => o.id === officer)?.full_name ?? 'the officer'}`)) onClose(); }}>Assign</Button></>}>
+      <div className="space-y-4">
+        <p className="text-sm text-ink-700">Now: <b>{g.assigned_officer_name ?? 'nobody'}</b>. The new officer is notified and the change is recorded in the history.</p>
+        <Field label="Officer" htmlFor="ra">
+          <Select id="ra" value={officer} onChange={(e) => setOfficer(e.target.value)}>
+            <option value="" disabled>Choose an officer</option>
+            {officers.map((o) => <option key={o.id} value={o.id}>{o.full_name}{o.job_title ? ` · ${o.job_title}` : ''}</option>)}
+          </Select>
+        </Field>
+        <Field label="Reason" htmlFor="rr" optional><Input id="rr" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Officer on leave" /></Field>
+        {error && <Banner tone="warning">{error}</Banner>}
+      </div>
+    </Modal>
+  );
 }

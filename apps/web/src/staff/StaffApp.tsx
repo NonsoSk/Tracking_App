@@ -24,7 +24,7 @@ export default function StaffApp() {
         <Route path="/grievances" element={<GrievanceList />} />
         <Route path="/grievances/:id" element={<Workspace />} />
         <Route path="/new" element={guard(can('grievance.create.assisted'), <NewGrievance />)} />
-        <Route path="/codes" element={guard(can('codes.manage'), <Codes />)} />
+        <Route path="/codes" element={guard(can('codes.manage') || can('codes.view'), <Codes />)} />
         <Route path="/reports" element={guard(can('dashboard.view'), <Reports />)} />
         <Route path="/notifications" element={<Notifications basePath="/grievances" />} />
         <Route path="/admin/communities" element={guard(can('masterdata.manage'), <Communities />)} />

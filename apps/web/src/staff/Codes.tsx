@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Copy, FilePlus2, KeyRound, Plus, Rocket } from 'lucide-react';
 import { useMasterData } from '@/app/hooks';
+import { useAuth } from '@/app/auth';
 import { api } from '@/lib/api';
 import { toAppError } from '@/lib/errors';
 import { formatDate, formatDateTime } from '@/lib/format';
@@ -27,6 +28,7 @@ export function Codes() {
   const [deactivate, setDeactivate] = useState<SubmissionCode | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const canManage = useAuth().can('codes.manage');
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
@@ -37,10 +39,14 @@ export function Codes() {
 
   return (
     <div>
-      <PageTitle title="Submission codes" subtitle="Only the Super Admin creates codes. Share a code with the community leaders; members must type it exactly to submit. Each grievance still gets its own tracking ID."
-        actions={<Button icon={Plus} onClick={() => setCreating(true)}>New code</Button>} />
+      <PageTitle title="Submission codes" subtitle={canManage
+          ? 'Only the Super Admin creates codes. Share a code with the community leaders; members must type it exactly to submit. Each grievance still gets its own tracking ID.'
+          : 'The codes for your communities. Share them with community members so they can submit grievances. Only the Super Admin creates codes.'}
+        actions={canManage ? <Button icon={Plus} onClick={() => setCreating(true)}>New code</Button> : undefined} />
       {q.isLoading ? <Skeleton className="h-64" /> : q.isError ? <ErrorState message={toAppError(q.error).message} onRetry={() => q.refetch()} />
-        : !q.data?.length ? <EmptyState icon={KeyRound} title="No codes yet" body="Create a code to open grievance collection for a community." action={<Button icon={Plus} onClick={() => setCreating(true)}>New code</Button>} />
+        : !q.data?.length ? (canManage
+            ? <EmptyState icon={KeyRound} title="No codes yet" body="Create a code to open grievance collection for a community." action={<Button icon={Plus} onClick={() => setCreating(true)}>New code</Button>} />
+            : <EmptyState icon={KeyRound} title="No codes for your communities yet" body="When the Super Admin creates a code for your community, it appears here." />)
         : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {q.data.map((c) => (
@@ -64,10 +70,10 @@ export function Codes() {
                   {c.released_at && <div className="flex justify-between"><dt className="text-ink-500">Released</dt><dd>{c.released_by} · {formatDateTime(c.released_at)}</dd></div>}
                   {c.deactivated_at && <div className="flex justify-between"><dt className="text-ink-500">Deactivated</dt><dd>{c.deactivated_by} · {formatDate(c.deactivated_at)}</dd></div>}
                 </dl>
-                <div className="mt-4 flex gap-2 pt-1">
+                {canManage && <div className="mt-4 flex gap-2 pt-1">
                   {c.state === 'draft' && <Button size="sm" icon={Rocket} loading={busy} onClick={() => act(() => api.releaseCode(c.id), 'Activated. Members are told collection is open (without the code); share the code with the leaders.')}>Release</Button>}
                   {['draft', 'active', 'scheduled', 'full'].includes(c.state) && <Button size="sm" variant="secondary" icon={Ban} onClick={() => setDeactivate(c)}>Deactivate</Button>}
-                </div>
+                </div>}
               </Card>
             ))}
           </div>

@@ -60,7 +60,7 @@ export function Profile() {
   const pending = usePendingOutbox(userId);
   const nav = useNavigate();
   const toast = useToast();
-  const [edit, setEdit] = useState<'name' | 'community' | 'contact' | null>(null);
+  const [edit, setEdit] = useState<'name' | 'community' | 'contact' | 'gender' | null>(null);
   const [confirmOut, setConfirmOut] = useState(false);
   const [name, setName] = useState(profile?.full_name ?? '');
   const [email, setEmail] = useState(profile?.email ?? '');
@@ -82,6 +82,7 @@ export function Profile() {
       <Card className="divide-y divide-line">
         <Row label="Name" value={profile.full_name} onEdit={() => { setName(profile.full_name); setEdit('name'); }} />
         <Row label="Phone" value={formatPhone(profile.phone)} icon={Phone} />
+        <Row label="Gender" value={profile.gender === 'female' ? 'Female' : profile.gender === 'male' ? 'Male' : 'Not stated'} onEdit={() => setEdit('gender')} />
         <Row label="Community" value={profile.community_name ?? 'Not set'} icon={MapPin} onEdit={() => setEdit('community')} />
         <Row label="Email and address" value={[profile.email, profile.address].filter(Boolean).join(' · ') || 'Not added (optional)'} onEdit={() => { setEmail(profile.email ?? ''); setAddress(profile.address ?? ''); setEdit('contact'); }} />
       </Card>
@@ -91,6 +92,15 @@ export function Profile() {
       <Modal open={edit === 'name'} onClose={() => setEdit(null)} title="Your name"
         footer={<Button onClick={() => save({ full_name: name })} loading={busy} disabled={name.trim().length < 2}>Save</Button>}>
         <Field label="Full name" htmlFor="pn"><Input id="pn" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        {error && <div className="mt-3"><Banner tone="warning">{error}</Banner></div>}
+      </Modal>
+      <Modal open={edit === 'gender'} onClose={() => setEdit(null)} title="Your gender">
+        <p className="mb-3 text-sm text-ink-700">It helps us understand who is affected. It is saved with the grievances you send.</p>
+        <div className="grid gap-2">
+          {([['female', 'Female'], ['male', 'Male'], ['', 'Prefer not to say']] as const).map(([v, l]) => (
+            <Button key={l} variant={(profile.gender ?? '') === v ? 'primary' : 'secondary'} loading={busy} onClick={() => save({ gender: v || null })}>{l}</Button>
+          ))}
+        </div>
         {error && <div className="mt-3"><Banner tone="warning">{error}</Banner></div>}
       </Modal>
       <Modal open={edit === 'community'} onClose={() => setEdit(null)} title="Your community">

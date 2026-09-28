@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, CircleHelp, FileText, Home, LogOut, MoreHorizontal, PenLine, Search, UserRound, WifiOff } from 'lucide-react';
+import { ArrowLeft, Bell, Briefcase, CircleHelp, FileText, Home, LogOut, MoreHorizontal, PenLine, Search, UserRound, WifiOff } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useCachedQuery, useOnline } from '@/app/hooks';
 import { api } from '@/lib/api';
@@ -23,7 +23,7 @@ const TITLES: [string, string][] = [
 export function MemberShell({ children }: { children: ReactNode }) {
   const online = useOnline();
   const unread = useUnreadCount();
-  const { profile } = useAuth();
+  const { profile, hasBoth, switchMode } = useAuth();
   const loc = useLocation();
   const nav = useNavigate();
   const [more, setMore] = useState(false);
@@ -67,6 +67,7 @@ export function MemberShell({ children }: { children: ReactNode }) {
           {[{ to: '/submit', label: 'New grievance', icon: PenLine }, { to: '/profile', label: 'Profile', icon: UserRound }, { to: '/help', label: 'How it works', icon: CircleHelp }].map((it) => (
             <li key={it.to}><Link to={it.to} className="flex h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-sunken text-[14px] font-bold text-ink-700"><it.icon className="h-6 w-6 text-brand-700" aria-hidden />{it.label}</Link></li>
           ))}
+          {hasBoth && <li><button onClick={() => { switchMode('staff'); nav('/', { replace: true }); }} className="flex h-20 w-full flex-col items-center justify-center gap-1.5 rounded-2xl bg-brand-50 text-[14px] font-bold text-brand-700"><Briefcase className="h-6 w-6" aria-hidden />Staff workspace</button></li>}
           <li><button onClick={() => { setMore(false); nav('/profile'); }} className="flex h-20 w-full flex-col items-center justify-center gap-1.5 rounded-2xl bg-sunken text-[14px] font-bold text-danger"><LogOut className="h-6 w-6" aria-hidden />Sign out…</button></li>
         </ul>
         <p className="px-1 pb-2 text-center text-xs text-ink-500">Sign out is on your Profile, so nothing saved on this phone is lost by mistake.</p>

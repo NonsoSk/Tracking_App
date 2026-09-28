@@ -237,7 +237,35 @@ export function Categories() {
 }
 
 /* ---------------------------------------------------------------- Users & officers */
-const ROLES: [string, string][] = [['super_admin', 'Super Administrator'], ['officer', 'Officer in Charge'], ['supervisor', 'Supervisor'], ['cr_staff', 'Community Relations Staff'], ['data_entry', 'Data Entry Officer'], ['viewer', 'Viewer'], ['community_member', 'Community Member']];
+const ROLES: [string, string][] = [['super_admin', 'Super Administrator'], ['officer', 'Officer in Charge'], ['supervisor', 'Supervisor'], ['cr_staff', 'Community Relations Staff'], ['data_entry', 'Data Entry Officer'], ['viewer', 'Viewer (e.g. community leader)'], ['community_member', 'Community Member']];
+
+/** Staff roles that work from a set of communities (the Super Admin and Supervisors see everything). */
+const SCOPED_ROLES = ['officer', 'cr_staff', 'viewer', 'data_entry'];
+const scopesToPayload = (scopes: string[]) =>
+  scopes.map((s) => s.startsWith('c:') ? { community_id: s.slice(2) } : s.startsWith('k:') ? { cluster_id: Number(s.slice(2)) } : { community_type: s.slice(2) });
+
+/** Pick whole community types, pipeline clusters, and/or single communities. Values: t:HOST, k:3, c:<uuid>. */
+function ScopePicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const d = useMasterData().data;
+  if (!d) return null;
+  const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">{d.community_types.map((t) => (
+        <label key={t.id} className="flex items-center gap-2 rounded-xl px-3 py-2 ring-1 ring-line"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={value.includes(`t:${t.code}`)} onChange={() => toggle(`t:${t.code}`)} />All {t.name}</label>
+      ))}</div>
+      <div className="flex flex-wrap gap-2">{d.clusters.map((c) => (
+        <label key={c.id} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm ring-1 ring-line"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={value.includes(`k:${c.id}`)} onChange={() => toggle(`k:${c.id}`)} />Pipeline {c.name}</label>
+      ))}</div>
+      <Select aria-label="Add a single community" value="" onChange={(e) => e.target.value && onChange([...value, `c:${e.target.value}`])}>
+        <option value="">Add a single community…</option>{d.communities.filter((c) => !value.includes(`c:${c.id}`)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
+      <div className="flex flex-wrap gap-1.5">{value.filter((s) => s.startsWith('c:')).map((s) => (
+        <button type="button" key={s} onClick={() => onChange(value.filter((x) => x !== s))} className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-800">{d.communities.find((c) => `c:${c.id}` === s)?.name} ✕</button>
+      ))}</div>
+    </div>
+  );
+}
 
 const titleCase = (t: string | null) => (t ? t.charAt(0) + t.slice(1).toLowerCase().replace(/_/g, ' ') : '');
 
@@ -274,9 +302,9 @@ export function Users() {
                   <div className="flex flex-wrap gap-1.5">
                     {u.roles.map((r) => <Pill key={r} tone={r === 'super_admin' ? 'gold' : r === 'officer' ? 'brand' : 'neutral'}>{ROLES.find(([k]) => k === r)?.[1] ?? r}</Pill>)}
                   </div>
-                  {u.roles.includes('officer') && (
+                  {u.roles.some((r) => SCOPED_ROLES.includes(r)) && (
                     <div className="rounded-xl bg-brand-50 px-3 py-2 text-sm">
-                      <p className="eyebrow text-brand-700">In charge of</p>
+                      <p className="eyebrow text-brand-700">{u.roles.includes('officer') ? 'In charge of' : 'Can see'}</p>
                       <p className="font-semibold text-ink-900">{resp || 'Nothing yet. Open Manage to give them communities.'}</p>
                     </div>
                   )}
@@ -294,7 +322,6 @@ export function Users() {
 }
 
 function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
-  const master = useMasterData();
   const { userId } = useAuth();
   const { busy, save } = useSave();
   const [roles, setRoles] = useState<string[]>(user.roles);
@@ -303,15 +330,14 @@ function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
   const [pin, setPin] = useState<string | null>(null);
   const keys = [['users'], ['staff-directory']];
   const isMember = user.roles.length === 1 && user.roles[0] === 'community_member';
-  const d = master.data;
   const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-  const scopePayload = scopes.map((s) => s.startsWith('c:') ? { community_id: s.slice(2) } : s.startsWith('k:') ? { cluster_id: Number(s.slice(2)) } : { community_type: s.slice(2) });
+  const scoped = roles.some((r) => SCOPED_ROLES.includes(r));
   return (
     <Modal open onClose={onClose} title={user.full_name} wide
       footer={<>
         {user.id !== userId && <Button variant={user.is_active ? 'danger' : 'secondary'} onClick={() => (user.is_active ? setConfirmDisable(true) : save(() => api.setActive(user.id, true), 'Account enabled', keys).then((ok) => ok && onClose()))}>{user.is_active ? 'Disable account' : 'Enable account'}</Button>}
         <Button loading={busy} onClick={async () => {
-          const ok = await save(async () => { await api.setRoles(user.id, roles); if (roles.includes('officer')) await api.setScopes(user.id, scopePayload); }, 'Saved', keys);
+          const ok = await save(async () => { await api.setRoles(user.id, roles); if (scoped) await api.setScopes(user.id, scopesToPayload(scopes)); }, 'Saved', keys);
           if (ok) onClose();
         }}>Save changes</Button>
       </>}>
@@ -332,24 +358,13 @@ function ManageUser({ user, onClose }: { user: UserRow; onClose: () => void }) {
             ))}
           </div>
         </section>
-        {roles.includes('officer') && d && (
+        {scoped && (
           <section>
-            <h3 className="font-semibold">Responsibility</h3>
-            <p className="mb-2 text-sm text-ink-500">The officer sees and is auto-assigned grievances from these groups. The most specific match wins.</p>
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">{d.community_types.map((t) => (
-                <label key={t.id} className="flex items-center gap-2 rounded-xl px-3 py-2 ring-1 ring-line"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={scopes.includes(`t:${t.code}`)} onChange={() => setScopes(toggle(scopes, `t:${t.code}`))} />All {t.name}</label>
-              ))}</div>
-              <div className="flex flex-wrap gap-2">{d.clusters.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm ring-1 ring-line"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={scopes.includes(`k:${c.id}`)} onChange={() => setScopes(toggle(scopes, `k:${c.id}`))} />Pipeline {c.name}</label>
-              ))}</div>
-              <Select aria-label="Add a single community" value="" onChange={(e) => e.target.value && setScopes([...scopes, `c:${e.target.value}`])}>
-                <option value="">Add a single community…</option>{d.communities.filter((c) => !scopes.includes(`c:${c.id}`)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
-              <div className="flex flex-wrap gap-1.5">{scopes.filter((s) => s.startsWith('c:')).map((s) => (
-                <button key={s} onClick={() => setScopes(scopes.filter((x) => x !== s))} className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-800">{d.communities.find((c) => `c:${c.id}` === s)?.name} ✕</button>
-              ))}</div>
-            </div>
+            <h3 className="font-semibold">{roles.includes('officer') ? 'Responsibility' : 'Communities they can see'}</h3>
+            <p className="mb-2 text-sm text-ink-500">{roles.includes('officer')
+              ? 'The officer sees and is auto-assigned grievances from these communities. The most specific match wins.'
+              : 'They see the grievances, reports and submission codes of these communities only.'}</p>
+            <ScopePicker value={scopes} onChange={setScopes} />
           </section>
         )}
       </div>
@@ -367,15 +382,17 @@ function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) 
   const blank = { full_name: '', email: '', job_title: '', role: 'officer', password: '' };
   const [f, setF] = useState(blank);
   const [mode, setMode] = useState<'invite' | 'password'>('invite');
+  const [scopes, setScopes] = useState<string[]>([]);
+  const scoped = SCOPED_ROLES.includes(f.role);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const close = () => { setF(blank); setError(null); setMode('invite'); onClose(); };
+  const close = () => { setF(blank); setError(null); setMode('invite'); setScopes([]); onClose(); };
   const ready = !!f.full_name.trim() && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim()) && (mode === 'invite' || f.password.length >= 10);
 
   const invite = async () => {
     setSending(true); setError(null);
     try {
-      const inv = await api.inviteStaff({ email: f.email, full_name: f.full_name, job_title: f.job_title, roles: [f.role] });
+      const inv = await api.inviteStaff({ email: f.email, full_name: f.full_name, job_title: f.job_title, roles: [f.role], scopes: scoped ? scopesToPayload(scopes) : [] });
       await qc.invalidateQueries({ queryKey: ['invitations'] });
       try {
         await api.sendInviteEmail(inv.email);
@@ -392,7 +409,7 @@ function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) 
         {mode === 'invite'
           ? <Button icon={Send} loading={sending} disabled={!ready} onClick={invite}>Send invitation</Button>
           : <Button loading={busy} disabled={!ready}
-              onClick={async () => { if (await save(() => api.createStaffUser({ ...f, roles: [f.role] }), 'Staff account created. Share the temporary password securely.', [['users'], ['staff-directory']])) close(); }}>Create account</Button>}</>}>
+              onClick={async () => { if (await save(async () => { const u = await api.createStaffUser({ ...f, roles: [f.role] }); if (scoped && scopes.length) await api.setScopes(u.id, scopesToPayload(scopes)); }, 'Staff account created. Share the temporary password securely.', [['users'], ['staff-directory']])) close(); }}>Create account</Button>}</>}>
       <div className="space-y-4">
         <Field label="Full name" htmlFor="sfn"><Input id="sfn" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></Field>
         <Field label="Work email" htmlFor="sfe"><Input id="sfe" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
@@ -409,6 +426,12 @@ function CreateStaff({ open, onClose }: { open: boolean; onClose: () => void }) 
             <Field label="Temporary password" htmlFor="sfp" hint="At least 10 characters. Give it to them privately; they sign in with their work email and this password."><Input id="sfp" type="text" autoComplete="off" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
             <button type="button" className="text-sm font-bold text-brand-700 hover:underline" onClick={() => setMode('invite')}>Send an email invitation instead</button>
           </>
+        )}
+        {scoped && (
+          <Field label={f.role === 'officer' ? 'Communities they are in charge of' : 'Communities they can see'} optional={f.role === 'officer'}
+            hint={f.role === 'viewer' ? 'For a community leader, choose their community. They will see its grievances (without complainants\' names or phone numbers), reports and submission codes.' : undefined}>
+            <ScopePicker value={scopes} onChange={setScopes} />
+          </Field>
         )}
         {f.role === 'officer' && <p className="text-sm text-ink-500">Next, put them in charge under <b>Communities → People in charge</b> (a whole community type) or on the <b>Communities</b> tab (one community).</p>}
         {error && <Banner tone="warning">{error}</Banner>}
@@ -602,6 +625,7 @@ const REPORTS = [
   { id: 'type', label: 'Community type report', key: 'by_type', head: ['Community type', 'Grievances', 'Open'] },
   { id: 'cluster', label: 'Pipeline cluster report', key: 'by_cluster', head: ['Cluster', 'Grievances', 'Open'] },
   { id: 'category', label: 'Category report', key: 'by_category', head: ['Category', 'Grievances', 'Open'] },
+  { id: 'gender', label: 'Gender report', key: 'by_gender', head: ['Gender', 'Grievances', 'Open'] },
   { id: 'resolution', label: 'Resolution report', key: 'by_status', head: ['Status', 'Grievances'] },
   { id: 'officer', label: 'Officer workload report', key: 'officer_workload', head: ['Officer', 'Open', 'Overdue', 'Resolved/closed'] },
   { id: 'outstanding', label: 'Outstanding grievance report', list: { open: true } as Filters },

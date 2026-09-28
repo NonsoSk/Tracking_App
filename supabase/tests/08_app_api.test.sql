@@ -13,6 +13,7 @@ insert into ids values
   ('viewer',  tests.create_user('Board Viewer', null, array['viewer']));
 select tests.set_scopes((select v from ids where k = 'godpower'), '[{"community_type":"HOST"},{"community_type":"PIPELINE"}]');
 select tests.set_scopes((select v from ids where k = 'esther'),   '[{"community_type":"JETTY"}]');
+select tests.set_scopes((select v from ids where k = 'viewer'),   '[{"community":"Onne"}]');  -- a community leader
 
 select app.create_grievance(jsonb_build_object('community_id', tests.community(c), 'description', 'Test grievance in ' || c || ' #' || i,
                                                'category_id', (select id from public.grievance_categories order by sort_order limit 1)),
@@ -46,8 +47,8 @@ select ok((public.staff_grievance_detail((select id from jd)) -> 'can' ->> 'reso
 select tests.logout();
 
 select tests.login((select v from ids where k = 'viewer'));
-select is((public.dashboard_stats() -> 'kpis' ->> 'total')::int, 12, 'viewer sees organisation-wide totals');
-select throws_ok('select public.staff_grievance_list()', '42501', 'not_allowed', '... but cannot list individual grievances');
+select is((public.dashboard_stats() -> 'kpis' ->> 'total')::int, 4, 'a viewer (community leader) sees only their community in the dashboard');
+select is((public.staff_grievance_list() ->> 'total')::int, 4, '... and lists only their community''s grievances');
 select throws_ok('select public.export_grievances()', '42501', 'not_allowed', '... and cannot export');
 select tests.logout();
 

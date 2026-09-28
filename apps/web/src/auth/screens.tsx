@@ -124,6 +124,7 @@ export function SignUp() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [gender, setGender] = useState<'male' | 'female' | 'none' | ''>('');
   const [community, setCommunity] = useState<{ id: string; name: string } | null>(null);
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
@@ -137,6 +138,7 @@ export function SignUp() {
     if (step === 0) {
       if (name.trim().length < 2) return setError('Please enter your full name.');
       if (!normalizePhone(phone)) return setError('Please enter a valid phone number, e.g. 0803 123 4567.');
+      if (!gender) return setError('Please choose your gender.');
       return setStep(1);
     }
     if (step === 1) {
@@ -146,7 +148,7 @@ export function SignUp() {
     if (pin.length !== 6) return setError('Your PIN must be 6 digits.');
     if (pin !== pin2) return setError("The two PINs don't match.");
     setBusy(true);
-    signUp({ fullName: name, phone, communityId: community!.id, pin })
+    signUp({ fullName: name, phone, communityId: community!.id, pin, gender: gender === 'none' ? null : gender || null })
       .then(() => nav('/', { replace: true }))
       .catch((err) => setError(describeError(err)))
       .finally(() => setBusy(false));
@@ -166,6 +168,15 @@ export function SignUp() {
               <div className="relative"><Phone className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" aria-hidden />
                 <Input id="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0803 123 4567" className="pl-12" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
             </Field>
+            <fieldset>
+              <legend className="mb-1.5 block font-bold text-ink-900">Gender</legend>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup">
+                {([['female', 'Female'], ['male', 'Male'], ['none', 'Prefer not to say']] as const).map(([v, l]) => (
+                  <button key={v} type="button" role="radio" aria-checked={gender === v} onClick={() => setGender(v)}
+                    className={cx('min-h-12 rounded-2xl px-2 py-2 text-[15px] font-bold transition-colors', gender === v ? 'bg-btn text-white shadow-halo' : 'bg-surface text-ink-700 shadow-card')}>{l}</button>
+                ))}
+              </div>
+            </fieldset>
           </div>
         )}
         {step === 1 && <div className="animate-fade-up"><p className="mb-3 text-ink-700">Which community do you live in?</p><CommunityPicker value={community?.id ?? null} onChange={(id, n) => setCommunity({ id, name: n })} /></div>}

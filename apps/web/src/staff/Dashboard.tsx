@@ -77,6 +77,9 @@ export function Dashboard() {
               <ChartCard title="Pipeline grievances by cluster" table={{ head: ['Cluster', 'Total', 'Open'], rows: q.data.by_cluster.map((t) => [String(t.key), t.total ?? 0, t.open ?? 0]) }}>
                 <BarList secondaryLabel="open" emptyText="No pipeline grievances in this selection" data={q.data.by_cluster.map((t) => ({ key: String(t.key), value: t.total ?? 0, secondary: t.open, href: listHref({ ...filters, cluster_id: Number(t.id) }) }))} />
               </ChartCard>
+              <ChartCard title="By gender" subtitle="From the complainant's profile or the paper form" table={{ head: ['Gender', 'Total', 'Open'], rows: q.data.by_gender.map((t) => [String(t.key), t.total ?? 0, t.open ?? 0]) }}>
+                <BarList secondaryLabel="open" emptyText="No grievances in this selection" data={q.data.by_gender.map((t) => ({ key: String(t.key), value: t.total ?? 0, secondary: t.open }))} />
+              </ChartCard>
               <ChartCard title="By category" table={{ head: ['Category', 'Total', 'Open'], rows: q.data.by_category.map((t) => [String(t.key), t.total ?? 0, t.open ?? 0]) }}>
                 <BarList secondaryLabel="open" data={q.data.by_category.map((t) => ({ key: String(t.key), value: t.total ?? 0, secondary: t.open, href: t.id ? listHref({ ...filters, category_id: Number(t.id) }) : undefined }))} />
               </ChartCard>

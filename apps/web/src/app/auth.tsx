@@ -21,11 +21,15 @@ interface AuthState {
   can: (perm: string) => boolean;
   hasRole: (role: string) => boolean;
   signIn: (identifier: string, secret: string) => Promise<void>;
-  signUp: (p: { fullName: string; phone: string; communityId: string; pin: string }) => Promise<void>;
+  signUp: (p: { fullName: string; phone: string; communityId: string; pin: string; gender?: 'male' | 'female' | null }) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
   /** Set when an emailed sign-in link could not be used (expired or already used). */
   linkError: string | null;
+  /** Someone with a staff role and the community member role can use both apps. */
+  hasBoth: boolean;
+  mode: 'staff' | 'member';
+  switchMode: (m: 'staff' | 'member') => void;
 }
 
 /**
@@ -78,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'staff' | 'member'>(() => { try { return localStorage.getItem('ipl.mode') === 'member' ? 'member' : 'staff'; } catch { return 'staff'; } });
+  const switchMode = useCallback((m: 'staff' | 'member') => { setMode(m); try { localStorage.setItem('ipl.mode', m); } catch { /* private mode */ } }, []);
 
   useEffect(() => {
     let alive = true;
@@ -108,14 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (access && !access.is_active) throw new AppError('account_disabled');
   }, [load, access]);
 
-  const signUp = useCallback(async (p: { fullName: string; phone: string; communityId: string; pin: string }) => {
+  const signUp = useCallback(async (p: { fullName: string; phone: string; communityId: string; pin: string; gender?: 'male' | 'female' | null }) => {
     const e164 = normalizePhone(p.phone);
     if (!e164) throw new AppError('phone_invalid');
     if (!/^\d{6}$/.test(p.pin)) throw new AppError('weak_pin');
     const { data, error } = await supabase.auth.signUp({
       email: loginEmailFor(e164),
       password: pinPassword(p.pin),
-      options: { data: { full_name: p.fullName.trim(), phone: e164, community_id: p.communityId } },
+      options: { data: { full_name: p.fullName.trim(), phone: e164, community_id: p.communityId, ...(p.gender ? { gender: p.gender } : {}) } },
     });
     if (error) throw toAppError(error);
     if (!data.session) throw new AppError('unknown', 'Your account was created. Please sign in.');
@@ -136,8 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     can: (perm) => !!access && (access.roles.includes('super_admin') || access.permissions.includes(perm)),
     hasRole: (role) => !!access?.roles.includes(role),
     signIn, signUp, signOut, linkError,
+    hasBoth: !!access?.roles.some((r) => STAFF_ROLES.includes(r)) && !!access?.roles.includes('community_member'),
+    mode, switchMode,
     refresh: async () => { if (userId) await load(userId); },
-  }), [ready, session, userId, access, profile, signIn, signUp, signOut, load, linkError]);
+  }), [ready, session, userId, access, profile, signIn, signUp, signOut, load, linkError, mode, switchMode]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

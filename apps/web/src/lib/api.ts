@@ -57,7 +57,13 @@ export const api = {
     rpc<StaffList>('staff_grievance_list', { p_filters: filters, p_page: page, p_page_size: pageSize, p_sort: sort }),
   staffDetail: (id: string) => rpc<StaffDetail>('staff_grievance_detail', { p_id: id }),
   officerHome: () => rpc<OfficerHome>('officer_home'),
-  dashboard: (filters: Filters) => rpc<DashboardStats>('dashboard_stats', { p_filters: filters }),
+  dashboard: async (filters: Filters): Promise<DashboardStats> => {
+    const [stats, byGender] = await Promise.all([
+      rpc<DashboardStats>('dashboard_stats', { p_filters: filters }),
+      rpc<DashboardStats['by_gender'] | null>('dashboard_gender', { p_filters: filters }).catch(() => null),  // older databases
+    ]);
+    return { ...stats, by_gender: byGender ?? [] };
+  },
   exportRows: (filters: Filters) => rpc<Record<string, unknown>[]>('export_grievances', { p_filters: filters }),
   submitAssisted: (p: Record<string, unknown>) => rpc<SubmitResult>('submit_grievance_assisted', { p }),
 
@@ -103,7 +109,7 @@ export const api = {
   resetMemberPin: (userId: string) => rpc<{ pin: string }>('admin_reset_member_pin', { p_user: userId }),
 
   // Staff invitations by email
-  inviteStaff: (p: { email: string; full_name: string; job_title?: string; roles: string[] }) =>
+  inviteStaff: (p: { email: string; full_name: string; job_title?: string; roles: string[]; scopes?: unknown[] }) =>
     rpc<{ id: string; email: string }>('admin_invite_staff', { p }),
   invitations: () => rpc<StaffInvitation[]>('list_staff_invitations'),
   cancelInvitation: (id: string) => rpc<void>('admin_cancel_invitation', { p_id: id }),

@@ -176,6 +176,7 @@ export interface DashboardStats {
   by_severity: Breakdown[];
   by_status: Breakdown[];
   officer_workload: Breakdown[];
+  by_gender: Breakdown[];
   years: number[];
 }
 

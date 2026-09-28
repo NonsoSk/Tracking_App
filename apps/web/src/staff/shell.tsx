@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Bell, ClipboardList, FileSpreadsheet, FilePlus2, Gauge, History, KeyRound, LayoutDashboard, LogOut, Map, MoreHorizontal, Settings,
+  Bell, ClipboardList, Home, FileSpreadsheet, FilePlus2, Gauge, History, KeyRound, LayoutDashboard, LogOut, Map, MoreHorizontal, Settings,
   Tags, Upload, Users, WifiOff, type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/app/auth';
@@ -17,7 +17,9 @@ import { TabLink } from '@/design/tablink';
 interface NavItem { to: string; label: string; icon: LucideIcon; show: boolean; end?: boolean; badge?: number }
 
 export function StaffShell({ children }: { children: ReactNode }) {
-  const { profile, can, hasRole, signOut, userId, access } = useAuth();
+  const { profile, can, hasRole, signOut, userId, access, hasBoth, switchMode } = useAuth();
+  const navTo = useNavigate();
+  const toMember = () => { switchMode('member'); navTo('/', { replace: true }); };
   const online = useOnline();
   const loc = useLocation();
   const [more, setMore] = useState(false);
@@ -32,7 +34,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
     { to: '/overview', label: 'Dashboard', icon: LayoutDashboard, show: isOfficer && can('dashboard.view') },
     { to: '/grievances', label: 'Grievances', icon: ClipboardList, show: readsAny },
     { to: '/new', label: 'Enter paper form', icon: FilePlus2, show: can('grievance.create.assisted') },
-    { to: '/codes', label: 'Submission codes', icon: KeyRound, show: can('codes.manage') },
+    { to: '/codes', label: 'Submission codes', icon: KeyRound, show: can('codes.manage') || can('codes.view') },
     { to: '/reports', label: 'Reports', icon: FileSpreadsheet, show: can('dashboard.view') },
     { to: '/notifications', label: 'Notifications', icon: Bell, show: true, badge: unread },
   ].filter((i) => i.show);
@@ -83,6 +85,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
             <div className="min-w-0 flex-1 leading-tight"><p className="truncate text-sm font-bold">{profile?.full_name}</p><p className="truncate text-xs text-white/70">{roleLabel(access?.roles ?? [])}</p></div>
             <button onClick={() => signOut()} className="grid h-9 w-9 place-items-center rounded-full text-white/80 hover:bg-white/15" aria-label="Sign out" title="Sign out"><LogOut className="h-[18px] w-[18px]" /></button>
           </div>
+          {hasBoth && <button onClick={toMember} className="flex w-full items-center gap-2 rounded-2xl bg-white/10 px-3 py-2.5 text-left text-sm font-bold hover:bg-white/15"><Home className="h-4 w-4" aria-hidden />Switch to my community app</button>}
           <div className="flex items-center justify-between px-2 text-sm font-bold text-white/80">Dark mode <ThemeSwitch onBlue /></div>
         </div>
       </aside>
@@ -126,6 +129,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
               </Link>
             </li>
           ))}
+          {hasBoth && <li><button onClick={toMember} className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-2xl bg-brand-50 px-1 text-center text-[13px] font-bold leading-tight text-brand-700"><Home className="h-6 w-6" aria-hidden />My community app</button></li>}
           <li>
             <button onClick={() => signOut()} className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-2xl bg-sunken text-[13px] font-bold text-danger"><LogOut className="h-6 w-6" aria-hidden />Sign out</button>
           </li>
