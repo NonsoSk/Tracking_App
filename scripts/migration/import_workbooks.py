@@ -324,6 +324,49 @@ def pair_with_previous(new: list[dict], old: list[dict]) -> list[str]:
     return problems
 
 
+def write_parts(out: Path, fn: str, batch: dict, payload: list[dict], limit: int) -> None:
+    """The SQL Editor refuses large queries: load the records into a holding table in several
+    small files, then one short file runs the import/update from there (all or nothing)."""
+    key_ = batch["file_sha256"][:16]
+    chunks: list[list[tuple[int, dict]]] = [[]]
+    size = 0
+    for i, rec in enumerate(payload):
+        n = len(json.dumps(rec, ensure_ascii=False, default=str).encode())
+        if chunks[-1] and size + n > limit:
+            chunks.append([]); size = 0
+        chunks[-1].append((i, rec)); size += n
+    total = len(chunks) + 1
+    head = ("-- PRIVATE: contains complainant names and phone numbers. Do not share or commit.\n"
+            f"-- Part {{k}} of {total}. Run the parts in order (1 to {total}); each one separately.\n\n")
+    for k, chunk in enumerate(chunks, 1):
+        tag = "imp" + secrets.token_hex(6)
+        rows = json.dumps([{"ord": i, "rec": r} for i, r in chunk], ensure_ascii=False, default=str)
+        sql = (head.format(k=k)
+               + "create table if not exists app.import_staging (batch text not null, ord int not null, rec jsonb not null,\n"
+               + "  primary key (batch, ord));\n"
+               + "revoke all on app.import_staging from public, anon, authenticated;\n"
+               + f"insert into app.import_staging (batch, ord, rec)\n"
+               + f"select '{key_}', (x ->> 'ord')::int, x -> 'rec' from jsonb_array_elements(${tag}${rows}${tag}$::jsonb) x\n"
+               + "on conflict (batch, ord) do nothing;\n"
+               + f"select 'Part {k} of {total} loaded' as result, count(*) as records_loaded_so_far,"
+               + f" {len(payload)} as records_in_total from app.import_staging where batch = '{key_}';\n")
+        (out / f"part-{k}-of-{total}.sql").write_text(sql)
+    tag = "imp" + secrets.token_hex(6)
+    final = (head.format(k=total)
+             + "create table if not exists app.import_staging (batch text not null, ord int not null, rec jsonb not null,\n"
+             + "  primary key (batch, ord));\n"
+             + "do $$ declare n int; begin\n"
+             + f"  select count(*) into n from app.import_staging where batch = '{key_}';\n"
+             + f"  if n <> {len(payload)} then\n"
+             + f"    raise exception 'Only % of {len(payload)} records are loaded. Run parts 1 to {total - 1} first, then this one.', n;\n"
+             + "  end if;\nend $$;\n"
+             + f"select {fn}(${tag}${json.dumps(batch, ensure_ascii=False)}${tag}$::jsonb,\n"
+             + f"  (select jsonb_agg(rec order by ord) from app.import_staging where batch = '{key_}')) as result;\n"
+             + f"delete from app.import_staging where batch = '{key_}';\n")
+    (out / f"part-{total}-of-{total}.sql").write_text(final)
+    print(f"Wrote {total} part files to {out} (largest {max(len(json.dumps(c, default=str)) for c in chunks) // 1024} KB of data)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--complete", type=Path)
@@ -333,6 +376,8 @@ def main() -> None:
     ap.add_argument("--previous-tracker", type=Path, help="with --total: the tracker imported before")
     ap.add_argument("--out", default=Path("audit-output"), type=Path)
     ap.add_argument("--apply", action="store_true", help="run the batch with psql (PG* environment variables)")
+    ap.add_argument("--parts", type=int, default=0,
+                    help="also write the batch as files of about this many KB each, for the Supabase SQL Editor")
     a = ap.parse_args()
     a.out.mkdir(exist_ok=True)
 
@@ -391,6 +436,8 @@ def main() -> None:
            f"  ${tag}${json.dumps(payload, ensure_ascii=False, default=str)}${tag}$::jsonb);\n")
     (a.out / "import_batch.sql").write_text(sql)
     print(f"Wrote {a.out / 'import_report.md'} and {a.out / 'import_batch.sql'}")
+    if a.parts:
+        write_parts(a.out, fn, batch, payload, a.parts * 1024)
 
     if a.apply:
         subprocess.run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-1", "-f", str(a.out / "import_batch.sql")], check=True)
