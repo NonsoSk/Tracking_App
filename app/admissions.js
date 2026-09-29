@@ -23,7 +23,9 @@ window.ADMISSIONS = {
     "lorenzo.burcheri@uni.lu",
     "rawan.akkouch@uni.lu"
    ],
-   "portal": true
+   "portal": true,
+   "reqRule": "master",
+   "req": "Requires a Master's degree (per the posting)."
   },
   {
    "n": 2,
@@ -42,7 +44,9 @@ window.ADMISSIONS = {
    "priority": "A",
    "id": "s02",
    "emails": [],
-   "portal": true
+   "portal": true,
+   "reqRule": "check",
+   "req": "Programme year 1 is the Master in Quantitative Economics & Finance (MQEF): ask whether a bachelor's holder can enter this route."
   },
   {
    "n": 3,
@@ -137,7 +141,9 @@ window.ADMISSIONS = {
    "priority": "A",
    "id": "s07",
    "emails": [],
-   "portal": true
+   "portal": true,
+   "reqRule": "check",
+   "req": "Wants calculus, linear algebra, numerical computation, ML and Python."
   },
   {
    "n": 8,
@@ -156,7 +162,9 @@ window.ADMISSIONS = {
    "priority": "B",
    "id": "s08",
    "emails": [],
-   "webForm": true
+   "webForm": true,
+   "reqRule": "check",
+   "req": "PhD needs a crypto/security background and at least one publication; the MASc is open to other backgrounds."
   },
   {
    "n": 9,
@@ -218,7 +226,9 @@ window.ADMISSIONS = {
    ],
    "oneEmailOnly": true,
    "deadlineNote": "Act NOW: Winter (January) 2027 start",
-   "urgent": true
+   "urgent": true,
+   "reqRule": "cs",
+   "req": "Needs a CS degree and GPA 3.3/4.0."
   },
   {
    "n": 12,
@@ -257,7 +267,9 @@ window.ADMISSIONS = {
    "emails": [
     "juliane.proelss@concordia.ca"
    ],
-   "pastCall": true
+   "pastCall": true,
+   "reqRule": "master",
+   "req": "Needs a 2-year Master's and GPA 3.5 (past call)."
   },
   {
    "n": 14,
@@ -278,7 +290,9 @@ window.ADMISSIONS = {
    "emails": [
     "denis.schweizer@concordia.ca"
    ],
-   "pastCall": true
+   "pastCall": true,
+   "reqRule": "master",
+   "req": "Same advert as Prof. Proelss: 2-year Master's and GPA 3.5 (past call)."
   },
   {
    "n": 15,
@@ -398,7 +412,9 @@ window.ADMISSIONS = {
     "alemayehu.molla@rmit.edu.au",
     "ashenafi.biru@rmit.edu.au"
    ],
-   "pastCall": true
+   "pastCall": true,
+   "reqRule": "master",
+   "req": "Wants a Master's with thesis (IS/management/entrepreneurship) and mixed-methods skills."
   },
   {
    "n": 21,
@@ -418,7 +434,9 @@ window.ADMISSIONS = {
    "id": "s21",
    "emails": [],
    "deadline": "2028-01-01",
-   "deadlineNote": "Scholarship eligibility end date"
+   "deadlineNote": "Scholarship eligibility end date",
+   "reqRule": "master",
+   "req": "Needs a Master's degree."
   },
   {
    "n": 22,
@@ -482,7 +500,9 @@ window.ADMISSIONS = {
     "jian.yang@mq.edu.au",
     "education@dfcrc.com"
    ],
-   "portal": true
+   "portal": true,
+   "reqRule": "check",
+   "req": "Entry via PhD, or MRes Year 2 + PhD: ask which route fits your degree."
   },
   {
    "n": 25,

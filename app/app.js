@@ -52,7 +52,7 @@
     progress: { checks: {}, hours: {}, notes: {}, activity: {}, exam: {}, projects: {} },
     studies: { semesterEnd: "", courses: [], classes: [], deadlines: [] },
     admissions: {
-      profile: { fullName: "", email: "", phone: "", location: "", citizenship: "", linkedin: "", github: "", website: "", targetDegree: "PhD", intake: "January 2027 or September 2027", background: "", headline: "", interests: "",
+      profile: { fullName: "", email: "", phone: "", location: "", citizenship: "", linkedin: "", github: "", website: "", targetDegree: "PhD", intake: "January 2027 or September 2027", background: "", highestDegree: "", degreeField: "", headline: "", interests: "",
         education: [], research: [], experience: [], publications: [], referees: [], skillsProg: "Python, SQL", skillsMl: "", skillsFin: "", skillsTools: "Git, Jupyter", languages: "English", tests: "", awards: "" },
       recs: {}, custom: [], sprint: {},
     },
@@ -153,7 +153,7 @@
     ["messages", "Messages"], ["studies", "Studies"], ["projects", "Projects"], ["progress", "Progress"], ["settings", "Settings"],
   ];
   const ui = {
-    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false, sub: {}, phase: null, msgTemplate: "", adSel: null, adTemplate: null, adOpen: null, adFilter: { prio: "all", country: "all", status: "all", q: "" },
+    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false, sub: {}, phase: null, msgTemplate: "", adSel: null, adTemplate: null, adOpen: null, adFilter: { prio: "all", country: "all", status: "all", q: "", elig: false },
     mentorFilter: "active", mentorSearch: "", msgProspect: "", toast: "",
     finder: { market: "dk", role: "ds", tier: "any" },
   };
@@ -1180,6 +1180,17 @@
     return d < 0 ? `<span class="pill">passed</span>` : `<span class="pill ${d <= 7 ? "bad" : d <= 30 ? "warn" : "accent"}">${d === 0 ? "today" : d === 1 ? "tomorrow" : d + " days left"}</span>`;
   }
 
+  // ----- eligibility (only rules recorded in the tracker) -----
+  function eligibility(s) {
+    const pf = A().profile;
+    const deg = String(pf.highestDegree || "");
+    const field = String(pf.degreeField || pf.background || "").toLowerCase();
+    if (!s.reqRule) return { level: "unknown", text: "" };
+    if (s.reqRule === "master") return deg === "Master's" || deg === "PhD" ? { level: "ok", text: s.req } : { level: deg ? "blocked" : "unknown", label: "Needs a Master's", text: s.req };
+    if (s.reqRule === "cs") return /comput|software|informatic/.test(field) ? { level: "ok", text: s.req } : { level: deg ? "blocked" : "unknown", label: "Needs a CS degree", text: s.req };
+    return { level: "check", label: "Check entry route", text: s.req };
+  }
+
   // ----- topic matching (drives resume tailoring and fit analysis) -----
   const TOPICS = [
     { k: "Blockchain & DLT", syn: ["blockchain", "dlt", "distributed ledger", "ethereum", "bitcoin", "consensus", "rollup", "layer-2", "layer 2", "smart contract", "smart-contract", "interoperab", "cross-chain"],
@@ -1202,6 +1213,8 @@
       tip: "Write a 2-page policy brief (e.g. on stablecoin or crypto regulation) and add it to your CV." },
     { k: "Economics & mechanism design", syn: ["economic", "mechanism design", "incentive", "game theory", "auction", "cryptoeconomic", "tokenomics", "monetary", "inflation"],
       tip: "Summarise one mechanism-design paper in the professor's area and propose an extension." },
+    { k: "Ethics, fairness & trust", syn: ["ethic", "fair", "trust", "accountab", "social studies", "institutional", "philosoph", "responsible", "explainab", "interpretab", "bias"],
+      tip: "Your philosophy training is a real asset here: write a 2-page note on fairness or explainability in AI credit decisions (Roadmap Week 27)." },
     { k: "Inclusive & sustainable finance", syn: ["inclusive", "inclusion", "sustainable", "esg", "green finance", "literacy", "africa", "islamic", "entrepreneur"],
       tip: "Analyse World Bank Global Findex data for your country and write up the findings." },
     { k: "Quantitative & computational methods", syn: ["stochastic", "numerical", "computational", "statistic", "econometric", "optimization", "operations research", "mixed-methods", "calculus", "linear algebra"],
@@ -1506,7 +1519,7 @@
         <div class="pc-id"><h4><button type="button" class="linkish strong" data-ad-open="${s.id}">${esc(s.name)}</button></h4><p class="muted small">${esc(s.university)} · ${esc(s.country)}</p></div>
         <select class="stage-select" data-ad-status="${s.id}" aria-label="Status">${AD_STATUSES.map(([k, t]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select></header>
       <p class="small clamp2"><b>Interests:</b> ${esc(s.interests)}</p>
-      <div class="pmeta"><span class="pill ${/^YES|OPEN|PROGRAM ADMITTING|INVITES|DEPARTMENT RECRUITING/i.test(s.accepting) ? "accent" : ""}">${esc(String(s.accepting).split(/ - |\. /)[0].slice(0, 42))}</span><span class="pill">${esc(String(s.session).split(/[;(]/)[0].slice(0, 40))}</span>${dl}${s.urgent && !s.deadline ? `<span class="pill bad">urgent</span>` : ""}${s.oneEmailOnly ? `<span class="pill warn">one email only</span>` : ""}${s.warning ? `<span class="pill warn">check eligibility</span>` : ""}${due ? `<span class="pill bad">follow-up due</span>` : ""}</div>
+      <div class="pmeta"><span class="pill ${/^YES|OPEN|PROGRAM ADMITTING|INVITES|DEPARTMENT RECRUITING/i.test(s.accepting) ? "accent" : ""}">${esc(String(s.accepting).split(/ - |\. /)[0].slice(0, 42))}</span><span class="pill">${esc(String(s.session).split(/[;(]/)[0].slice(0, 40))}</span>${dl}${s.urgent && !s.deadline ? `<span class="pill bad">urgent</span>` : ""}${s.oneEmailOnly ? `<span class="pill warn">one email only</span>` : ""}${s.warning ? `<span class="pill warn">check eligibility</span>` : ""}${(() => { const el = eligibility(s); return el.level === "blocked" ? `<span class="pill bad" title="${esc(el.text)}">${esc(el.label)}</span>` : el.level === "check" ? `<span class="pill warn" title="${esc(el.text)}">${esc(el.label)}</span>` : ""; })()}${due ? `<span class="pill bad">follow-up due</span>` : ""}</div>
       <div class="actions"><button type="button" class="btn sm primary" data-ad-go="emails" data-sid="${s.id}">Draft email</button><button type="button" class="btn sm" data-ad-go="resume" data-sid="${s.id}">Tailor CV</button><button type="button" class="btn sm ghost" data-ad-open="${s.id}">Details</button></div>
     </article>`;
   }
@@ -1516,7 +1529,7 @@
     const info = [["Programme(s)", s.programs], ["Research interests", s.interests], ["Accepting students? (verified)", s.accepting], ["Session / intake", s.session], ["Funding", s.funding], ["How to contact / apply", s.contact], ["Key date / deadline", s.keyDate]];
     return `<div class="panel form ad-drawer">
       <div class="proj-head"><span class="prio big">${s.priority}</span><div><p class="eyebrow">${esc(s.country)} · Priority ${s.priority}</p><h3>${esc(s.name)}</h3><p class="muted small">${esc(s.titleDept)}<br>${esc(s.university)}</p></div></div>
-      ${s.warning ? `<p class="note warn-note">${esc(s.warning)}</p>` : ""}${s.oneEmailOnly ? `<p class="note warn-note">They ask for one email only: no follow-ups.</p>` : ""}
+      ${s.warning ? `<p class="note warn-note">${esc(s.warning)}</p>` : ""}${s.req ? `<p class="note ${eligibility(s).level === "blocked" ? "warn-note" : ""}"><b>Entry requirement (from the tracker):</b> ${esc(s.req)}</p>` : ""}${s.oneEmailOnly ? `<p class="note warn-note">They ask for one email only: no follow-ups.</p>` : ""}
       <dl class="info">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v || "Not stated")}</dd>`).join("")}</dl>
       ${s.source ? `<p class="small">${link(s.source, "Official page")} <span class="muted">· checked ${fmt(AD.verifiedOn || today(), { day: "numeric", month: "short", year: "numeric" })}. Re-check before applying.</span></p>` : ""}
       <p class="eyebrow">Your tracking</p>
@@ -1608,11 +1621,13 @@
           <div class="actions"><button type="button" class="btn sm" data-act="pf-add" data-sec="${sec}">${icon("add")} ${spec.add}</button>${sec === "research" ? `<button type="button" class="btn sm ghost" data-act="pf-import">Import projects from this tracker</button>` : ""}</div></section>`;
       };
       return `${head}
+        ${!pf.highestDegree ? `<section class="panel starter"><h3>Quick start: BA in Philosophy + data analysis</h3><p class="muted small">Fills only the empty fields with a starting point based on your background. Anything in [brackets] is for you to replace with your real details.</p><div class="actions"><button type="button" class="btn primary" data-act="pf-starter">Fill my starter profile</button></div></section>` : ""}
         <p class="note">This is your master profile. The Resume builder reorders and highlights it for each professor; it never invents anything, so the stronger and more specific this is, the better every CV and email gets. Use numbers ("AUC 0.78 on 150k borrowers").</p>
         <section class="panel"><h3>About you</h3><div class="fields">
           ${f("fullName", "Full name", S().name || "Ada Okafor")}${f("email", "Email", "you@example.com")}${f("phone", "Phone", "+234 …")}${f("location", "City, country")}
           ${f("citizenship", "Citizenship (for scholarship eligibility)")}${f("linkedin", "LinkedIn URL")}${f("github", "GitHub URL")}${f("website", "Portfolio / website")}
-          ${f("targetDegree", "Target degree", "PhD / MSc / Master by Research")}${f("intake", "Target intake", "January 2027 or September 2027")}${f("background", "Background", "Accounting / Finance / Computer Science …")}${f("headline", "Headline", "Finance graduate building ML for credit risk and fraud", true)}
+          ${f("targetDegree", "Target degree", "PhD / MSc / Master by Research")}${f("intake", "Target intake", "January 2027 or September 2027")}${f("background", "Background", "Accounting / Finance / Computer Science …")}
+          <label class="field"><span>Highest degree</span><select id="pf-highestDegree" data-pfsel="highestDegree">${["", "Bachelor's", "Master's", "PhD"].map((x) => `<option value="${x}"${(pf.highestDegree || "") === x ? " selected" : ""}>${x || "Choose…"}</option>`).join("")}</select></label>${f("degreeField", "Degree subject", "Philosophy")}${f("headline", "Headline", "Finance graduate building ML for credit risk and fraud", true)}
           ${ta("interests", "Research interests (2–3 sentences)", "e.g. I study how machine learning can detect fraud in mobile-money networks …")}
         </div></section>
         ${listEd("education")}${listEd("research")}${listEd("experience")}${listEd("publications")}
@@ -1706,7 +1721,7 @@
     const f = ui.adFilter;
     const q = (f.q || "").toLowerCase();
     const countries = [...new Set(all.map((s) => s.country))];
-    const list = all.filter((s) => (f.prio === "all" || s.priority === f.prio) && (f.country === "all" || s.country === f.country) && (f.status === "all" || peekRec(s.id).status === f.status) &&
+    const list = all.filter((s) => (!f.elig || eligibility(s).level !== "blocked") && (f.prio === "all" || s.priority === f.prio) && (f.country === "all" || s.country === f.country) && (f.status === "all" || peekRec(s.id).status === f.status) &&
       (!q || [s.name, s.university, s.interests, s.programs].join(" ").toLowerCase().includes(q)))
       .sort((a, b) => {
         const soon = (x) => x.urgent ? "0" : x.deadline && daysLeft(x.deadline) >= 0 && daysLeft(x.deadline) <= 90 ? x.deadline : "9";
@@ -1718,8 +1733,17 @@
         <select id="ad-country" data-ad-fs="country" aria-label="Country"><option value="all">All countries</option>${countries.map((c) => `<option${f.country === c ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
         <select id="ad-status" data-ad-fs="status" aria-label="Status"><option value="all">Any status</option>${AD_STATUSES.map(([k, t]) => `<option value="${k}"${f.status === k ? " selected" : ""}>${t}</option>`).join("")}</select>
         <label class="search-wrap">${icon("finder")}<input id="ad-search" class="search" type="search" placeholder="Search name, university, topic" value="${esc(f.q || "")}" data-ad-search="1"></label>
+        <label class="chk inline"><input type="checkbox" data-ad-elig="1"${f.elig ? " checked" : ""}><span>Hide ones I don't meet yet</span></label>
         <button type="button" class="btn sm" data-act="ad-add-custom">${icon("add")} Add supervisor</button>
       </div>
+      ${A().profile.highestDegree === "Bachelor's" ? `<section class="panel routes"><h3>${icon("roadmap")} Your routes with a bachelor's degree</h3>
+        <p class="small muted">Based on the entry notes in your tracker. Confirm each with the programme before applying.</p>
+        <ul class="plist">
+          <li><span><b>Research master's first, then PhD.</b> Concordia's MASc (Dr Clark) is open to other backgrounds; Macquarie/Digital Finance CRC offers an MRes + PhD route; uni.lu's Finance PhD starts with the MQEF master's year.</span></li>
+          <li><span><b>US PhDs admit bachelor's holders</b> (WPI FinTech, Columbia IEOR, Duke, Yale), but expect strong maths, statistics and programming evidence.</span></li>
+          <li><span><b>Lead with your strengths:</b> real data-analysis results with numbers, plus philosophy's logic and ethics, which fit AI fairness, governance and regulation (Prof. Zetzsche, Prof. Berg, Monash FinTech Lab's ethical-AI theme).</span></li>
+          <li><span><b>Close the maths gap fast:</b> Roadmap Weeks 17–20 (probability, statistics, linear algebra, calculus) and a public project with results.</span></li>
+        </ul></section>` : ""}
       <div class="pgrid">${list.map(supCard).join("") || `<div class="panel empty-state"><h3>No matches</h3><p class="muted">Try another filter.</p></div>`}</div>
       <p class="small muted">Priority A: current open invitation. B: generally looking for students. C: strong fit, no public recruiting statement (cold email). Source pages were checked on ${fmt(AD.verifiedOn || today(), { day: "numeric", month: "long", year: "numeric" })}; recheck each before applying.</p>`;
   }
@@ -1879,6 +1903,19 @@
       case "ad-del-custom": A().custom = (A().custom || []).filter((x) => x.id !== id); delete A().recs[id]; ui.adOpen = null; saveAd(); ui.toast = "Supervisor removed"; rerender(); break;
       case "pf-add": { const sec = t.dataset.sec; const pf = A().profile; pf[sec] = pf[sec] || []; pf[sec].push({}); saveAd(); rerender(); break; }
       case "pf-del": { const pf = A().profile; (pf[t.dataset.sec] || []).splice(Number(t.dataset.i), 1); saveAd(); rerender(); break; }
+      case "pf-starter": {
+        const pf = A().profile;
+        const fill = (k, v) => { if (!pf[k] || !String(pf[k]).trim()) pf[k] = v; };
+        fill("highestDegree", "Bachelor's"); fill("degreeField", "Philosophy");
+        fill("background", "Philosophy (BA) and professional data analysis");
+        fill("headline", "Data analyst with a philosophy background, moving into fintech and machine learning research");
+        fill("interests", "I want to study how data and machine learning can make financial services fairer and more trustworthy, for example explainable credit decisions and fraud detection in digital payments. My training in logic and ethics shapes how I think about fairness, accountability and governance in financial AI.");
+        fill("skillsTools", "[Excel, Power BI or Tableau], Git, Jupyter");
+        fill("skillsMl", "pandas, data cleaning, data visualisation, [statistics tools you use]");
+        if (!(pf.education || []).length) pf.education = [{ degree: "BA Philosophy", school: "[University]", location: "[City, country]", start: "[year]", end: "[year]", grade: "[class / GPA]", thesis: "[final-year project title, if any]", courses: "Logic, Ethics, Philosophy of Science, [other relevant courses]" }];
+        if (!(pf.experience || []).length) pf.experience = [{ role: "Data Analyst", org: "[Company]", dates: "[start – end]", bullets: "[Analysed N records using SQL/Excel/Python to answer a business question]\n[Built a dashboard in Power BI/Tableau used by N people for …]\n[A result with a number, e.g. cut reporting time by 40%]" }];
+        saveAd(); ui.toast = "Starter profile added. Replace everything in [brackets]."; rerender(); break;
+      }
       case "pf-import": { const n = importTrackerProjects(); ui.toast = n ? `Added ${n} item${n > 1 ? "s" : ""} from your tracker` : "Nothing new to import yet: tick off project milestones or more weeks first"; rerender(); break; }
       case "ad-polish-cv": polish("cv", t.dataset.sid); break;
       case "ad-polish-email": polish("email", t.dataset.sid, t.dataset.tid); break;
@@ -1953,6 +1990,8 @@
     if (ds.adc) { const [sid, k] = ds.adc.split(":"); const r = recOf(sid); if (t.checked) r.checks[k] = today(); else delete r.checks[k]; t.closest(".chk").classList.toggle("is-done", t.checked); if (t.checked) markActivity(); saveAd(); return; }
     if (ds.ads) { if (t.checked) { A().sprint[ds.ads] = today(); markActivity(); } else delete A().sprint[ds.ads]; saveAd(); saveProgress(); rerender(); return; }
     if (ds.adSel) { ui.adSel = t.value; ui.adTemplate = null; rerender(); return; }
+    if (ds.adElig) { ui.adFilter.elig = t.checked; rerender(); return; }
+    if (ds.pfsel) { A().profile[ds.pfsel] = t.value; saveAd(); rerender(); return; }
     if (ds.adFs) { ui.adFilter[ds.adFs] = t.value; rerender(); return; }
     if (ds.check) {
       if (t.checked) { P().checks[ds.check] = today(); markActivity(); } else delete P().checks[ds.check];

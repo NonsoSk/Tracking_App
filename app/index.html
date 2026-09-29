@@ -682,6 +682,8 @@
   .sent-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); }
   .sprint { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; align-items: start; }
   .ad-drawer .proj-head { align-items: flex-start; }
+  .routes, .starter { border: 1px solid var(--accent-line); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+  .routes .plist li { padding: 8px 0; }
   @media (max-width: 860px) { .cvmd { grid-template-columns: minmax(0, 1fr); } .ad-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 640px) { .scard2 header { flex-wrap: wrap; } .scard2 .pc-id { flex-basis: calc(100% - 50px); } .info { grid-template-columns: 1fr; } .info dt { margin-top: 4px; } .cv-paper { padding: 8px; } .cv-paper .cv { padding: 20px 18px; } .ad-kpis { display: grid !important; margin-inline: 0; padding: 0; } .ad-kpis .kpi { flex: none; } }
   @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
