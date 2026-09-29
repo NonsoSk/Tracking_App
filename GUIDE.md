@@ -237,3 +237,20 @@ Open **`app/index.html`** in any browser, or use the published version in Claude
 5. Always report back to someone who helped you.
 6. In exam weeks, lighten the load rather than dropping the plan.
 7. Review every Sunday: tick, log hours, write one note.
+
+---
+
+## 9. Admissions: supervisors for January or September 2027
+
+The **Admissions** tab turns your supervisor research (32 verified fintech supervisors and programmes in Luxembourg, Canada, Australia and the US) into a working pipeline:
+
+| Sub-tab | What it does |
+|---|---|
+| **Supervisors** | Every supervisor with priority (A = open invitation, B = generally recruiting, C = cold email), recruiting status, intake, deadline countdown and your status. Open **Details** to log the papers you read, your research idea, the email to use, notes and an application checklist. Add your own supervisors too. |
+| **Deadlines** | Key dates with countdowns and calendar links, supervisor deadlines, and the follow-ups due. |
+| **Emails** | Nine templates (first email, open-position application, two follow-ups, reply, thank-you, supervisor-statement request, "I have applied", funded-call inquiry), filled with the professor's details, your papers and idea. Word count, their contact instructions, Gmail/Outlook drafts, "Polish with Claude", and **Mark as sent**, which schedules the follow-up (never for people who ask for one email only). |
+| **Resume builder** | Builds a CV from **My profile** for each professor: a tailored research-interests paragraph, the most relevant projects first, matching skills highlighted, a topic-fit score, and specific ways to close gaps. Download as .html (print to PDF) or .md, or copy. |
+| **My profile** | Your master CV: education, research and projects, experience, publications, skills, tests, awards, referees. It can import your tracker projects. |
+| **Profile sprint** | A dated checklist (5 Oct → 15 Dec 2026): transcripts, referees, English test, proposal, applications and interview prep. |
+
+The app never invents achievements. Tailoring means choosing, ordering and emphasising what is true in your profile, so the more specific your profile, the stronger every CV and email.

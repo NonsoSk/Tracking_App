@@ -51,6 +51,11 @@
     },
     progress: { checks: {}, hours: {}, notes: {}, activity: {}, exam: {}, projects: {} },
     studies: { semesterEnd: "", courses: [], classes: [], deadlines: [] },
+    admissions: {
+      profile: { fullName: "", email: "", phone: "", location: "", citizenship: "", linkedin: "", github: "", website: "", targetDegree: "PhD", intake: "January 2027 or September 2027", background: "", headline: "", interests: "",
+        education: [], research: [], experience: [], publications: [], referees: [], skillsProg: "Python, SQL", skillsMl: "", skillsFin: "", skillsTools: "Git, Jupyter", languages: "English", tests: "", awards: "" },
+      recs: {}, custom: [], sprint: {},
+    },
     prospects: {},
   };
 
@@ -61,7 +66,8 @@
     hydrate(obj) {
       const d = clone(DEFAULTS);
       if (!obj) return d;
-      for (const k of ["settings", "progress", "studies"]) Object.assign(d[k], obj[k] || {});
+      for (const k of ["settings", "progress", "studies", "admissions"]) Object.assign(d[k], obj[k] || {});
+      d.admissions.profile = Object.assign(clone(DEFAULTS.admissions.profile), (obj.admissions || {}).profile || {});
       d.prospects = obj.prospects || {};
       return d;
     },
@@ -80,7 +86,7 @@
         if (!db || !id) return;
         this.db = db;
         this.base = `data/users/${id}`;
-        const docs = ["settings", "progress", "studies"];
+        const docs = ["settings", "progress", "studies", "admissions"];
         const snaps = await Promise.all(docs.map((k) => db.doc(`${this.base}/${k}`).get()));
         const pros = await db.collection(`${this.base}/crm/prospects`).get();
         const remote = {};
@@ -131,7 +137,7 @@
       this.queue("p:" + pid, () => this.db.doc(`${this.base}/crm/prospects/${pid}`).delete());
     },
     saveAll() {
-      ["settings", "progress", "studies"].forEach((k) => this.save(k));
+      ["settings", "progress", "studies", "admissions"].forEach((k) => this.save(k));
       Object.keys(this.data.prospects).forEach((pid) => this.saveProspect(pid));
     },
   };
@@ -143,11 +149,11 @@
 
   // ---------- UI state (per-viewer conveniences) ----------
   const TABS = [
-    ["today", "Today"], ["roadmap", "Roadmap"], ["mentors", "Mentors"], ["finder", "Finder"],
+    ["today", "Today"], ["roadmap", "Roadmap"], ["mentors", "Mentors"], ["admissions", "Admissions"], ["finder", "Finder"],
     ["messages", "Messages"], ["studies", "Studies"], ["projects", "Projects"], ["progress", "Progress"], ["settings", "Settings"],
   ];
   const ui = {
-    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false, sub: {}, phase: null, msgTemplate: "",
+    tab: "today", openWeeks: new Set(), edit: null, confirm: null, more: false, sub: {}, phase: null, msgTemplate: "", adSel: null, adTemplate: null, adOpen: null, adFilter: { prio: "all", country: "all", status: "all", q: "" },
     mentorFilter: "active", mentorSearch: "", msgProspect: "", toast: "",
     finder: { market: "dk", role: "ds", tier: "any" },
   };
@@ -316,6 +322,7 @@
     studies: '<path d="M2 8.5 12 4l10 4.5-10 4.5z"/><path d="M6 10.5V16c3 2.5 9 2.5 12 0v-5.5"/>',
     projects: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
     progress: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    admissions: '<path d="M21.5 2.5 10 14"/><path d="M21.5 2.5 14.5 21.5l-4.5-7.5-7.5-4.5z"/>',
     more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
     hours: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     add: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/>',
@@ -417,7 +424,7 @@
     $("#tabs").innerHTML = TABS.map(([id, t]) => `<button type="button" role="tab" class="tab${ui.tab === id ? " on" : ""}" data-tab="${id}" aria-selected="${ui.tab === id}">${icon(id)}<span>${t}</span></button>`).join("");
     const n = weekNow();
     const wk = Math.min(Math.max(n, 0), TOTAL_WEEKS);
-    const BOTTOM = ["today", "roadmap", "mentors", "studies"];
+    const BOTTOM = ["today", "roadmap", "mentors", "admissions"];
     const inMore = !BOTTOM.includes(ui.tab);
     const bn = $("#bottomnav");
     if (bn) bn.innerHTML = BOTTOM.map((id) => `<button type="button" class="bn${ui.tab === id && !ui.more ? " on" : ""}" data-tab="${id}">${icon(id)}<span>${TABS.find((t) => t[0] === id)[1]}</span></button>`).join("")
@@ -438,7 +445,7 @@
 
   function render() {
     renderTabs();
-    const views = { today: vToday, roadmap: vRoadmap, mentors: vMentors, finder: vFinder, messages: vMessages, studies: vStudies, projects: vProjects, progress: vProgress, settings: vSettings };
+    const views = { today: vToday, roadmap: vRoadmap, mentors: vMentors, admissions: vAdmissions, finder: vFinder, messages: vMessages, studies: vStudies, projects: vProjects, progress: vProgress, settings: vSettings };
     $("#view").innerHTML = `<div class="view-in">${views[ui.tab]()}</div>`;
     renderOverlay();
     renderSyncBadge();
@@ -448,7 +455,7 @@
   function renderOverlay() {
     const o = $("#overlay");
     if (!o) return;
-    const key = ui.edit === null ? null : String(ui.edit);
+    const key = ui.edit !== null ? "p:" + ui.edit : ui.adOpen ? "s:" + ui.adOpen : null;
     if (key === overlayKey) return;
     overlayKey = key;
     if (key === null) { o.innerHTML = ""; o.hidden = true; document.body.classList.remove("locked"); return; }
@@ -457,9 +464,9 @@
     o.innerHTML = `<div class="drawer-scrim" data-act="cancel-edit"></div>
       <aside class="drawer" role="dialog" aria-modal="true" aria-label="Prospect details">
         <button type="button" class="x drawer-x" data-act="cancel-edit" aria-label="Close">×</button>
-        ${prospectForm(ui.edit === "new" ? {} : PR()[ui.edit] || {})}
+        ${ui.edit !== null ? prospectForm(ui.edit === "new" ? {} : PR()[ui.edit] || {}) : ui.adOpen === "__new" ? customForm() : supOf(ui.adOpen) ? supDrawer(supOf(ui.adOpen)) : ""}
       </aside>`;
-    const first = $("#pf-name");
+    const first = ui.edit !== null ? $("#pf-name") : $(".drawer .x");
     if (first) first.focus();
   }
   let toastTimer;
@@ -476,7 +483,7 @@
   function segtabs(scope, options, current, cls) {
     return `<div class="segtabs${cls ? " " + cls : ""}" role="tablist">${options.map(([k, t, badge]) => `<button type="button" role="tab" class="st${current === k ? " on" : ""}" data-sub="${scope}:${k}" aria-selected="${current === k}"><span>${t}</span>${badge != null && badge !== "" ? `<span class="st-b">${badge}</span>` : ""}</button>`).join("")}</div>`;
   }
-  const PAGE_ART = { roadmap: "bars", mentors: "orbs", finder: "orbs", messages: "chat", studies: "books", projects: "cube", progress: "bars", settings: "orbs" };
+  const PAGE_ART = { roadmap: "bars", mentors: "orbs", admissions: "cube", finder: "orbs", messages: "chat", studies: "books", projects: "coins", progress: "bars", settings: "orbs" };
   function pageHead(eyebrow, title, lede, right) {
     const a = PAGE_ART[ui.tab];
     return `<header class="phead">${a ? `<div class="ph-art">${art(a)}</div>` : ""}<div class="ph-text"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div>${right ? `<div class="ph-right">${right}</div>` : ""}</header>`;
@@ -495,6 +502,7 @@
       ["Mentors", `${mentorCount()}<small>/${MENTOR_GOAL}+</small>`, bar(mentorCount() / MENTOR_GOAL, "gold")],
       ["Projects shipped", `${shippedCount()}<small>/${PROJECT_GOAL}+</small>`, bar(shippedCount() / PROJECT_GOAL, "gold")],
       ["Hours this week", `${hrs}<small>/${S().weeklyGoalHours}</small>`, bar(hrs / (S().weeklyGoalHours || 10))],
+      ["Supervisors contacted", `${supList().filter((x) => AD_CONTACTED.includes(peekRec(x.id).status)).length}<small>/${supList().length}</small>`, bar(supList().filter((x) => AD_CONTACTED.includes(peekRec(x.id).status)).length / Math.max(1, supList().length))],
     ];
     return `<div class="kpis">${items.map(([k, v, extra]) => `<div class="kpi"><span class="kpi-k">${k}</span><span class="kpi-v">${v}</span>${extra}</div>`).join("")}</div>`;
   }
@@ -576,7 +584,7 @@
       ["add", "Add prospect", 'data-act="new-prospect"'],
       ["finder", "Find mentors", 'data-tab="finder"'],
       ["messages", "Messages", 'data-tab="messages"'],
-      ["progress", "Progress", 'data-tab="progress"'],
+      ["admissions", "Supervisors", 'data-tab="admissions"'],
     ];
     return `${head}
       <div class="today-top">${learningCard(n)}<section class="panel focus"><div class="focus-art">${art("coins")}</div>${focus}</section></div>
@@ -586,6 +594,7 @@
         <section class="panel"><h3>${icon("hours")} Today · ${DAY_NAMES[dow]}</h3>${planHtml}
           <p class="muted small">Change these times in Settings. <button type="button" class="linkish" data-sub-go="settings:reminders">Add them to your phone calendar</button> so you get reminders.</p></section>
         <section class="panel"><h3>${icon("mentors")} Mentor actions</h3>${mentorHtml}</section>
+        ${todayAdmissionsPanel()}
         <section class="panel"><h3>${icon("studies")} School deadlines</h3>${studyHtml}</section>
       </div>
       <div class="swipe-hint" aria-hidden="true"><i></i><i></i><i></i></div>`;
@@ -1125,6 +1134,630 @@
     return addDays(date, (dow - cur + 7) % 7);
   }
 
+  // ---------- admissions: supervisors, resume builder, emails ----------
+  const AD = window.ADMISSIONS || { supervisors: [], keyDates: [], tips: [], verifiedOn: "" };
+  const AD_STATUSES = [
+    ["new", "Not contacted"], ["research", "Reading their work"], ["ready", "Draft ready"], ["emailed", "Emailed"],
+    ["followed", "Followed up"], ["replied", "Replied"], ["meeting", "Meeting / interview"], ["applied", "Applied"],
+    ["offer", "Offer"], ["closed", "Closed / not a fit"],
+  ];
+  const AD_CONTACTED = ["emailed", "followed", "replied", "meeting", "applied", "offer"];
+  const AD_CHECKS = [
+    ["papers", "Read 2–3 of their recent papers"], ["idea", "Wrote a research idea that fits their work"], ["cv", "Tailored CV ready"],
+    ["proposal", "2-page research proposal"], ["transcripts", "Transcripts ready (certified if required)"], ["english", "English test booked / waiver confirmed"],
+    ["refs", "Referees asked (2–3)"], ["emailSent", "First email sent"], ["portal", "Formal application submitted on the portal"],
+    ["funding", "Scholarship / funding applied for"], ["decision", "Decision received"],
+  ];
+  const A = () => Store.data.admissions;
+  const supList = () => [...AD.supervisors, ...(A().custom || [])];
+  const supOf = (id) => supList().find((s) => s.id === id);
+  function recOf(id) {
+    const r = A().recs;
+    if (!r[id]) r[id] = { status: "new", papers: [], checks: {}, history: [], drafts: {} };
+    const x = r[id];
+    x.papers = x.papers || []; x.checks = x.checks || {}; x.history = x.history || []; x.drafts = x.drafts || {};
+    return x;
+  }
+  const peekRec = (id) => A().recs[id] || { status: "new", papers: [], checks: {}, history: [], drafts: {} };
+  const statusName = (k) => (AD_STATUSES.find((x) => x[0] === k) || AD_STATUSES[0])[1];
+  const saveAd = () => Store.save("admissions");
+
+  function salutation(s) {
+    const parts = String(s.name || "").replace(/\([^)]*\)/g, "").split("&").map((x) => x.trim()).filter(Boolean);
+    const one = (p) => {
+      const t = /^(prof|assoc\.? ?prof|asst\.? ?prof|a\/prof)/i.test(p) ? "Professor" : /^dr/i.test(p) ? "Dr" : "";
+      const words = p.replace(/^(assoc\.?\s*prof\.?|asst\.?\s*prof\.?|a\/prof\.?|prof\.?|dr\.?)\s*/i, "").trim().split(/\s+/);
+      return (t ? t + " " : "") + words[words.length - 1];
+    };
+    const names = parts.map(one);
+    return names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0] || "Professor";
+  }
+  const interestShort = (s) => String(s.interests || "").split(/[,;]/).slice(0, 2).map((x) => x.trim()).filter(Boolean).join(" and ");
+  function daysLeft(date) { return date ? daysBetween(today(), date) : null; }
+  function countdown(date) {
+    const d = daysLeft(date);
+    if (d === null) return "";
+    return d < 0 ? `<span class="pill">passed</span>` : `<span class="pill ${d <= 7 ? "bad" : d <= 30 ? "warn" : "accent"}">${d === 0 ? "today" : d === 1 ? "tomorrow" : d + " days left"}</span>`;
+  }
+
+  // ----- topic matching (drives resume tailoring and fit analysis) -----
+  const TOPICS = [
+    { k: "Blockchain & DLT", syn: ["blockchain", "dlt", "distributed ledger", "ethereum", "bitcoin", "consensus", "rollup", "layer-2", "layer 2", "smart contract", "smart-contract", "interoperab", "cross-chain"],
+      tip: "Build a small on-chain analysis (e.g. Etherscan or Dune data) and write up 3 findings." },
+    { k: "DeFi & crypto markets", syn: ["defi", "decentrali", "automated market maker", "amm", "dex", "lending protocol", "mev", "front-running", "flash-loan", "order book", "intents", "oracle"],
+      tip: "Replicate a simple DeFi analysis (e.g. AMM price impact or lending liquidations) from public data." },
+    { k: "Crypto assets & tokenisation", syn: ["crypto", "token", "nft", "ico", "stablecoin", "digital asset", "real-world-asset", "rwa"],
+      tip: "Write a short data study on stablecoins or tokenised assets using public market data." },
+    { k: "Payments, CBDC & digital money", syn: ["payment", "mobile money", "wallet", "cbdc", "digital euro", "digital money", "central bank digital", "stablecoin"],
+      tip: "Your mobile-money fraud work (Roadmap Weeks 13–14, 29, 39) fits here; add a short note on CBDC design." },
+    { k: "AI & machine learning", syn: ["machine learning", " ml", "ml ", "ai", "artificial intelligence", "deep learning", "neural", "federated", "agentic", "generative", "interpretable"],
+      tip: "Roadmap Weeks 21–29 and 35–38 build this; ship the credit or fraud project and link it." },
+    { k: "Security, privacy & cryptography", syn: ["security", "privacy", "zero-knowledge", "zk", "cryptograph", "vulnerab", "trusted hardware", "tee", "attack", "forensic", "anonymity", "identity"],
+      tip: "Read 2 of the professor's papers and reproduce one small experiment or smart-contract vulnerability check." },
+    { k: "Credit, lending & risk", syn: ["credit", "lending", "loan", "default", "risk"],
+      tip: "Roadmap Weeks 22–27 and Project 1 (Credit Risk Scoring System) cover this directly." },
+    { k: "Markets, trading & asset pricing", syn: ["asset pricing", "microstructure", "trading", "option pricing", "stock", "bond", "equity", "market structure", "exchange", "momentum", "pricing"],
+      tip: "Roadmap Weeks 15 and 19 (portfolio analytics, PCA); add a trading or pricing mini-study." },
+    { k: "Regulation, law & governance", syn: ["regulation", "law", "legal", "governance", "compliance", "policy", "techno-legal"],
+      tip: "Write a 2-page policy brief (e.g. on stablecoin or crypto regulation) and add it to your CV." },
+    { k: "Economics & mechanism design", syn: ["economic", "mechanism design", "incentive", "game theory", "auction", "cryptoeconomic", "tokenomics", "monetary", "inflation"],
+      tip: "Summarise one mechanism-design paper in the professor's area and propose an extension." },
+    { k: "Inclusive & sustainable finance", syn: ["inclusive", "inclusion", "sustainable", "esg", "green finance", "literacy", "africa", "islamic", "entrepreneur"],
+      tip: "Analyse World Bank Global Findex data for your country and write up the findings." },
+    { k: "Quantitative & computational methods", syn: ["stochastic", "numerical", "computational", "statistic", "econometric", "optimization", "operations research", "mixed-methods", "calculus", "linear algebra"],
+      tip: "Roadmap Weeks 17–20 and 33–34 (probability, inference, optimisation, forecasting)." },
+    { k: "Banking & financial services", syn: ["bank", "financial services", "venture capital", "capital markets", "digital financial"],
+      tip: "Connect one of your projects to a real bank or fintech use case in its write-up." },
+    { k: "Software & systems engineering", syn: ["software", "testing", "formal methods", "program analysis", "reliability", "scalab", "big data", "systems"],
+      tip: "Roadmap Weeks 41–43 (packaging, tests, APIs, Docker); show a tested, deployed project." },
+  ];
+  const lc = (x) => " " + String(x || "").toLowerCase() + " ";
+  const topicsIn = (text) => { const t = lc(text); return TOPICS.filter((tp) => tp.syn.some((w) => t.includes(w))).map((tp) => tp.k); };
+  const supTopics = (s) => topicsIn([s.interests, s.programs, s.titleDept].join(" "));
+  const itemText = (it) => [it.title, it.org, it.role, it.bullets, it.tags, it.cite, it.thesis, it.courses, it.degree].join(" ");
+  function scoreItem(it, want) {
+    const got = topicsIn(itemText(it));
+    const tagHits = topicsIn(it.tags || "").filter((k) => want.includes(k)).length;
+    return got.filter((k) => want.includes(k)).length * 2 + tagHits;
+  }
+  function fit(s) {
+    const pf = A().profile;
+    const want = supTopics(s);
+    const mine = topicsIn([pf.interests, pf.headline, pf.skillsProg, pf.skillsMl, pf.skillsFin, pf.skillsTools, ...(pf.research || []).map(itemText), ...(pf.experience || []).map(itemText), ...(pf.education || []).map(itemText), ...(pf.publications || []).map(itemText)].join(" "));
+    const covered = want.filter((k) => mine.includes(k));
+    const gaps = want.filter((k) => !mine.includes(k));
+    return { want, covered, gaps, score: want.length ? covered.length / want.length : 0 };
+  }
+
+  // ----- resume -----
+  const pfLines = (x) => String(x || "").split(/\n+/).map((l) => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
+  function defaultStatement(s) {
+    const pf = A().profile;
+    const f = fit(s);
+    const focus = (f.covered.length ? f.covered : f.want).slice(0, 3).join(", ");
+    return `Prospective ${pf.targetDegree || "PhD"} researcher (${pf.intake || "2027 intake"}) interested in ${focus || "fintech"}. ${pf.interests ? pf.interests.trim().replace(/\.?$/, ".") : ""} I am particularly drawn to ${salutation(s).replace(/ and .*/, "")}'s work on ${interestShort(s).toLowerCase() || "fintech"}${pf.background ? `, and bring a background in ${pf.background.toLowerCase()}` : ""}.`.replace(/\s+/g, " ").trim();
+  }
+  function cvModel(s) {
+    const pf = A().profile;
+    const want = s ? supTopics(s) : [];
+    const rank = (arr) => [...(arr || [])].map((it, i) => ({ it, i, sc: s ? scoreItem(it, want) : 0 })).sort((a, b) => b.sc - a.sc || a.i - b.i);
+    const skills = [["Programming", pf.skillsProg], ["Machine learning & data", pf.skillsMl], ["Finance & domain", pf.skillsFin], ["Tools", pf.skillsTools], ["Languages", pf.languages]]
+      .filter(([, v]) => v && v.trim())
+      .map(([k, v]) => {
+        const items = v.split(",").map((x) => x.trim()).filter(Boolean);
+        const hit = (x) => s && topicsIn(x).some((t) => want.includes(t));
+        return [k, [...items.filter(hit), ...items.filter((x) => !hit(x))], items.filter(hit)];
+      });
+    const rec = s ? peekRec(s.id) : {};
+    return {
+      pf, s, want,
+      statement: s ? (rec.cvStatement || defaultStatement(s)) : (pf.interests || ""),
+      research: rank(pf.research), experience: rank(pf.experience), education: pf.education || [], publications: pf.publications || [],
+      skills, referees: pf.referees || [],
+    };
+  }
+  function cvHtml(m, forFile) {
+    const pf = m.pf;
+    const contact = [pf.email, pf.phone, pf.location, pf.linkedin, pf.github, pf.website].filter(Boolean).map(esc).join(" · ");
+    const sec = (t, inner) => inner ? `<section><h2>${t}</h2>${inner}</section>` : "";
+    const item = (head, sub, dates, bullets, extra) => `<div class="cv-item"><div class="cv-row"><b>${head}</b><span>${dates || ""}</span></div>${sub ? `<div class="cv-sub">${sub}</div>` : ""}${bullets.length ? `<ul>${bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}${extra || ""}</div>`;
+    const rel = (x) => (m.s && x.sc > 0 && !forFile ? ` <span class="cv-rel">relevant</span>` : "");
+    const body = `
+      <header><h1>${esc(pf.fullName || S().name || "Your Name")}</h1>${pf.headline ? `<p class="cv-head">${esc(pf.headline)}</p>` : ""}<p class="cv-contact">${contact || "email · phone · city, country · LinkedIn · GitHub"}</p></header>
+      ${sec("Research interests", m.statement ? `<p>${esc(m.statement)}</p>` : "")}
+      ${sec("Education", m.education.map((e) => item(esc(e.degree || ""), esc([e.school, e.location].filter(Boolean).join(", ")), esc([e.start, e.end].filter(Boolean).join(" – ")), [e.grade ? "Grade: " + e.grade : "", e.thesis ? "Thesis / final project: " + e.thesis : "", e.courses ? "Relevant courses: " + e.courses : ""].filter(Boolean))).join(""))}
+      ${sec("Research & projects", m.research.map((x) => item(esc(x.it.title || "") + rel(x), esc(x.it.org || ""), esc(x.it.dates || ""), pfLines(x.it.bullets), x.it.link ? `<div class="cv-link">${esc(x.it.link)}</div>` : "")).join(""))}
+      ${sec("Publications & writing", m.publications.map((p) => `<p class="cv-pub">${esc(p.cite || "")}${p.link ? ` <span class="cv-link">${esc(p.link)}</span>` : ""}</p>`).join(""))}
+      ${sec("Experience", m.experience.map((x) => item(esc(x.it.role || "") + rel(x), esc(x.it.org || ""), esc(x.it.dates || ""), pfLines(x.it.bullets))).join(""))}
+      ${sec("Skills", m.skills.map(([k, items, hits]) => `<p><b>${esc(k)}:</b> ${items.map((x) => hits.includes(x) && !forFile ? `<mark>${esc(x)}</mark>` : esc(x)).join(", ")}</p>`).join(""))}
+      ${sec("Test scores", pf.tests ? `<p>${esc(pf.tests)}</p>` : "")}
+      ${sec("Awards & activities", pfLines(pf.awards).length ? `<ul>${pfLines(pf.awards).map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : "")}
+      ${sec("Referees", m.referees.length ? m.referees.map((r) => `<p>${esc([r.name, r.title, r.org].filter(Boolean).join(", "))}${r.email ? " · " + esc(r.email) : ""}</p>`).join("") : "")}`;
+    return body;
+  }
+  const CV_CSS = `body{margin:0;background:#eef1f7;font:10.5pt/1.45 "Nunito Sans","Segoe UI",Arial,sans-serif;color:#1a1f36}
+    .cv{max-width:800px;margin:24px auto;background:#fff;padding:44px 52px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+    header{border-bottom:3px solid #0033a1;padding-bottom:10px;margin-bottom:6px}h1{margin:0;font-size:22pt;color:#0033a1;letter-spacing:-.01em}
+    .cv-head{margin:2px 0 4px;font-weight:700}.cv-contact{margin:0;color:#555;font-size:9.5pt}
+    h2{font-size:10pt;text-transform:uppercase;letter-spacing:.08em;color:#0033a1;border-bottom:1px solid #d9dfeb;padding-bottom:3px;margin:16px 0 8px}
+    p{margin:0 0 4px}.cv-item{margin-bottom:9px}.cv-row{display:flex;justify-content:space-between;gap:12px}.cv-row span{color:#555;white-space:nowrap}
+    .cv-sub{font-style:italic;color:#444}ul{margin:3px 0 0 18px;padding:0}li{margin:1px 0}.cv-link{color:#0033a1;font-size:9pt}.cv-pub{margin-bottom:6px}
+    @media print{body{background:#fff}.cv{box-shadow:none;margin:0;padding:0}}`;
+  function cvDocument(s) {
+    const m = cvModel(s);
+    return `<!doctype html><html><head><meta charset="utf-8"><title>CV - ${esc(m.pf.fullName || S().name || "")}${s ? " - " + esc(s.university) : ""}</title><style>${CV_CSS}</style></head><body><div class="cv">${cvHtml(m, true)}</div></body></html>`;
+  }
+  function cvText(s) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = cvHtml(cvModel(s), true).replace(/<\/(h1|h2|p|li|div|section)>/g, "</$1>\n").replace(/<li>/g, "<li>• ");
+    return tmp.textContent.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // ----- emails -----
+  const AD_TEMPLATES = [
+    { id: "inquiry", t: "First email (supervision inquiry)", when: "Your first contact. Under 200 words. Mention one specific paper in the first two lines.",
+      subject: "Prospective {degree} student for {intake}: {topic}",
+      body: "Dear {salutation},\n\nI recently read {paperRef} and was struck by {takeaway}.\n\nI am {oneLiner}{bgClause}. {bestProject}\n\nI would like to pursue a {degree} under your supervision, starting {intake}, on {idea}. This builds directly on your work on {interestShort}.\n\nWould you be open to supervising a new student for {intake}? I have attached my CV and transcripts, and I would be glad to send a 2-page research proposal.\n\nThank you for your time.\n\nKind regards,\n{name}\n{signature}" },
+    { id: "posting", t: "Application for an open position", when: "For advertised posts (uni.lu, Waterloo, Macquarie/DFCRC, Monash, Calgary). Follow the posting's instructions exactly.",
+      subject: "Application: {program}, {intake} start",
+      body: "Dear {salutation},\n\nI am writing to apply for the {program} opportunity advertised on your page, starting {intake}.\n\nI am {oneLiner}{bgClause}. My most relevant work is {project}.\n\nYour research on {interestShort} matches what I want to work on: {idea}.\n\nAs requested, I have attached my CV{extraDocs}. I am happy to provide transcripts, references or a research proposal at any time.\n\nThank you for considering my application.\n\nKind regards,\n{name}\n{signature}" },
+    { id: "follow1", t: "Follow-up (after 10 days)", when: "Only if there is no reply after about 10 days, and never where they ask for one email only.",
+      subject: "Re: Prospective {degree} student for {intake}",
+      body: "Dear {salutation},\n\nI hope you are well. I am following up on my email of {sentDate} about {degree} supervision for {intake}.\n\nSince then I have {win}. I remain very interested in your work on {interestShort}.\n\nIf you are not taking students this year, I would be grateful for a quick note, or a suggestion of a colleague I could contact.\n\nKind regards,\n{name}" },
+    { id: "follow2", t: "Final follow-up (after 3 weeks)", when: "One last short note. After this, mark it closed and move on.",
+      subject: "Re: {degree} supervision, {intake}",
+      body: "Dear {salutation},\n\nA final short note on my supervision inquiry for {intake}. I understand you receive many emails, so I will not write again unless I hear from you.\n\nThank you, and I will keep following your work on {interestShort}.\n\nKind regards,\n{name}" },
+    { id: "reply", t: "Reply after a positive response", when: "When they reply with interest. Answer every question they ask and propose times in their time zone.",
+      subject: "Re: {degree} supervision, {intake}",
+      body: "Dear {salutation},\n\nThank you very much for your reply. I am delighted that you are open to discussing supervision.\n\n[Answer each of their questions here.]\n\nI would welcome a short call. I am available [2–3 time slots in their time zone]. I will send my 2-page research proposal on {idea} before then.\n\nKind regards,\n{name}" },
+    { id: "meeting", t: "Thank-you after a meeting", when: "Within 24 hours of the call or interview.",
+      subject: "Thank you: {degree} supervision discussion",
+      body: "Dear {salutation},\n\nThank you for taking the time to speak with me today. Your suggestion to [their advice] was very helpful, and I will [the next step you agreed].\n\nAs discussed, I will submit my application for {program} by [date] and let you know once it is in.\n\nKind regards,\n{name}" },
+    { id: "statement", t: "Request a supervisor support statement", when: "For programmes that require a signed supervisor statement (e.g. RMIT's In-Principle Supervisor Supporting Statement). Only after they have agreed to supervise.",
+      subject: "Supervisor supporting statement for my {degree} application",
+      body: "Dear {salutation},\n\nThank you again for agreeing in principle to supervise my {degree}. The application requires a signed supervisor supporting statement, and the deadline is [deadline].\n\nI have attached the form with my details completed, along with my research proposal and CV. Please let me know if you would like me to change anything in the proposal.\n\nKind regards,\n{name}" },
+    { id: "applied", t: "Tell them you have applied", when: "Right after you submit the formal application.",
+      subject: "Application submitted: {program} ({intake})",
+      body: "Dear {salutation},\n\nI wanted to let you know that I have submitted my application for {program} for {intake}. My application ID is {appId}. I named you as my prospective supervisor.\n\nThank you again for your support. I look forward to hearing from you.\n\nKind regards,\n{name}" },
+    { id: "funding", t: "Ask whether a funded call will repeat", when: "For past calls (Concordia finance PhD, RMIT African fintech scholarship).",
+      subject: "Question about funded {degree} positions for 2027",
+      body: "Dear {salutation},\n\nI saw that you previously advertised a funded {degree} position on {interestShort}. I am {oneLiner}{bgClause}, and I am very interested in this area.\n\nWill a similar position be offered for {intake}? If so, I would be glad to send my CV and a short research proposal on {idea}.\n\nThank you for your time.\n\nKind regards,\n{name}" },
+  ];
+  function recommendedTemplate(s) {
+    const r = peekRec(s.id);
+    if (r.status === "replied") return "reply";
+    if (r.status === "meeting") return "meeting";
+    if (r.status === "applied") return "applied";
+    if (r.status === "emailed") return s.oneEmailOnly ? "inquiry" : "follow1";
+    if (r.status === "followed") return "follow2";
+    if (s.pastCall) return "funding";
+    if (s.portal || s.n === 11) return "posting";
+    return "inquiry";
+  }
+  function emailFill(str, s) {
+    const pf = A().profile;
+    const r = peekRec(s.id);
+    const p0 = (r.papers || []).find((p) => p && p.t);
+    const top = cvModel(s).research[0];
+    const map = {
+      salutation: salutation(s),
+      degree: pf.targetDegree || "PhD",
+      intake: pf.intake || String(s.session || "").split(/[;(]/)[0].trim() || "2027",
+      topic: interestShort(s) || "fintech research",
+      paperRef: p0 ? `your paper "${p0.t}"` : "[your recent paper: title]",
+      takeaway: p0 && p0.n ? p0.n : "[one specific idea from it]",
+      oneLiner: S().oneLiner || "[who you are in one line]",
+      bgClause: pf.background ? `, with a background in ${pf.background.toLowerCase()}` : "",
+      bestProject: top && top.it.title ? `Most relevant to your work, I ${top.it.org ? "worked on" : "built"} ${top.it.title}${pfLines(top.it.bullets)[0] ? ": " + pfLines(top.it.bullets)[0].replace(/\.$/, "") : ""}.` : "[your most relevant project, in one sentence].",
+      project: top && top.it.title ? `${top.it.title}${pfLines(top.it.bullets)[0] ? " (" + pfLines(top.it.bullets)[0].replace(/\.$/, "") + ")" : ""}` : "[your most relevant project]",
+      idea: r.idea ? r.idea.trim().replace(/\.$/, "") : "[your research idea in one line]",
+      interestShort: (interestShort(s) || "fintech").toLowerCase(),
+      program: String(s.programs || "the programme").split(/[;(]/)[0].trim(),
+      extraDocs: /transcript|certificate/i.test(s.contact) ? ", transcripts and certificates" : "",
+      name: pf.fullName || S().name || "[your name]",
+      signature: [pf.email, pf.linkedin].filter(Boolean).join(" | ") || "[email] | [LinkedIn]",
+      sentDate: r.contacted ? fmt(r.contacted, { day: "numeric", month: "long" }) : "[date]",
+      win: S().win || "[something new you have done since]",
+      appId: r.appId || "[application ID]",
+    };
+    return str.replace(/\{(\w+)\}/g, (_, k) => (k in map ? map[k] : `{${k}}`));
+  }
+  function draftFor(s, tid) {
+    const r = peekRec(s.id);
+    const t = AD_TEMPLATES.find((x) => x.id === tid) || AD_TEMPLATES[0];
+    const d = r.drafts && r.drafts[tid];
+    return { subject: d && d.subject != null ? d.subject : emailFill(t.subject, s), body: d && d.body != null ? d.body : emailFill(t.body, s), edited: !!d };
+  }
+  const wordCount = (x) => (String(x).trim().match(/\S+/g) || []).length;
+
+  // ----- Claude polishing (only inside the Claude viewer, with the viewer's consent) -----
+  let samplerP = null;
+  function getSampler() {
+    if (!window.claude || typeof window.claude.use !== "function") return Promise.resolve(null);
+    if (!samplerP) samplerP = window.claude.use("sample").catch(() => null);
+    return samplerP;
+  }
+  function supBrief(s) {
+    return `Name: ${s.name}\nRole: ${s.titleDept}\nUniversity: ${s.university} (${s.country})\nProgramme(s): ${s.programs}\nResearch interests: ${s.interests}\nRecruiting status: ${s.accepting}\nIntake: ${s.session}\nHow to contact: ${s.contact}`;
+  }
+  function profileBrief(s) {
+    const pf = A().profile;
+    const r = peekRec(s.id);
+    return `Name: ${pf.fullName || S().name}\nTarget: ${pf.targetDegree} starting ${pf.intake}\nBackground: ${pf.background}\nHeadline: ${pf.headline}\nOne-liner: ${S().oneLiner}\nResearch interests: ${pf.interests}\n` +
+      `Education: ${(pf.education || []).map((e) => [e.degree, e.school, e.grade, e.thesis].filter(Boolean).join(", ")).join(" | ")}\n` +
+      `Projects/research: ${(pf.research || []).map((x) => `${x.title} (${x.tags || ""}): ${pfLines(x.bullets).join("; ")}`).join(" | ")}\n` +
+      `Experience: ${(pf.experience || []).map((x) => `${x.role} at ${x.org}: ${pfLines(x.bullets).join("; ")}`).join(" | ")}\n` +
+      `Skills: ${[pf.skillsProg, pf.skillsMl, pf.skillsFin, pf.skillsTools].filter(Boolean).join(", ")}\n` +
+      `Papers of theirs the student read: ${(r.papers || []).filter((p) => p && p.t).map((p) => `"${p.t}": ${p.n || ""}`).join(" | ") || "none logged"}\nStudent's research idea: ${r.idea || "not written yet"}`;
+  }
+  let polishCtl = null;
+  async function polish(kind, sid, tid) {
+    const s = supOf(sid);
+    if (!s) return;
+    const sample = await getSampler();
+    if (!sample) { showToast("Polishing with Claude works inside the Claude app"); return; }
+    const out = $(kind === "email" ? "#ad-body" : "#ad-statement");
+    const status = $("#ad-polish-status");
+    if (polishCtl) polishCtl.abort();
+    polishCtl = new AbortController();
+    if (status) status.textContent = "Claude is thinking…";
+    const rules = "Rules: be specific, warm and professional; never invent facts, grades, publications, experience or papers that are not given below; where information is missing, keep a short placeholder in [square brackets]; plain text only.";
+    const prompt = kind === "email"
+      ? `Improve this email from a prospective research student to a potential supervisor. Keep it under 200 words, mention the professor's specific research, state the target intake and end with one clear, small request. Follow any contact instructions exactly. ${rules}\nReturn only the email: the first line "Subject: ...", a blank line, then the body.\n\nPROFESSOR\n${supBrief(s)}\n\nSTUDENT\n${profileBrief(s)}\n\nCURRENT DRAFT\nSubject: ${$("#ad-subject") ? $("#ad-subject").value : ""}\n\n${out ? out.value : ""}`
+      : `Write a tailored "Research interests" paragraph (70–100 words, first person omitted, CV style) for this student's CV, aimed at this specific professor. Connect the student's real projects and skills to the professor's research themes. ${rules}\nReturn only the paragraph.\n\nPROFESSOR\n${supBrief(s)}\n\nSTUDENT\n${profileBrief(s)}`;
+    try {
+      const { text } = await sample(prompt, { signal: polishCtl.signal, modelTier: "default", onText: ({ text: t }) => { if (out) out.value = t; } });
+      const rec = recOf(sid);
+      if (kind === "email") {
+        const m = text.match(/^\s*Subject:\s*(.+)\n+([\s\S]*)$/i);
+        const subject = m ? m[1].trim() : ($("#ad-subject") ? $("#ad-subject").value : "");
+        const body = m ? m[2].trim() : text.trim();
+        rec.drafts[tid] = { subject, body };
+        if ($("#ad-subject")) $("#ad-subject").value = subject;
+        if (out) out.value = body;
+      } else {
+        rec.cvStatement = text.trim();
+      }
+      saveAd();
+      if (status) status.textContent = "Polished by Claude. Check every sentence is true before sending.";
+      if (kind !== "email") rerender();
+    } catch (e) {
+      if (status) status.textContent = e && e.code === "cancelled" ? "Stopped." : e && e.code === "not_granted" ? "Claude access was declined for this page." : "Couldn't polish right now. Your draft is unchanged.";
+    }
+  }
+
+  // ----- profile sprint (strong profile before December) -----
+  const SPRINT = [
+    { by: "2026-10-05", items: [
+      ["s-profile", "Fill in My profile completely (education, projects, skills)"],
+      ["s-transcripts", "Request official transcripts for every degree (these can take weeks)"],
+      ["s-refs", "Ask 3 referees (at least 2 academics) and send them your CV and target list"],
+      ["s-english", "Book IELTS Academic or TOEFL, or confirm a waiver (e.g. Calgary accepts English-medium degrees)"],
+      ["s-calgary", "Email Dr Sara Rouhani (Calgary, Winter 2027). One email only"],
+      ["s-waterloo", "Submit the Waterloo expression-of-interest form (Prof. Justin Wan)"],
+      ["s-aw3", "Submit the aw3.ca form (reaches 20+ Canadian blockchain researchers)"],
+    ] },
+    { by: "2026-10-15", items: [
+      ["s-proposal", "Write a 2-page research proposal you can adapt per professor"],
+      ["s-papers", "Read 2–3 papers for each Priority A supervisor and log them in the app"],
+      ["s-orcid", "Create an ORCID iD and update your LinkedIn headline and About"],
+      ["s-unilu", "Apply to the uni.lu FINATRAX posting and the Department of Finance (MQEF + job portal)"],
+      ["s-aus", "Contact Macquarie / Digital Finance CRC (Prof. Jian Yang) and the Monash FinTech Lab"],
+    ] },
+    { by: "2026-10-31", items: [
+      ["s-project", "Publish one research-style fintech project on GitHub with a clear write-up"],
+      ["s-note", "Turn a project into a short research note or blog post and link it in your CV"],
+      ["s-prioB", "Send all Priority B emails"],
+    ] },
+    { by: "2026-11-06", items: [
+      ["s-wpi", "Submit the WPI FinTech PhD application for Spring (January) 2027"],
+    ] },
+    { by: "2026-12-15", items: [
+      ["s-prioC", "Send all Priority C emails"],
+      ["s-gre", "Check which US programmes need the GRE and book it if needed"],
+      ["s-sop", "Write a statement of purpose for each programme you apply to"],
+      ["s-apply", "Submit Fall/September 2027 applications (most deadlines Dec–Jan)"],
+      ["s-pitch", "Practise a 5-minute pitch of your research idea for interviews"],
+      ["s-visa", "List visa steps and costs for each country so you can move fast after an offer"],
+    ] },
+  ];
+  const sprintKeys = () => SPRINT.flatMap((g) => g.items.map((x) => x[0]));
+
+  // ----- profile editor -----
+  const PSECTIONS = {
+    education: { t: "Education", add: "Add degree", fields: [["degree", "Degree (e.g. BSc Accounting)"], ["school", "Institution"], ["location", "City, country"], ["start", "Start (e.g. 2019)"], ["end", "End (e.g. 2023)"], ["grade", "Grade / GPA / class"], ["thesis", "Thesis or final project", "wide"], ["courses", "Relevant courses (comma separated)", "wide"]] },
+    research: { t: "Research & projects", add: "Add project", fields: [["title", "Title"], ["org", "Where / with whom"], ["dates", "Dates"], ["link", "Link (GitHub, paper, demo)"], ["bullets", "What you did and found (one per line, with numbers)", "area"], ["tags", "Keywords (e.g. blockchain, credit risk, machine learning)", "wide"]] },
+    experience: { t: "Work experience", add: "Add role", fields: [["role", "Role"], ["org", "Organisation"], ["dates", "Dates"], ["bullets", "Achievements (one per line)", "area"]] },
+    publications: { t: "Publications & writing", add: "Add item", fields: [["cite", "Citation or title (reports, posts and preprints count)", "wide"], ["link", "Link"]] },
+    referees: { t: "Referees", add: "Add referee", fields: [["name", "Name"], ["title", "Title"], ["org", "Institution"], ["email", "Email"]] },
+  };
+  function profileCompleteness() {
+    const pf = A().profile;
+    const checks = [pf.fullName || S().name, pf.email, pf.background, pf.interests, (pf.education || []).length, (pf.research || []).length >= 2, pf.skillsProg, (pf.referees || []).length >= 2, pf.tests];
+    return checks.filter(Boolean).length / checks.length;
+  }
+  function importTrackerProjects() {
+    const pf = A().profile;
+    pf.research = pf.research || [];
+    let added = 0;
+    C.projects.forEach((pj) => {
+      const done = pj.milestones.filter((_, i) => isChecked(`${pj.id}m${i}`)).length;
+      if (!done || pf.research.some((x) => x.title === pj.name)) return;
+      const meta = P().projects[pj.id] || {};
+      pf.research.push({ title: pj.name, org: "Independent project", dates: pj.weeks.replace("Weeks", "2027, weeks"), link: meta.repo || meta.demo || "", bullets: pj.summary + (isChecked(pj.id + "shipped") ? "\nShipped publicly with code, README and live demo." : `\nIn progress: ${done}/${pj.milestones.length} milestones.`), tags: pj.id === "p1" ? "credit risk, machine learning, explainability, fairness" : pj.id === "p2" ? "fraud, payments, machine learning, graph, API" : "churn, machine learning, banking" });
+      added++;
+    });
+    const doneWeeks = C.weeks.filter((w) => weekPct(w.n) >= 0.6);
+    if (doneWeeks.length >= 4 && !pf.research.some((x) => x.title === "Fintech data science programme (self-directed)")) {
+      pf.research.push({ title: "Fintech data science programme (self-directed)", org: "52-week structured curriculum", dates: `${fmt(S().startDate, { month: "short", year: "numeric" })} – present`, link: "", bullets: `Completed ${doneWeeks.length} of 52 weeks of weekly real-world fintech problems (credit, fraud, payments, markets).\nSkills covered so far: ${[...new Set(doneWeeks.map((w) => phaseOf(w.n).name))].join(", ")}.`, tags: "machine learning, credit, fraud, payments, python, sql" });
+      added++;
+    }
+    saveAd();
+    return added;
+  }
+
+  // ----- views -----
+  function supCard(s) {
+    const r = peekRec(s.id);
+    const dl = s.deadline ? countdown(s.deadline) : "";
+    const due = r.followUp && r.followUp <= today() && !["replied", "meeting", "applied", "offer", "closed"].includes(r.status);
+    return `<article class="scard2 pr-${s.priority}${r.status === "offer" ? " won" : ""}">
+      <header><span class="prio" title="Priority ${s.priority}">${s.priority}</span>
+        <div class="pc-id"><h4><button type="button" class="linkish strong" data-ad-open="${s.id}">${esc(s.name)}</button></h4><p class="muted small">${esc(s.university)} · ${esc(s.country)}</p></div>
+        <select class="stage-select" data-ad-status="${s.id}" aria-label="Status">${AD_STATUSES.map(([k, t]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select></header>
+      <p class="small clamp2"><b>Interests:</b> ${esc(s.interests)}</p>
+      <div class="pmeta"><span class="pill ${/^YES|OPEN|PROGRAM ADMITTING|INVITES|DEPARTMENT RECRUITING/i.test(s.accepting) ? "accent" : ""}">${esc(String(s.accepting).split(/ - |\. /)[0].slice(0, 42))}</span><span class="pill">${esc(String(s.session).split(/[;(]/)[0].slice(0, 40))}</span>${dl}${s.urgent && !s.deadline ? `<span class="pill bad">urgent</span>` : ""}${s.oneEmailOnly ? `<span class="pill warn">one email only</span>` : ""}${s.warning ? `<span class="pill warn">check eligibility</span>` : ""}${due ? `<span class="pill bad">follow-up due</span>` : ""}</div>
+      <div class="actions"><button type="button" class="btn sm primary" data-ad-go="emails" data-sid="${s.id}">Draft email</button><button type="button" class="btn sm" data-ad-go="resume" data-sid="${s.id}">Tailor CV</button><button type="button" class="btn sm ghost" data-ad-open="${s.id}">Details</button></div>
+    </article>`;
+  }
+
+  function supDrawer(s) {
+    const r = recOf(s.id);
+    const info = [["Programme(s)", s.programs], ["Research interests", s.interests], ["Accepting students? (verified)", s.accepting], ["Session / intake", s.session], ["Funding", s.funding], ["How to contact / apply", s.contact], ["Key date / deadline", s.keyDate]];
+    return `<div class="panel form ad-drawer">
+      <div class="proj-head"><span class="prio big">${s.priority}</span><div><p class="eyebrow">${esc(s.country)} · Priority ${s.priority}</p><h3>${esc(s.name)}</h3><p class="muted small">${esc(s.titleDept)}<br>${esc(s.university)}</p></div></div>
+      ${s.warning ? `<p class="note warn-note">${esc(s.warning)}</p>` : ""}${s.oneEmailOnly ? `<p class="note warn-note">They ask for one email only: no follow-ups.</p>` : ""}
+      <dl class="info">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v || "Not stated")}</dd>`).join("")}</dl>
+      ${s.source ? `<p class="small">${link(s.source, "Official page")} <span class="muted">· checked ${fmt(AD.verifiedOn || today(), { day: "numeric", month: "short", year: "numeric" })}. Re-check before applying.</span></p>` : ""}
+      <p class="eyebrow">Your tracking</p>
+      <div class="fields">
+        <label class="field"><span>Status</span><select id="ad-st-${s.id}" data-ad-status="${s.id}">${AD_STATUSES.map(([k, t]) => `<option value="${k}"${k === r.status ? " selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label class="field"><span>Date contacted</span><input type="date" id="ad-c-${s.id}" data-adr="${s.id}:contacted" value="${esc(r.contacted || "")}"></label>
+        <label class="field"><span>Next follow-up</span><input type="date" id="ad-f-${s.id}" data-adr="${s.id}:followUp" value="${esc(r.followUp || "")}"></label>
+        <label class="field"><span>Email to use</span><input type="email" id="ad-e-${s.id}" data-adr="${s.id}:email" value="${esc(r.email || (s.emails || [])[0] || "")}" placeholder="from their university page"></label>
+        <label class="field"><span>Application ID</span><input id="ad-a-${s.id}" data-adr="${s.id}:appId" value="${esc(r.appId || "")}"></label>
+        <label class="field wide"><span>Reply / next step</span><textarea id="ad-n-${s.id}" rows="2" data-adr="${s.id}:notes">${esc(r.notes || "")}</textarea></label>
+      </div>
+      <p class="eyebrow">Papers of theirs you read (used in your email)</p>
+      ${[0, 1, 2].map((i) => { const p = r.papers[i] || {}; return `<div class="fields paper"><label class="field"><span>Title ${i + 1}</span><input id="ad-p${i}t-${s.id}" data-adp="${s.id}:${i}:t" value="${esc(p.t || "")}"></label><label class="field"><span>Link</span><input id="ad-p${i}u-${s.id}" data-adp="${s.id}:${i}:u" value="${esc(p.u || "")}"></label><label class="field wide"><span>What struck you (one sentence)</span><input id="ad-p${i}n-${s.id}" data-adp="${s.id}:${i}:n" value="${esc(p.n || "")}"></label></div>`; }).join("")}
+      <label class="field wide"><span>Your research idea for them (one line)</span><textarea id="ad-i-${s.id}" rows="2" data-adr="${s.id}:idea" placeholder="e.g. detecting mule accounts in mobile-money networks with graph ML">${esc(r.idea || "")}</textarea></label>
+      <p class="eyebrow">Application checklist</p>
+      <div class="checks cols">${AD_CHECKS.map(([k, t]) => `<label class="chk${r.checks[k] ? " is-done" : ""}"><input type="checkbox" data-adc="${s.id}:${k}"${r.checks[k] ? " checked" : ""}><span>${t}</span></label>`).join("")}</div>
+      ${r.history.length ? `<p class="eyebrow">History</p><ul class="plist">${r.history.map((h) => `<li><span>${fmt(h.d, { day: "numeric", month: "short" })} · ${esc(h.what)}</span></li>`).join("")}</ul>` : ""}
+      <div class="actions"><button type="button" class="btn primary" data-ad-go="emails" data-sid="${s.id}">Draft email</button><button type="button" class="btn" data-ad-go="resume" data-sid="${s.id}">Tailor CV</button>${s.custom ? `<button type="button" class="btn ghost danger-text" data-act="ad-del-custom" data-id="${s.id}">Remove</button>` : ""}</div>
+    </div>`;
+  }
+
+  function customForm() {
+    return `<form class="panel form" id="ad-custom-form"><h3>Add a supervisor</h3>
+      <div class="fields">
+        <label class="field"><span>Name *</span><input name="name" id="adc-name" required placeholder="Prof. Jane Doe"></label>
+        <label class="field"><span>University *</span><input name="university" id="adc-uni" required></label>
+        <label class="field"><span>Country</span><input name="country" id="adc-country" placeholder="Canada"></label>
+        <label class="field"><span>Priority</span><select name="priority" id="adc-prio"><option>A</option><option selected>B</option><option>C</option></select></label>
+        <label class="field wide"><span>Title & department</span><input name="titleDept" id="adc-dept"></label>
+        <label class="field wide"><span>Programme(s)</span><input name="programs" id="adc-prog"></label>
+        <label class="field wide"><span>Research interests</span><textarea name="interests" id="adc-int" rows="2"></textarea></label>
+        <label class="field wide"><span>Accepting students? (what their page says)</span><input name="accepting" id="adc-acc"></label>
+        <label class="field"><span>Session / intake</span><input name="session" id="adc-ses" placeholder="Sept 2027"></label>
+        <label class="field"><span>Deadline</span><input name="deadline" id="adc-dl" type="date"></label>
+        <label class="field"><span>Email</span><input name="email" id="adc-em" type="email"></label>
+        <label class="field wide"><span>Official page</span><input name="source" id="adc-src" type="url"></label>
+      </div>
+      <div class="actions"><button type="submit" class="btn primary">Add supervisor</button><button type="button" class="btn" data-act="cancel-edit">Cancel</button></div></form>`;
+  }
+
+  function supPicker(sid) {
+    return `<label class="field"><span>Supervisor</span><select id="ad-sel" data-ad-sel="1">${["A", "B", "C"].map((pr) => `<optgroup label="Priority ${pr}">${supList().filter((s) => s.priority === pr).map((s) => `<option value="${s.id}"${s.id === sid ? " selected" : ""}>${esc(s.name)} · ${esc(s.university)}</option>`).join("")}</optgroup>`).join("")}</select></label>`;
+  }
+  const currentSup = () => supOf(ui.adSel) || supList()[0];
+
+  function vAdmissions() {
+    const tab = sub("admissions", "pipeline");
+    const all = supList();
+    const contacted = all.filter((s) => AD_CONTACTED.includes(peekRec(s.id).status)).length;
+    const replies = all.filter((s) => ["replied", "meeting", "applied", "offer"].includes(peekRec(s.id).status)).length;
+    const dueN = all.filter((s) => { const r = peekRec(s.id); return r.followUp && r.followUp <= today() && !["replied", "meeting", "applied", "offer", "closed"].includes(r.status); }).length;
+    const sprintDone = sprintKeys().filter((k) => A().sprint[k]).length;
+    const tabs = [["pipeline", "Supervisors", all.length], ["deadlines", "Deadlines", dueN || null], ["emails", "Emails"], ["resume", "Resume builder"], ["profile", "My profile", pct(profileCompleteness())], ["sprint", "Profile sprint", `${sprintDone}/${sprintKeys().length}`]];
+    const head = pageHead(`Target intake: January or September 2027 · data checked ${fmt(AD.verifiedOn || today(), { day: "numeric", month: "short" })}`, "Admissions", "Find a supervisor, tailor your CV to them, email, follow up and apply, all tracked in one place.", segtabs("admissions", tabs, tab));
+    const strip = `<div class="kpis ad-kpis">
+      <div class="kpi"><span class="kpi-k">Contacted</span><span class="kpi-v">${contacted}<small>/${all.length}</small></span>${bar(contacted / Math.max(1, all.length))}</div>
+      <div class="kpi"><span class="kpi-k">Replies</span><span class="kpi-v">${replies}</span><span class="kpi-note">replied, meeting or applied</span></div>
+      <div class="kpi"><span class="kpi-k">Follow-ups due</span><span class="kpi-v">${dueN}</span><span class="kpi-note">${dueN ? "see Deadlines" : "all clear"}</span></div>
+      <div class="kpi"><span class="kpi-k">Profile</span><span class="kpi-v">${pct(profileCompleteness())}</span>${bar(profileCompleteness(), "gold")}</div>
+    </div>`;
+
+    if (tab === "deadlines") {
+      const kd = AD.keyDates.map((k) => ({ ...k, days: daysLeft(k.date) }));
+      const fus = all.map((s) => ({ s, r: peekRec(s.id) })).filter(({ r }) => r.followUp && !["replied", "meeting", "applied", "offer", "closed"].includes(r.status)).sort((a, b) => a.r.followUp.localeCompare(b.r.followUp));
+      const sd = all.filter((s) => s.deadline || s.urgent).sort((a, b) => (a.deadline || "0").localeCompare(b.deadline || "0"));
+      return `${head}
+        <div class="grid2">
+          <section class="panel"><h3>${icon("hours")} Key dates</h3>
+            <ul class="timeline">${kd.map((k) => `<li class="${k.days !== null && k.days < 0 ? "past" : ""}"><span class="tl-date">${esc(k.when)}</span><span>${esc(k.what)}</span><span class="row-actions">${k.date ? countdown(k.date) : ""}${k.date && k.days >= 0 ? link(gcal({ title: "Admissions: " + k.what.slice(0, 60), date: k.date, allDay: true, details: k.what }), "Remind me") : ""}</span></li>`).join("")}</ul>
+            ${daysLeft("2026-09-30") !== null && daysLeft("2026-09-30") >= 0 ? `<p class="note warn-note"><b>RMIT closes ${daysLeft("2026-09-30") === 0 ? "today" : "tomorrow"}</b> and needs a signed supervisor statement. It is only realistic if an RMIT supervisor has already agreed; otherwise ask Prof. Berg or Prof. Rennie about RMIT's next round or monthly intakes.</p>` : ""}
+          </section>
+          <section class="panel"><h3>${icon("mentors")} Supervisor deadlines</h3>
+            <ul class="plist">${sd.map((s) => `<li><span><b>${esc(s.name)}</b> <span class="muted">· ${esc(s.university)}</span><span class="muted small pl-note">${esc(s.deadlineNote || s.keyDate)}</span></span><span class="row-actions">${s.deadline ? countdown(s.deadline) : `<span class="pill bad">now</span>`}<button type="button" class="btn sm" data-ad-go="emails" data-sid="${s.id}">Email</button></span></li>`).join("")}</ul>
+            <h4 class="lh">Follow-ups</h4>
+            ${fus.length ? `<ul class="plist">${fus.map(({ s, r }) => `<li><span><b>${esc(s.name)}</b> <span class="muted">· ${statusName(r.status)}</span></span><span class="row-actions"><span class="pill ${r.followUp <= today() ? "bad" : ""}">${r.followUp <= today() ? "due" : fmt(r.followUp)}</span><button type="button" class="btn sm" data-ad-go="emails" data-sid="${s.id}">Follow up</button></span></li>`).join("")}</ul>` : `<p class="muted">No follow-ups scheduled. When you mark an email as sent, the app schedules one 10 days later (never for people who ask for one email only).</p>`}
+          </section>
+        </div>`;
+    }
+
+    if (tab === "profile") {
+      const pf = A().profile;
+      const f = (k, label, ph, wide) => `<label class="field${wide ? " wide" : ""}"><span>${label}</span><input id="pf-${k}" data-pfv="${k}" value="${esc(pf[k] || "")}" placeholder="${esc(ph || "")}"></label>`;
+      const ta = (k, label, ph) => `<label class="field wide"><span>${label}</span><textarea id="pf-${k}" rows="3" data-pfv="${k}" placeholder="${esc(ph || "")}">${esc(pf[k] || "")}</textarea></label>`;
+      const listEd = (sec) => {
+        const spec = PSECTIONS[sec];
+        const arr = pf[sec] || [];
+        return `<section class="panel"><h3>${spec.t} <span class="muted small">${arr.length}</span></h3>
+          ${arr.map((it, i) => `<div class="pf-item"><div class="fields">${spec.fields.map(([k, label, kind]) => kind === "area" ? `<label class="field wide"><span>${label}</span><textarea id="pf-${sec}-${i}-${k}" rows="3" data-pfl="${sec}:${i}:${k}">${esc(it[k] || "")}</textarea></label>` : `<label class="field${kind === "wide" ? " wide" : ""}"><span>${label}</span><input id="pf-${sec}-${i}-${k}" data-pfl="${sec}:${i}:${k}" value="${esc(it[k] || "")}"></label>`).join("")}</div><button type="button" class="x pf-x" aria-label="Remove" data-act="pf-del" data-sec="${sec}" data-i="${i}">×</button></div>`).join("")}
+          <div class="actions"><button type="button" class="btn sm" data-act="pf-add" data-sec="${sec}">${icon("add")} ${spec.add}</button>${sec === "research" ? `<button type="button" class="btn sm ghost" data-act="pf-import">Import projects from this tracker</button>` : ""}</div></section>`;
+      };
+      return `${head}
+        <p class="note">This is your master profile. The Resume builder reorders and highlights it for each professor; it never invents anything, so the stronger and more specific this is, the better every CV and email gets. Use numbers ("AUC 0.78 on 150k borrowers").</p>
+        <section class="panel"><h3>About you</h3><div class="fields">
+          ${f("fullName", "Full name", S().name || "Ada Okafor")}${f("email", "Email", "you@example.com")}${f("phone", "Phone", "+234 …")}${f("location", "City, country")}
+          ${f("citizenship", "Citizenship (for scholarship eligibility)")}${f("linkedin", "LinkedIn URL")}${f("github", "GitHub URL")}${f("website", "Portfolio / website")}
+          ${f("targetDegree", "Target degree", "PhD / MSc / Master by Research")}${f("intake", "Target intake", "January 2027 or September 2027")}${f("background", "Background", "Accounting / Finance / Computer Science …")}${f("headline", "Headline", "Finance graduate building ML for credit risk and fraud", true)}
+          ${ta("interests", "Research interests (2–3 sentences)", "e.g. I study how machine learning can detect fraud in mobile-money networks …")}
+        </div></section>
+        ${listEd("education")}${listEd("research")}${listEd("experience")}${listEd("publications")}
+        <section class="panel"><h3>Skills, tests & awards</h3><div class="fields">
+          ${f("skillsProg", "Programming (comma separated)", "Python, SQL", true)}${f("skillsMl", "Machine learning & data", "pandas, scikit-learn, LightGBM, SHAP", true)}
+          ${f("skillsFin", "Finance & domain", "credit risk, IFRS 9, payments", true)}${f("skillsTools", "Tools", "Git, Docker, Streamlit", true)}${f("languages", "Languages", "English (fluent)", true)}
+          ${f("tests", "Test scores", "IELTS 7.5 (Oct 2026); GRE booked for Nov 2026", true)}${ta("awards", "Awards, scholarships & activities (one per line)", "")}
+        </div></section>
+        ${listEd("referees")}`;
+    }
+
+    if (tab === "resume" || tab === "emails") {
+      const s = currentSup();
+      if (!s) return head + `<section class="panel empty-state"><h3>No supervisors</h3></section>`;
+      ui.adSel = s.id;
+      if (tab === "resume") {
+        const m = cvModel(s);
+        const f = fit(s);
+        const pfEmpty = profileCompleteness() < 0.3;
+        return `${head}
+          <div class="md cvmd">
+            <aside class="md-list panel">
+              ${supPicker(s.id)}
+              <div class="fitbox"><div class="pp-ring big">${ring(f.score, 76, 7)}<span>${Math.round(f.score * 100)}%</span></div><div><b>Topic fit</b><p class="muted small">How many of this professor's research themes your profile shows evidence for.</p></div></div>
+              ${f.covered.length ? `<p class="eyebrow">You show</p><div class="patterns">${f.covered.map((k) => `<span class="chip on">${esc(k)}</span>`).join("")}</div>` : ""}
+              ${f.gaps.length ? `<p class="eyebrow">Gaps to close</p><ul class="gaps">${f.gaps.map((k) => `<li><b>${esc(k)}</b><span class="small muted">${esc((TOPICS.find((t) => t.k === k) || {}).tip || "")}</span></li>`).join("")}</ul>` : ""}
+              <label class="field"><span>Research-interests paragraph for this professor</span><textarea id="ad-statement" rows="6" data-ad-statement="${s.id}">${esc(m.statement)}</textarea></label>
+              <div class="actions"><button type="button" class="btn sm" data-act="ad-polish-cv" data-sid="${s.id}">Polish with Claude</button><button type="button" class="btn sm ghost" data-act="ad-reset-statement" data-sid="${s.id}">Reset</button></div>
+              <p class="small muted" id="ad-polish-status"></p>
+            </aside>
+            <div class="stack">
+              ${pfEmpty ? `<p class="note warn-note">Your profile is mostly empty, so this CV is too. <button type="button" class="linkish" data-sub="admissions:profile">Fill in My profile</button> first.</p>` : ""}
+              <div class="actions"><button type="button" class="btn primary" data-act="ad-cv-html" data-sid="${s.id}">Download CV (.html)</button><button type="button" class="btn" data-act="ad-cv-md" data-sid="${s.id}">Download (.md)</button><button type="button" class="btn ghost" data-act="ad-cv-copy" data-sid="${s.id}">Copy as text</button></div>
+              <p class="small muted">Open the .html file in any browser and choose Print → Save as PDF for a clean one-page PDF, or open it in Word. Projects matching this professor move to the top, and matching skills are highlighted.</p>
+              <div class="cv-paper"><div class="cv">${cvHtml(m, false)}</div></div>
+            </div>
+          </div>`;
+      }
+      // emails
+      const r = peekRec(s.id);
+      const tid = AD_TEMPLATES.some((t) => t.id === ui.adTemplate) ? ui.adTemplate : recommendedTemplate(s);
+      ui.adTemplate = tid;
+      const t = AD_TEMPLATES.find((x) => x.id === tid);
+      const d = draftFor(s, tid);
+      const to = r.email || (s.emails || [])[0] || "";
+      const wc = wordCount(d.body);
+      const rec = recommendedTemplate(s);
+      const blocked = s.oneEmailOnly && tid.startsWith("follow");
+      const gmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+      const outlook = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+      return `${head}
+        <div class="md">
+          <aside class="md-list panel">
+            ${supPicker(s.id)}
+            <p class="small"><span class="pill">${statusName(r.status)}</span> ${r.contacted ? `· emailed ${fmt(r.contacted)}` : ""}</p>
+            <nav class="tlist" aria-label="Email templates">${AD_TEMPLATES.map((x, i) => `<button type="button" class="tl${x.id === tid ? " on" : ""}" data-ad-template="${x.id}"><span class="tl-n">${i + 1}</span><span>${esc(x.t)}${x.id === rec ? ' <span class="pill accent">next</span>' : ""}</span></button>`).join("")}</nav>
+          </aside>
+          <article class="panel tmpl">
+            <header><div><p class="eyebrow">${esc(s.university)}</p><h3>${esc(t.t)}</h3></div><span class="pill ${wc > 200 && (tid === "inquiry" || tid === "posting") ? "bad" : "accent"}">${wc} words</span></header>
+            <p class="when">${icon("hours")}<span>${esc(t.when)}</span></p>
+            <p class="note"><b>How they want to be contacted:</b> ${esc(s.contact)}</p>
+            ${blocked ? `<p class="note warn-note">${esc(s.name)} asks for one email only. Don't send a follow-up.</p>` : ""}
+            <label class="field"><span>To</span><input id="ad-to" data-adr="${s.id}:email" value="${esc(to)}" placeholder="Find their email on the official page"></label>
+            <label class="field"><span>Subject</span><input id="ad-subject" data-ad-draft="${s.id}:${tid}:subject" value="${esc(d.subject)}"></label>
+            <label class="field"><span>Message${d.edited ? " (edited)" : ""}</span><textarea id="ad-body" class="msg-edit" rows="14" data-ad-draft="${s.id}:${tid}:body">${esc(d.body)}</textarea></label>
+            <p class="small muted">Anything in [brackets] still needs your words. Fill in the papers you read and your research idea under <button type="button" class="linkish" data-ad-open="${s.id}">Details</button> and they appear here automatically.</p>
+            <div class="actions">
+              <button type="button" class="btn primary" data-act="ad-copy-email">Copy email</button>
+              <a class="btn" target="_blank" rel="noopener" href="${esc(gmail)}">Open in Gmail</a>
+              <a class="btn" target="_blank" rel="noopener" href="${esc(outlook)}">Open in Outlook</a>
+              <button type="button" class="btn" data-act="ad-polish-email" data-sid="${s.id}" data-tid="${tid}">Polish with Claude</button>
+              ${d.edited ? `<button type="button" class="btn ghost" data-act="ad-reset-draft" data-sid="${s.id}" data-tid="${tid}">Reset to template</button>` : ""}
+            </div>
+            <p class="small muted" id="ad-polish-status"></p>
+            <div class="sent-bar"><span class="small">Sent it? Log it so the app can schedule the follow-up.</span><button type="button" class="btn primary" data-act="ad-mark-sent" data-sid="${s.id}" data-tid="${tid}"${blocked ? " disabled" : ""}>Mark as sent</button></div>
+            <p class="small muted">Attach your tailored CV (Resume builder) and transcripts. The app can't send email for you; it opens a ready-to-send draft in Gmail or Outlook.</p>
+          </article>
+        </div>`;
+    }
+
+    if (tab === "sprint") {
+      return `${head}
+        <p class="note">Everything needed for a strong application before December. Tick items off as you go; each group has a target date.</p>
+        <div class="sprint">${SPRINT.map((g) => { const done = g.items.filter(([k]) => A().sprint[k]).length; return `<section class="panel"><h3>By ${fmt(g.by, { day: "numeric", month: "long" })} ${countdown(g.by)} <span class="muted small">${done}/${g.items.length}</span></h3>
+          <div class="checks">${g.items.map(([k, tx]) => `<label class="chk${A().sprint[k] ? " is-done" : ""}"><input type="checkbox" data-ads="${k}"${A().sprint[k] ? " checked" : ""}><span>${esc(tx)}</span></label>`).join("")}</div>
+          ${link(gcal({ title: "Admissions sprint deadline", date: g.by, allDay: true, details: g.items.map((x) => "• " + x[1]).join("\n") }), "Add to calendar")}</section>`; }).join("")}</div>
+        <section class="panel"><h3>Outreach tips from your research</h3><ol class="steps">${AD.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></section>`;
+    }
+
+    // pipeline
+    const f = ui.adFilter;
+    const q = (f.q || "").toLowerCase();
+    const countries = [...new Set(all.map((s) => s.country))];
+    const list = all.filter((s) => (f.prio === "all" || s.priority === f.prio) && (f.country === "all" || s.country === f.country) && (f.status === "all" || peekRec(s.id).status === f.status) &&
+      (!q || [s.name, s.university, s.interests, s.programs].join(" ").toLowerCase().includes(q)))
+      .sort((a, b) => {
+        const soon = (x) => x.urgent ? "0" : x.deadline && daysLeft(x.deadline) >= 0 && daysLeft(x.deadline) <= 90 ? x.deadline : "9";
+        return a.priority.localeCompare(b.priority) || soon(a).localeCompare(soon(b)) || a.n - b.n;
+      });
+    return `${head}${strip}
+      <div class="toolbar">
+        <div class="seg">${[["all", "All"], ["A", "Priority A"], ["B", "B"], ["C", "C"]].map(([k, t]) => `<button type="button" class="${f.prio === k ? "on" : ""}" data-ad-f="prio:${k}">${t}</button>`).join("")}</div>
+        <select id="ad-country" data-ad-fs="country" aria-label="Country"><option value="all">All countries</option>${countries.map((c) => `<option${f.country === c ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
+        <select id="ad-status" data-ad-fs="status" aria-label="Status"><option value="all">Any status</option>${AD_STATUSES.map(([k, t]) => `<option value="${k}"${f.status === k ? " selected" : ""}>${t}</option>`).join("")}</select>
+        <label class="search-wrap">${icon("finder")}<input id="ad-search" class="search" type="search" placeholder="Search name, university, topic" value="${esc(f.q || "")}" data-ad-search="1"></label>
+        <button type="button" class="btn sm" data-act="ad-add-custom">${icon("add")} Add supervisor</button>
+      </div>
+      <div class="pgrid">${list.map(supCard).join("") || `<div class="panel empty-state"><h3>No matches</h3><p class="muted">Try another filter.</p></div>`}</div>
+      <p class="small muted">Priority A: current open invitation. B: generally looking for students. C: strong fit, no public recruiting statement (cold email). Source pages were checked on ${fmt(AD.verifiedOn || today(), { day: "numeric", month: "long", year: "numeric" })}; recheck each before applying.</p>`;
+  }
+
+  function markSent(sid, tid) {
+    const s = supOf(sid);
+    const r = recOf(sid);
+    const t = AD_TEMPLATES.find((x) => x.id === tid);
+    r.history.push({ d: today(), what: `Sent: ${t ? t.t : "email"}` });
+    if (tid === "inquiry" || tid === "posting" || tid === "funding") { r.status = "emailed"; r.contacted = r.contacted || today(); r.checks.emailSent = true; }
+    else if (tid === "follow1" || tid === "follow2") r.status = "followed";
+    else if (tid === "applied") r.status = "applied";
+    const next = (s && s.oneEmailOnly) || tid === "follow2" || tid === "applied" ? "" : addDays(today(), tid === "follow1" ? 14 : 10);
+    r.followUp = ["replied", "meeting", "offer"].includes(r.status) ? r.followUp : next;
+    markActivity(); saveAd(); saveProgress();
+    ui.toast = next ? `Logged. Follow-up reminder set for ${fmt(next)}.` : "Logged.";
+  }
+
+  function todayAdmissionsPanel() {
+    const all = supList();
+    const t = today();
+    const soon = [
+      ...AD.keyDates.filter((k) => k.date && daysLeft(k.date) >= 0).map((k) => ({ label: k.what.split(" - ")[0].split(":")[0], date: k.date })),
+    ].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 2);
+    const urgent = all.filter((s) => s.urgent && peekRec(s.id).status === "new");
+    const due = all.filter((s) => { const r = peekRec(s.id); return r.followUp && r.followUp <= t && !["replied", "meeting", "applied", "offer", "closed"].includes(r.status); });
+    const contacted = all.filter((s) => AD_CONTACTED.includes(peekRec(s.id).status)).length;
+    return `<section class="panel"><h3>${icon("admissions")} Admissions</h3>
+      <div class="focus-bar">${bar(contacted / Math.max(1, all.length))}<span class="small">${contacted}/${all.length} contacted</span></div>
+      <ul class="plist">
+        ${urgent.map((s) => `<li><span><b>${esc(s.name)}</b> <span class="muted">· ${esc(s.university)}</span><span class="small pl-note bad-text">${esc(s.deadlineNote || "Act now")}</span></span><span class="row-actions"><button type="button" class="btn sm primary" data-ad-go="emails" data-sid="${s.id}">Email</button></span></li>`).join("")}
+        ${due.map((s) => `<li><span><b>${esc(s.name)}</b><span class="small pl-note muted">Follow-up due</span></span><span class="row-actions"><button type="button" class="btn sm" data-ad-go="emails" data-sid="${s.id}">Follow up</button></span></li>`).join("")}
+        ${soon.map((k) => `<li><span>${esc(k.label)}</span><span class="row-actions">${countdown(k.date)}</span></li>`).join("")}
+      </ul>
+      <div class="actions"><button type="button" class="btn sm" data-tab="admissions">Open Admissions</button></div></section>`;
+  }
+
+
   // ---------- calendar (.ics) ----------
   function buildIcs() {
     const s = S();
@@ -1158,6 +1791,8 @@
       if (!na) return;
       ev(`p-${p.id}-${na.due}`, [...allDay(na.due), `SUMMARY:${esc2(`Mentor: ${p.name} (${p.company || ""})`)}`, `DESCRIPTION:${esc2(na.text + (p.linkedin ? "\n" + p.linkedin : ""))}`], "PT9H");
     });
+    AD.keyDates.filter((k) => k.date && k.date >= today()).forEach((k, i) => ev(`adk-${i}`, [...allDay(k.date), `SUMMARY:${esc2("Admissions: " + k.when)}`, `DESCRIPTION:${esc2(k.what)}`], "-PT15H"));
+    supList().forEach((sp) => { const r = peekRec(sp.id); if (r.followUp && !["replied", "meeting", "applied", "offer", "closed"].includes(r.status)) ev(`adf-${sp.id}-${r.followUp}`, [...allDay(r.followUp), `SUMMARY:${esc2("Follow up: " + sp.name)}`, `DESCRIPTION:${esc2(sp.university)}`], "PT9H"); });
     ST().deadlines.filter((d) => !d.done && d.due).forEach((d) => ev(`dl-${d.id}`, [...allDay(d.due), `SUMMARY:${esc2(`${d.type}: ${d.title}`)}`, `DESCRIPTION:${esc2(courseName(d.course))}`], "-PT15H"));
     ST().classes.forEach((c) => ev(`class-${c.id}`, [...timed(nextDow(Number(c.day)), c.start, Math.max(15, minutesBetween(c.start, c.end))), `RRULE:FREQ=WEEKLY;BYDAY=${byday[c.day]}${ST().semesterEnd ? `;UNTIL=${d8(ST().semesterEnd)}T235959` : ";COUNT=16"}`, `SUMMARY:${esc2(courseName(c.course))}`, ...(c.place ? [`LOCATION:${esc2(c.place)}`] : [])], "-PT15M"));
     out.push("END:VCALENDAR");
@@ -1207,13 +1842,17 @@
   }
 
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-tab],[data-act],[data-goto-week],[data-filter],[data-copy],[data-copy-el],[data-sub],[data-sub-go],[data-phase],[data-template]");
+    const t = e.target.closest("[data-tab],[data-act],[data-goto-week],[data-filter],[data-copy],[data-copy-el],[data-sub],[data-sub-go],[data-phase],[data-template],[data-ad-open],[data-ad-go],[data-ad-template],[data-ad-f]");
     if (!t) return;
     if (t.dataset.tab) { setTab(t.dataset.tab); return; }
     if (t.dataset.sub) { const [scope, val] = t.dataset.sub.split(":"); ui.sub[scope] = val; ui.confirm = null; rerender(); return; }
     if (t.dataset.subGo) { const [tab, val] = t.dataset.subGo.split(":"); ui.sub[tab] = val; setTab(tab); return; }
     if (t.dataset.phase) { ui.phase = Number(t.dataset.phase); rerender(); return; }
     if (t.dataset.template) { ui.msgTemplate = t.dataset.template; rerender(); return; }
+    if (t.dataset.adOpen) { ui.adOpen = t.dataset.adOpen; renderOverlay(); return; }
+    if (t.dataset.adGo) { ui.adSel = t.dataset.sid || ui.adSel; ui.adTemplate = null; ui.sub.admissions = t.dataset.adGo; ui.adOpen = null; setTab("admissions"); return; }
+    if (t.dataset.adTemplate) { ui.adTemplate = t.dataset.adTemplate; rerender(); return; }
+    if (t.dataset.adF) { const [k, v] = t.dataset.adF.split(":"); ui.adFilter[k] = v; rerender(); return; }
     if (t.dataset.gotoWeek) {
       const n = Number(t.dataset.gotoWeek);
       ui.openWeeks = new Set([n]);
@@ -1235,7 +1874,21 @@
       case "toggle-more": ui.more = !ui.more; renderTabs(); break;
       case "new-prospect": ui.more = false; ui.edit = "new"; renderTabs(); renderOverlay(); break;
       case "edit": ui.edit = id; renderOverlay(); break;
-      case "cancel-edit": ui.edit = null; renderOverlay(); break;
+      case "cancel-edit": { const wasAd = !!ui.adOpen; ui.edit = null; ui.adOpen = null; if (wasAd) rerender(); else renderOverlay(); break; }
+      case "ad-add-custom": ui.adOpen = "__new"; renderOverlay(); break;
+      case "ad-del-custom": A().custom = (A().custom || []).filter((x) => x.id !== id); delete A().recs[id]; ui.adOpen = null; saveAd(); ui.toast = "Supervisor removed"; rerender(); break;
+      case "pf-add": { const sec = t.dataset.sec; const pf = A().profile; pf[sec] = pf[sec] || []; pf[sec].push({}); saveAd(); rerender(); break; }
+      case "pf-del": { const pf = A().profile; (pf[t.dataset.sec] || []).splice(Number(t.dataset.i), 1); saveAd(); rerender(); break; }
+      case "pf-import": { const n = importTrackerProjects(); ui.toast = n ? `Added ${n} item${n > 1 ? "s" : ""} from your tracker` : "Nothing new to import yet: tick off project milestones or more weeks first"; rerender(); break; }
+      case "ad-polish-cv": polish("cv", t.dataset.sid); break;
+      case "ad-polish-email": polish("email", t.dataset.sid, t.dataset.tid); break;
+      case "ad-reset-statement": { const r = recOf(t.dataset.sid); delete r.cvStatement; saveAd(); rerender(); break; }
+      case "ad-reset-draft": { const r = recOf(t.dataset.sid); delete r.drafts[t.dataset.tid]; saveAd(); rerender(); break; }
+      case "ad-cv-html": { const sp = supOf(t.dataset.sid); offerFile(`CV - ${(A().profile.fullName || S().name || "me").replace(/[^\w .-]/g, "")} - ${sp.university.replace(/[^\w .-]/g, "").slice(0, 40)}.html`, cvDocument(sp), "text/html").then((ok) => { if (!ok) showToast("Downloads aren't available here. Use Copy as text."); }); break; }
+      case "ad-cv-md": { const sp = supOf(t.dataset.sid); offerFile(`CV - ${(A().profile.fullName || S().name || "me").replace(/[^\w .-]/g, "")}.md`, cvText(sp), "text/markdown").then((ok) => { if (!ok) showToast("Downloads aren't available here. Use Copy as text."); }); break; }
+      case "ad-cv-copy": copyText(cvText(supOf(t.dataset.sid))); break;
+      case "ad-copy-email": { const sj = $("#ad-subject"), bd = $("#ad-body"); copyText(`Subject: ${sj ? sj.value : ""}\n\n${bd ? bd.value : ""}`, bd); break; }
+      case "ad-mark-sent": markSent(t.dataset.sid, t.dataset.tid); rerender(); break;
       case "log-hours": { const n = Math.min(Math.max(weekNow(), 1), TOTAL_WEEKS); ui.sub.today = "week"; ui.sub["week-" + n] = "log"; rerender(); const h = $("#hours-" + n); if (h) h.focus(); break; }
       case "ask-delete": ui.confirm = "del:" + id; rerender(); break;
       case "cancel-confirm": ui.confirm = null; rerender(); break;
@@ -1289,6 +1942,18 @@
   document.addEventListener("change", (e) => {
     const t = e.target;
     const ds = t.dataset;
+    if (ds.adStatus) {
+      const r = recOf(ds.adStatus);
+      r.status = t.value;
+      if (AD_CONTACTED.includes(t.value) && !r.contacted) r.contacted = today();
+      if (["replied", "meeting", "offer", "closed"].includes(t.value)) r.followUp = "";
+      r.history.push({ d: today(), what: "Status: " + statusName(t.value) });
+      markActivity(); saveAd(); saveProgress(); rerender(); return;
+    }
+    if (ds.adc) { const [sid, k] = ds.adc.split(":"); const r = recOf(sid); if (t.checked) r.checks[k] = today(); else delete r.checks[k]; t.closest(".chk").classList.toggle("is-done", t.checked); if (t.checked) markActivity(); saveAd(); return; }
+    if (ds.ads) { if (t.checked) { A().sprint[ds.ads] = today(); markActivity(); } else delete A().sprint[ds.ads]; saveAd(); saveProgress(); rerender(); return; }
+    if (ds.adSel) { ui.adSel = t.value; ui.adTemplate = null; rerender(); return; }
+    if (ds.adFs) { ui.adFilter[ds.adFs] = t.value; rerender(); return; }
     if (ds.check) {
       if (t.checked) { P().checks[ds.check] = today(); markActivity(); } else delete P().checks[ds.check];
       saveProgress(); rerender(); return;
@@ -1351,9 +2016,30 @@
     if (c && !c.contains(e.relatedTarget)) { c.style.removeProperty("--rx"); c.style.removeProperty("--ry"); c.style.removeProperty("--gx"); }
   });
 
-  let noteTimer;
+  let noteTimer, adTimer;
+  const adSaveSoon = () => { clearTimeout(adTimer); adTimer = setTimeout(saveAd, 600); };
   document.addEventListener("input", (e) => {
     const t = e.target;
+    const ds = t.dataset;
+    if (ds.adr) { const [sid, k] = ds.adr.split(":"); recOf(sid)[k] = t.value; adSaveSoon(); return; }
+    if (ds.adp) { const [sid, i, k] = ds.adp.split(":"); const r = recOf(sid); r.papers[i] = r.papers[i] || {}; r.papers[i][k] = t.value; if (k === "t" && t.value.trim()) r.checks.papers = r.checks.papers || today(); adSaveSoon(); return; }
+    if (ds.pfv) { A().profile[ds.pfv] = t.value; adSaveSoon(); return; }
+    if (ds.pfl) { const [sec, i, k] = ds.pfl.split(":"); const arr = A().profile[sec]; if (arr && arr[i]) { arr[i][k] = t.value; adSaveSoon(); } return; }
+    if (ds.adStatement) { recOf(ds.adStatement).cvStatement = t.value; adSaveSoon(); return; }
+    if (ds.adDraft) {
+      const [sid, tid, field] = ds.adDraft.split(":");
+      const sp = supOf(sid); const r = recOf(sid);
+      const cur = draftFor(sp, tid);
+      r.drafts[tid] = { subject: cur.subject, body: cur.body, [field]: t.value };
+      adSaveSoon(); return;
+    }
+    if (ds.adSearch) {
+      ui.adFilter.q = t.value;
+      const pos = t.selectionStart;
+      rerender();
+      const el = $("#ad-search"); if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+      return;
+    }
     if (t.dataset.note) {
       const n = t.dataset.note;
       if (t.value.trim()) P().notes[n] = t.value; else delete P().notes[n];
@@ -1389,6 +2075,12 @@
       ui.edit = null; ui.toast = existing ? "Saved" : `${p.name} added. Engage for ${READY_DAYS} days before connecting.`;
       rerender(); return;
     }
+    if (f.id === "ad-custom-form") {
+      const all = supList();
+      const sup = { id: "c" + newId(), custom: true, n: 100 + all.length, country: val("country") || "Other", university: val("university"), name: val("name"), titleDept: val("titleDept"), programs: val("programs"), interests: val("interests"), accepting: val("accepting") || "Not stated", session: val("session") || "Not stated", funding: "Not stated", contact: val("email") || "See official page", keyDate: val("deadline") || "-", source: val("source"), priority: val("priority") || "B", emails: val("email") ? [val("email")] : [], deadline: val("deadline") || undefined };
+      A().custom = [...(A().custom || []), sup];
+      saveAd(); ui.adOpen = null; ui.toast = `${sup.name} added`; rerender(); return;
+    }
     if (f.id === "course-form") { ST().courses.push({ id: newId(), name: val("name") }); Store.save("studies"); rerender(); return; }
     if (f.id === "class-form") {
       if (!val("course")) return;
@@ -1404,7 +2096,7 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (ui.edit !== null) { ui.edit = null; renderOverlay(); }
+    if (ui.edit !== null || ui.adOpen) { const wasAd = !!ui.adOpen; ui.edit = null; ui.adOpen = null; if (wasAd) rerender(); else renderOverlay(); }
     else if (ui.more) { ui.more = false; renderTabs(); }
   });
 

@@ -22,8 +22,9 @@ Data is saved in the browser's local storage. Use **Settings → Export backup**
 |---|---|
 | `app/curriculum.js` | 52 weeks: skills, resources, cumulative fintech problems, weekly mentor tasks, and the project milestones |
 | `app/practice.js` | Per week: 6 practice drills, a 4-question quiz with answers, and a carry-over challenge combining last week's and this week's skills |
+| `app/admissions.js` | 32 fintech supervisors/programmes (Luxembourg, Canada, Australia, US) imported from `Fintech_Supervisors_Tracker_2027.xlsx`, with key dates and outreach tips; each links to the official page checked on 28 Sep 2026 |
 | `app/network.js` | Target markets and fintech companies, mentor communities, message templates, comment formula, call questions |
-| `app/app.js` | The app: Today, Roadmap, Mentors (CRM), Finder, Messages, Studies, Projects, Progress, Settings, calendar export |
+| `app/app.js` | The app: Today, Roadmap, Mentors (CRM), Admissions (supervisor pipeline, tailored resume builder, email drafts and follow-ups, deadlines, profile sprint), Finder, Messages, Studies, Projects, Progress, Settings, calendar export |
 | `app/index.html` | Page shell and styles |
 
 To change the plan, edit `curriculum.js`. Checkbox progress is keyed by week and item position, so reordering items within a week moves the ticks with them.
