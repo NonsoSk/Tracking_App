@@ -126,6 +126,7 @@ export interface StaffDetail extends StaffRow {
   incident_details: string | null;
   desired_resolution: string | null;
   suggestions: string | null;
+  complainant_user_id: string | null;
   complainant_phone: string | null;
   complainant_gender: string | null;
   complainant_email: string | null;
@@ -229,4 +230,12 @@ export interface CommunityPeople {
 export interface StaffInvitation {
   id: string; email: string; full_name: string; job_title: string | null; roles: string[];
   invited_at: string; last_sent_at: string; invited_by: string | null;
+}
+
+/** A registered complainant's profile, for staff who may see contact details. */
+export interface ComplainantDetails {
+  registered: boolean;
+  full_name: string; phone: string | null; phone_verified: boolean; gender: string | null;
+  email: string | null; address: string | null; home_community: string | null;
+  member_since: string; grievances_total: number; grievances_open: number;
 }

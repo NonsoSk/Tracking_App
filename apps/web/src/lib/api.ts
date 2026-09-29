@@ -1,6 +1,7 @@
 import { mailer, supabase } from './supabase';
 import { AppError, toAppError } from './errors';
 import type {
+  ComplainantDetails,
   Access, AppNotification, AuditRow, DashboardStats, Filters, MasterData, MyGrievance, MyGrievanceDetail,
   CommunityPeople, OfficerHome, Profile, Scope, StaffDetail, StaffInvitation, StaffList, SubmissionCode, SubmissionStatus, TypeResponsibility, UserRow,
 } from './types';
@@ -121,6 +122,17 @@ export const api = {
     if (error) throw toAppError(error);
   },
   /** AI rewording of a resolution note (server function; the key never reaches the app). */
+  complainantDetails: (id: string) => rpc<ComplainantDetails | null>('complainant_details', { p_grievance: id }),
+  /** Registration: text a 6-digit code to the number (phone-otp Edge Function). */
+  async sendPhoneCode(phone: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('phone-otp', { body: { action: 'send', phone } });
+    if (error) throw await functionError(error, 'sms_not_configured');
+  },
+  async verifyPhoneCode(phone: string, code: string): Promise<{ ok: boolean; error?: string; tries_left?: number }> {
+    const { data, error } = await supabase.functions.invoke('phone-otp', { body: { action: 'verify', phone, code } });
+    if (error) throw await functionError(error, 'otp_failed');
+    return data as { ok: boolean; error?: string; tries_left?: number };
+  },
   async polishResolution(text: string): Promise<string> {
     const { data, error } = await supabase.functions.invoke('polish-resolution', { body: { text } });
     if (error) {
@@ -149,3 +161,11 @@ export const api = {
   // master data tables (RLS: masterdata.manage for writes)
   table: (name: string) => supabase.from(name),
 };
+
+/** Turns an Edge Function failure into a plain-language error (offline, or the function's own error key). */
+async function functionError(error: unknown, fallback: string): Promise<AppError> {
+  const ctx = (error as { context?: Response }).context;
+  if (!ctx || typeof ctx.json !== 'function') return navigator.onLine ? new AppError(fallback) : new AppError('network');
+  try { const b = await ctx.json(); if (b?.error) return new AppError(b.error); } catch { /* not deployed */ }
+  return new AppError(fallback);
+}

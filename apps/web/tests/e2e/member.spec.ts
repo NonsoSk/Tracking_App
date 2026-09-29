@@ -43,6 +43,14 @@ test('full cycle: submit → officer resolves (with Correct wording) → member 
   await signIn(officer, ...OFFICER);
   await officer.goto(`/grievances?q=${tid}`);
   await officer.getByRole('link', { name: tid }).click();
+  // The officer sees who raised it, in full.
+  const who = officer.locator('section, div').filter({ has: officer.getByRole('heading', { name: 'Complainant' }) }).last();
+  await expect(who).toContainText('Emmanuel Nwala');
+  await expect(who).toContainText('GenderMale');
+  await expect(who).toContainText('0803 123 4567');
+  await expect(who).toContainText('confirmed');
+  await expect(who).toContainText('Agbonchia');
+  await expect(who).toContainText('Member since');
   await officer.getByRole('tab', { name: 'Resolve' }).click();
   // Dictated-style text, then "Correct wording" (the AI helper isn't running in tests, so the basic clean-up is offered).
   await officer.getByLabel('How was it resolved?').fill('uhm new street light fittings were were installed on Market Road on Monday');

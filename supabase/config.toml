@@ -39,5 +39,8 @@ verify_enabled = true
 [functions.whatsapp-webhook]
 verify_jwt = false               # Meta can't send a Supabase JWT; the HMAC signature is verified instead
 
+[functions.phone-otp]
+verify_jwt = false               # used before the member has an account; limits are enforced in the database
+
 [functions.notify-dispatch]
 verify_jwt = false               # called by the scheduler with x-dispatch-secret

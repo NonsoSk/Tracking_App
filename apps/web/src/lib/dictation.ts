@@ -15,6 +15,27 @@ const Ctor = (): RecognizerCtor | null => {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 };
 
+/** A plain explanation of why voice typing stopped, telling apart the causes of "not allowed". */
+async function explain(code: string): Promise<string> {
+  if (code === 'no-speech') return "We didn't hear anything. Tap the microphone and speak again.";
+  if (code === 'audio-capture') return 'No microphone was found. Check that one is connected and not in use by another app.';
+  if (code === 'network') return 'Voice typing needs an internet connection. Check your signal and try again.';
+  if (code === 'aborted') return 'Voice typing stopped. Tap the microphone to try again.';
+  if (code === 'service-not-allowed' || code === 'language-not-supported') {
+    return "This browser doesn't offer voice typing here. Please use Google Chrome or Microsoft Edge, or use your keyboard's microphone key.";
+  }
+  if (code === 'not-allowed') {
+    let state: string | undefined;
+    try { state = (await navigator.permissions?.query({ name: 'microphone' as PermissionName }))?.state; } catch { /* not supported */ }
+    if (state === 'granted') {
+      // The person allowed it, so an old copy of the site (before the microphone was permitted) is still loaded.
+      return 'The microphone is allowed, but this page is out of date. Close the app completely and open it again (or reload the page), then try once more.';
+    }
+    return 'Microphone access is turned off for this site. Tap the lock icon next to the web address, allow Microphone, then reload the page.';
+  }
+  return 'Voice typing stopped. Tap the microphone to try again.';
+}
+
 /**
  * Voice typing: speak and the words are added to the text as you go.
  * Uses the phone's or browser's own speech service (Nigerian English first).
@@ -28,13 +49,15 @@ export function useDictation(onFinalText: (text: string) => void) {
   const cb = useRef(onFinalText);
   cb.current = onFinalText;
 
+  const retryLang = useRef<string | null>(null);
+
   const stop = useCallback(() => { rec.current?.stop(); }, []);
-  const start = useCallback(() => {
+  const startWith = useCallback((lang: string) => {
     const C = Ctor();
     if (!C) return;
     setError(null);
     const r = new C();
-    r.lang = 'en-NG';
+    r.lang = lang;
     r.continuous = true;
     r.interimResults = true;
     r.onresult = (e) => {
@@ -46,14 +69,19 @@ export function useDictation(onFinalText: (text: string) => void) {
       }
       setInterim(live);
     };
-    r.onerror = (e) => setError(e.error === 'not-allowed' || e.error === 'service-not-allowed'
-      ? 'Microphone access was blocked. Allow the microphone for this site in your browser settings.'
-      : e.error === 'no-speech' ? "We didn't hear anything. Tap the microphone and speak again." : 'Voice typing stopped. Tap the microphone to try again.');
-    r.onend = () => { setListening(false); setInterim(''); rec.current = null; };
+    r.onerror = (e) => {
+      // Some phones don't offer Nigerian English: quietly try British English once.
+      if (e.error === 'language-not-supported' && lang === 'en-NG') { retryLang.current = 'en-GB'; return; }
+      void explain(e.error).then(setError);
+    };
+    r.onend = () => {
+      setListening(false); setInterim(''); rec.current = null;
+      if (retryLang.current) { const l = retryLang.current; retryLang.current = null; startWith(l); }
+    };
     rec.current = r;
-    r.start();
-    setListening(true);
+    try { r.start(); setListening(true); } catch { setError('Voice typing is busy. Wait a moment and tap the microphone again.'); }
   }, []);
+  const start = useCallback(() => startWith('en-NG'), [startWith]);
 
   useEffect(() => () => rec.current?.stop(), []);
   return { supported, listening, interim, error, start, stop };

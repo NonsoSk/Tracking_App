@@ -1,11 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, LogIn, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, LogIn, MapPin, MessageSquareText, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useMasterData, useOnline } from '@/app/hooks';
 import { Banner, Button, Field, Input, SearchInput, Stepper, ThemeSwitch, cx } from '@/design/ui';
 import { IndoramaLogo } from '@/design/brand';
-import { describeError, messageFor } from '@/lib/errors';
+import { AppError, describeError, messageFor } from '@/lib/errors';
 import { api } from '@/lib/api';
 import { normalizePhone } from '@/lib/phone';
 
@@ -117,61 +117,107 @@ export function CommunityPicker({ value, onChange }: { value: string | null; onC
 }
 
 /* ------------------------------------------------------------------ Sign up */
+type SignUpStep = 'about' | 'verify' | 'community' | 'pin';
+
 export function SignUp() {
   const { signUp } = useAuth();
   const nav = useNavigate();
   const online = useOnline();
-  const [step, setStep] = useState(0);
+  const master = useMasterData();
+  // Phone confirmation by text message is on unless the administrator switched it off.
+  const otpRequired = master.data?.settings?.phone_otp_required !== false;
+  const flow: SignUpStep[] = otpRequired ? ['about', 'verify', 'community', 'pin'] : ['about', 'community', 'pin'];
+  const labels: Record<SignUpStep, string> = { about: 'About you', verify: 'Confirm phone', community: 'Your community', pin: 'Choose a PIN' };
+  const [step, setStep] = useState<SignUpStep>('about');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | 'none' | ''>('');
+  const [gender, setGender] = useState<'male' | 'female' | ''>('');
+  const [code, setCode] = useState('');
+  const [sentTo, setSentTo] = useState<string | null>(null);      // number the last code went to
+  const [verified, setVerified] = useState<string | null>(null);  // number confirmed
+  const [resendAt, setResendAt] = useState(0);
   const [community, setCommunity] = useState<{ id: string; name: string } | null>(null);
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const steps = ['About you', 'Your community', 'Choose a PIN'];
+  const idx = Math.max(0, flow.indexOf(step));
+  const e164 = normalizePhone(phone);
 
-  const next = (e: FormEvent) => {
+  const sendCode = async () => {
+    if (!e164) return;
+    setError(null); setNotice(null); setBusy(true);
+    try {
+      await api.sendPhoneCode(e164);
+      setSentTo(e164); setCode(''); setResendAt(Date.now() + 60_000);
+      setNotice(`We sent a 6-digit code by text message to ${formatPhone(e164)}.`);
+    } catch (err) {
+      setError(describeError(err));
+    } finally { setBusy(false); }
+  };
+
+  const next = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (step === 0) {
+    if (step === 'about') {
       if (name.trim().length < 2) return setError('Please enter your full name.');
-      if (!normalizePhone(phone)) return setError('Please enter a valid phone number, e.g. 0803 123 4567.');
+      if (!e164) return setError('Please enter a valid phone number, e.g. 0803 123 4567.');
       if (!gender) return setError('Please choose your gender.');
-      return setStep(1);
+      if (!otpRequired || verified === e164) return setStep('community');
+      setStep('verify');
+      if (sentTo !== e164) await sendCode();
+      return;
     }
-    if (step === 1) {
+    if (step === 'verify') {
+      if (!/^\d{6}$/.test(code)) return setError('Please enter the 6-digit code from the text message.');
+      setBusy(true);
+      try {
+        const r = await api.verifyPhoneCode(e164!, code);
+        if (!r.ok) {
+          const msg = describeError(new AppError(r.error ?? 'otp_wrong'));
+          return setError(r.error === 'otp_wrong' && r.tries_left != null ? `${msg} ${r.tries_left} ${r.tries_left === 1 ? 'try' : 'tries'} left.` : msg);
+        }
+        setVerified(e164); setNotice(null); setStep('community');
+      } catch (err) { setError(describeError(err)); } finally { setBusy(false); }
+      return;
+    }
+    if (step === 'community') {
       if (!community) return setError('Please choose your community.');
-      return setStep(2);
+      return setStep('pin');
     }
     if (pin.length !== 6) return setError('Your PIN must be 6 digits.');
     if (pin !== pin2) return setError("The two PINs don't match.");
     setBusy(true);
-    signUp({ fullName: name, phone, communityId: community!.id, pin, gender: gender === 'none' ? null : gender || null })
+    signUp({ fullName: name, phone, communityId: community!.id, pin, gender: gender || null })
       .then(() => nav('/', { replace: true }))
       .catch((err) => setError(describeError(err)))
       .finally(() => setBusy(false));
   };
 
+  const back = () => {
+    setError(null); setNotice(null);
+    setStep(flow[Math.max(0, idx - 1)] === 'verify' && verified === e164 ? 'about' : flow[Math.max(0, idx - 1)]);
+  };
+
   return (
-    <AuthLayout back={step === 0 ? '/welcome' : undefined}>
+    <AuthLayout back={step === 'about' ? '/welcome' : undefined}>
       <form onSubmit={next} className="flex flex-1 flex-col gap-6" noValidate>
         <div>
           <h1 className="text-2xl font-bold">Create your account</h1>
-          <div className="mt-4"><Stepper steps={steps} current={step} /></div>
+          <div className="mt-4"><Stepper steps={flow.map((f) => labels[f])} current={idx} /></div>
         </div>
-        {step === 0 && (
+        {step === 'about' && (
           <div className="space-y-5 animate-fade-up">
             <Field label="Full name" htmlFor="name"><Input id="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
-            <Field label="Phone number" htmlFor="phone" hint="We'll use it to let you know when your grievance is resolved.">
+            <Field label="Phone number" htmlFor="phone" hint={otpRequired ? "We'll text you a code to confirm it's your number." : "We'll use it to let you know when your grievance is resolved."}>
               <div className="relative"><Phone className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" aria-hidden />
                 <Input id="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0803 123 4567" className="pl-12" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
             </Field>
             <fieldset>
               <legend className="mb-1.5 block font-bold text-ink-900">Gender</legend>
-              <div className="grid grid-cols-3 gap-2" role="radiogroup">
-                {([['female', 'Female'], ['male', 'Male'], ['none', 'Prefer not to say']] as const).map(([v, l]) => (
+              <div className="grid grid-cols-2 gap-2" role="radiogroup">
+                {([['male', 'Male'], ['female', 'Female']] as const).map(([v, l]) => (
                   <button key={v} type="button" role="radio" aria-checked={gender === v} onClick={() => setGender(v)}
                     className={cx('min-h-12 rounded-2xl px-2 py-2 text-[15px] font-bold transition-colors', gender === v ? 'bg-btn text-white shadow-halo' : 'bg-surface text-ink-700 shadow-card')}>{l}</button>
                 ))}
@@ -179,26 +225,59 @@ export function SignUp() {
             </fieldset>
           </div>
         )}
-        {step === 1 && <div className="animate-fade-up"><p className="mb-3 text-ink-700">Which community do you live in?</p><CommunityPicker value={community?.id ?? null} onChange={(id, n) => setCommunity({ id, name: n })} /></div>}
-        {step === 2 && (
+        {step === 'verify' && (
+          <div className="space-y-5 animate-fade-up">
+            <p className="flex items-start gap-2 text-ink-700"><MessageSquareText className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" aria-hidden />
+              <span>Enter the 6-digit code we sent by text message to <strong className="text-ink-900">{e164 ? formatPhone(e164) : phone}</strong>.</span></p>
+            <Field label="Code" htmlFor="otp">
+              <Input id="otp" value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus placeholder="••••••"
+                className="h-14 text-center text-2xl tracking-[.5em]" onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+            </Field>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[15px]">
+              <ResendButton at={resendAt} busy={busy} onResend={sendCode} />
+              <button type="button" className="font-semibold text-brand-700 underline-offset-2 hover:underline" onClick={() => { setError(null); setNotice(null); setStep('about'); }}>Change number</button>
+            </div>
+          </div>
+        )}
+        {step === 'community' && <div className="animate-fade-up"><p className="mb-3 text-ink-700">Which community do you live in?</p><CommunityPicker value={community?.id ?? null} onChange={(id, n) => setCommunity({ id, name: n })} /></div>}
+        {step === 'pin' && (
           <div className="space-y-5 animate-fade-up">
             <p className="flex items-start gap-2 text-ink-700"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" aria-hidden />Choose a 6-digit PIN. You'll use it with your phone number to sign in. Don't share it.</p>
             <Field label="PIN" htmlFor="pin"><PinInput id="pin" value={pin} onChange={setPin} autoFocus /></Field>
             <Field label="Type the PIN again" htmlFor="pin2"><PinInput id="pin2" value={pin2} onChange={setPin2} /></Field>
           </div>
         )}
+        {notice && !error && <Banner tone="info">{notice}</Banner>}
         {error && <Banner tone="warning">{error}</Banner>}
         {!online && <Banner tone="warning">You're offline. Creating an account needs a connection.</Banner>}
         <div className="mt-auto flex gap-3">
-          {step > 0 && <Button type="button" variant="secondary" size="lg" className="!w-auto" onClick={() => { setError(null); setStep(step - 1); }} icon={ArrowLeft}><span className="sr-only">Back</span></Button>}
-          <Button type="submit" size="lg" loading={busy} iconRight={step < 2 ? ArrowRight : undefined} disabled={step === 2 && !online}>
-            {step < 2 ? 'Continue' : 'Create account'}
+          {idx > 0 && <Button type="button" variant="secondary" size="lg" className="!w-auto" onClick={back} icon={ArrowLeft}><span className="sr-only">Back</span></Button>}
+          <Button type="submit" size="lg" loading={busy} iconRight={step !== 'pin' ? ArrowRight : undefined} disabled={!online && (step === 'pin' || step === 'verify')}>
+            {step === 'pin' ? 'Create account' : step === 'verify' ? 'Confirm' : 'Continue'}
           </Button>
         </div>
         <p className="text-center text-ink-500">Already have an account? <Link to="/signin" className="font-semibold text-brand-700 underline-offset-2 hover:underline">Sign in</Link></p>
       </form>
     </AuthLayout>
   );
+}
+
+function formatPhone(e164: string) {
+  const d = '0' + e164.slice(4);
+  return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
+}
+
+/** "Send a new code", available a minute after the last one. */
+function ResendButton({ at, busy, onResend }: { at: number; busy: boolean; onResend: () => void }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (at <= now) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [at, now]);
+  const wait = Math.ceil((at - now) / 1000);
+  if (wait > 0) return <span className="text-ink-500">Send a new code in {wait}s</span>;
+  return <button type="button" disabled={busy} onClick={onResend} className="font-semibold text-brand-700 underline-offset-2 hover:underline disabled:opacity-50">Send a new code</button>;
 }
 
 /* ------------------------------------------------------------------ Sign in */

@@ -121,7 +121,8 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
    [`06-update-2026-09-26.sql`](supabase/setup/06-update-2026-09-26.sql), then
    [`07-update-2026-09-27.sql`](supabase/setup/07-update-2026-09-27.sql), then
    [`08-update-2026-09-28.sql`](supabase/setup/08-update-2026-09-28.sql), then
-   [`09-update-2026-09-29.sql`](supabase/setup/09-update-2026-09-29.sql).
+   [`09-update-2026-09-29.sql`](supabase/setup/09-update-2026-09-29.sql), then
+   [`10-update-2026-09-30.sql`](supabase/setup/10-update-2026-09-30.sql).
 2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
    [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
 3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and
@@ -145,6 +146,28 @@ their own password. Two Supabase settings are needed:
    Brevo, Resend). Supabase's built-in sender only delivers to members of your Supabase team and only a few emails
    per hour. Optionally edit the **Magic Link** email template text under **Authentication → Emails → Templates**.
 
+### Confirming phone numbers at registration (text-message code)
+
+New community members enter a 6-digit code texted to their phone before they can finish registering. Each number
+can have only one account, and a made-up number cannot receive the code. Codes last 10 minutes and allow 5 tries;
+a number can get one code a minute and five a day. The texts are sent by the Edge Function
+`supabase/functions/phone-otp`, so the SMS key stays on the server:
+
+1. Supabase → **Edge Functions → Deploy a new function → Via editor**, name it `phone-otp`, paste
+   `supabase/functions/phone-otp/index.ts`, **Deploy**. Then open the function's **Details** and turn **off**
+   **Enforce JWT verification** (people are not signed in yet while registering).
+2. Supabase → **Edge Functions → Secrets**, for one SMS provider:
+   - **Termii** (Nigeria): `TERMII_API_KEY` and `TERMII_SENDER_ID` (an approved sender ID from the Termii dashboard;
+     if your account uses a different API address, also `TERMII_BASE_URL`).
+   - **Twilio**: `SMS_PROVIDER` = `twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`.
+
+Until a provider is set up, registration says text messages are not available yet. To let people register without
+a code in the meantime, switch off **Settings → Confirm phone numbers by text-message code at registration** in the app (switch it back on
+once texts work).
+
+Officers see the complainant's full details on each grievance: full name, gender, phone (marked **confirmed** when
+it was checked by code), community, email, address, member since and how many grievances they have raised.
+
 ### Voice and "Correct wording" for officers
 
 In **Resolve**, officers can tap **Speak** (voice typing through the browser's speech service; Chrome, Edge or Safari)
@@ -157,6 +180,9 @@ chooses **Use this** or **Keep mine**; nothing is replaced silently. The rewordi
 2. Supabase → **Edge Functions → Secrets** → add `ANTHROPIC_API_KEY` (from console.anthropic.com → API keys).
 
 Until then, **Correct wording** does a basic offline clean-up (fillers, repeated words, capitals, punctuation).
+
+The site allows the microphone for itself (`Permissions-Policy` in [`netlify.toml`](netlify.toml)). After a deploy
+that changes this, close the app fully and open it again (or reload) so the phone picks up the new setting.
 
 ### Accepting a resolution
 

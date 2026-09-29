@@ -31,10 +31,12 @@ begin
   update public.profiles set job_title = 'Officer in Charge · Jetty' where id = v;
   insert into public.officer_scopes (officer_id, community_type_id) select v, id from public.community_types where code = 'JETTY';
 
-  -- Community member: phone 0803 123 4567 / PIN 123456
+  -- Community member: phone 0803 123 4567 / PIN 123456 (number already confirmed by text message)
+  insert into public.phone_verifications (phone, code_hash, expires_at, verified_at)
+  values ('+2348031234567', 'seed', now() + interval '10 minutes', now());
   insert into auth.users (email, raw_user_meta_data, encrypted_password)
   values ('2348031234567@members.iplgrievance.app',
-          jsonb_build_object('full_name','Emmanuel Nwala','phone','+2348031234567','community_id',(select id from public.communities where name='Agbonchia')),
+          jsonb_build_object('full_name','Emmanuel Nwala','phone','+2348031234567','gender','male','community_id',(select id from public.communities where name='Agbonchia')),
           extensions.crypt('123456', extensions.gen_salt('bf')));
 
   -- An open collection window for Agbonchia (so the member flow can be tried).

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Archive, ArrowLeft, ArrowRightLeft, CheckCircle2, ClipboardCheck, FileSpreadsheet, Flag, History, Lock,
+  Archive, ArrowLeft, BadgeCheck, ArrowRightLeft, CheckCircle2, ClipboardCheck, FileSpreadsheet, Flag, History, Lock,
   MessageSquare, MessageSquarePlus, Phone, Send, ShieldAlert, Trash2, UserRound, Wrench,
 } from 'lucide-react';
 import { useAuth } from '@/app/auth';
@@ -101,18 +101,7 @@ function WorkspaceView({ g }: { g: StaffDetail }) {
 
         <aside className="space-y-5">
           {!closed && !g.archived_at && <ActionPanel g={g} />}
-          <Card className="p-5">
-            <SectionTitle icon={<UserRound className="h-5 w-5 text-ink-500" />}>Complainant</SectionTitle>
-            {!canContact && <p className="mb-2 rounded-xl bg-sunken px-3 py-2 text-sm text-ink-700">To protect community members, their name and contact details are shown only to Community Relations staff.</p>}
-            <dl className="space-y-2 text-[15px]">
-              {canContact && <Row label="Name">{g.complainant_name ?? <span className="text-ink-400">Not recorded</span>}</Row>}
-              {canContact && g.complainant_phone && <Row label="Phone"><a className="inline-flex items-center gap-1 font-semibold text-brand-700" href={`tel:${g.complainant_phone}`}><Phone className="h-4 w-4" />{formatPhone(g.complainant_phone)}</a></Row>}
-              {g.complainant_gender && <Row label="Gender"><span className="capitalize">{g.complainant_gender}</span></Row>}
-              {canContact && g.complainant_email && <Row label="Email">{g.complainant_email}</Row>}
-              {canContact && g.complainant_address && <Row label="Address">{g.complainant_address}</Row>}
-              <Row label="Channel">{originLabel(g.origin)}</Row>
-            </dl>
-          </Card>
+          <ComplainantCard g={g} canContact={canContact} />
           <Card className="p-5">
             <SectionTitle>Details</SectionTitle>
             <dl className="space-y-2 text-[15px]">
@@ -460,6 +449,53 @@ function SectionTitle({ children, icon }: { children: ReactNode; icon?: ReactNod
 function Block({ label, children }: { label: string; children: ReactNode }) {
   return <div className="mt-4"><p className="text-sm font-semibold text-ink-500">{label}</p><p className="mt-0.5 whitespace-pre-wrap">{children}</p></div>;
 }
+/** Everything staff need to know about the person who raised the grievance. */
+function ComplainantCard({ g, canContact }: { g: StaffDetail; canContact: boolean }) {
+  const q = useQuery({
+    queryKey: ['complainant', g.id],
+    queryFn: () => api.complainantDetails(g.id),
+    enabled: canContact && !!g.complainant_user_id,
+    staleTime: 60_000,
+  });
+  const p = q.data;
+  const none = <span className="text-ink-400">Not recorded</span>;
+  const phone = g.complainant_phone ?? p?.phone ?? null;
+  const gender = g.complainant_gender ?? p?.gender ?? null;
+  return (
+    <Card className="p-5">
+      <SectionTitle icon={<UserRound className="h-5 w-5 text-ink-500" />}>Complainant</SectionTitle>
+      {!canContact && <p className="mb-2 rounded-xl bg-sunken px-3 py-2 text-sm text-ink-700">To protect community members, their name and contact details are shown only to Community Relations staff.</p>}
+      <dl className="space-y-2 text-[15px]">
+        {canContact && <Row label="Full name">{g.complainant_name ?? p?.full_name ?? none}</Row>}
+        <Row label="Gender">{gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : none}</Row>
+        {canContact && (
+          <Row label="Phone">
+            {phone ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2">
+                <a className="inline-flex items-center gap-1 font-semibold text-brand-700" href={`tel:${phone}`}><Phone className="h-4 w-4" />{formatPhone(phone)}</a>
+                {p?.phone_verified && <span className="inline-flex items-center gap-0.5 text-sm text-success-700"><BadgeCheck className="h-4 w-4" aria-hidden />confirmed</span>}
+              </span>
+            ) : none}
+          </Row>
+        )}
+        <Row label="Community">{g.community_name ?? none}</Row>
+        {p?.home_community && p.home_community !== g.community_name && <Row label="Lives in">{p.home_community}</Row>}
+        {canContact && <Row label="Email">{g.complainant_email ?? p?.email ?? none}</Row>}
+        {canContact && <Row label="Address">{g.complainant_address ?? p?.address ?? none}</Row>}
+        <Row label="Channel">{originLabel(g.origin)}</Row>
+        {canContact && (g.complainant_user_id ? (
+          q.isLoading ? <Skeleton className="h-10" /> : p ? (
+            <>
+              <Row label="Member since">{formatDate(p.member_since)}</Row>
+              <Row label="Grievances">{p.grievances_total} in total{p.grievances_open > 0 && `, ${p.grievances_open} open`}</Row>
+            </>
+          ) : null
+        ) : <Row label="Account">{g.is_legacy ? 'Historical record (no app account)' : 'No app account (entered by staff)'}</Row>)}
+      </dl>
+    </Card>
+  );
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return <div className="flex gap-3"><dt className="w-28 shrink-0 text-ink-500">{label}</dt><dd className="min-w-0 flex-1 break-words">{children}</dd></div>;
 }

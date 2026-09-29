@@ -3,6 +3,8 @@
 // can run and be tested end-to-end against a local Postgres without Docker:
 //   /auth/v1/signup, /auth/v1/token (password, refresh_token), /auth/v1/user (GET, PUT), /auth/v1/otp, /auth/v1/logout
 //   /dev/last-link?email=   (the last sign-in link "emailed"; for tests)
+//   /functions/v1/phone-otp (send/verify a registration code; the "text" is kept, not sent)
+//   /dev/last-otp?phone=    (the last code "texted"; for tests)
 //   /rest/v1/rpc/<function>   (PostgREST-style RPC, executed as the caller's role)
 //   /rest/v1/<table>          (select/insert/update/delete with eq filters)
 // Every request runs in a transaction with request.jwt.claims + SET ROLE, the
@@ -19,6 +21,8 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgr
 const refreshTokens = new Map();
 /** Sign-in links "emailed" by /auth/v1/otp, kept so tests can open them (DEV ONLY). */
 const sentLinks = new Map();
+/** Registration codes "texted" by the phone-otp stand-in (DEV ONLY). */
+const sentCodes = new Map();
 
 // ---------------------------------------------------------------- JWT (HS256)
 const b64u = (b) => Buffer.from(b).toString('base64url');
@@ -123,11 +127,17 @@ async function handle(req, res) {
     }
     const exists = await pool.query('select 1 from auth.users where email = $1', [b.email?.toLowerCase()]);
     if (exists.rowCount) return send(res, 422, { code: 422, error_code: 'user_already_exists', msg: 'User already registered' });
-    const { rows } = await pool.query(
-      `insert into auth.users (email, raw_user_meta_data, encrypted_password)
-       values ($1, $2, extensions.crypt($3, extensions.gen_salt('bf'))) returning *`,
-      [b.email?.toLowerCase(), b.data ?? {}, b.password]);
-    return send(res, 200, session(rows[0]));
+    try {
+      const { rows } = await pool.query(
+        `insert into auth.users (email, raw_user_meta_data, encrypted_password)
+         values ($1, $2, extensions.crypt($3, extensions.gen_salt('bf'))) returning *`,
+        [b.email?.toLowerCase(), b.data ?? {}, b.password]);
+      return send(res, 200, session(rows[0]));
+    } catch (e) {
+      // Like GoTrue: a database trigger refusing the account gives a generic error.
+      console.error('[signup]', e.message);
+      return send(res, 500, { code: 500, error_code: 'unexpected_failure', msg: 'Database error saving new user' });
+    }
   }
   if (path === '/auth/v1/token' && req.method === 'POST') {
     const b = await readBody(req);
@@ -162,6 +172,32 @@ async function handle(req, res) {
     const redirect = url.searchParams.get('redirect_to') ?? 'http://localhost:4173/';
     sentLinks.set(email, `${redirect}#access_token=${s.access_token}&expires_in=3600&refresh_token=${s.refresh_token}&token_type=bearer&type=magiclink`);
     return send(res, 200, {});
+  }
+  // Stand-in for the phone-otp Edge Function: same database functions, no real text message.
+  if (path === '/functions/v1/phone-otp' && req.method === 'POST') {
+    const b = await readBody(req);
+    const svc = { role: 'service_role' };
+    try {
+      if (b.action === 'send') {
+        const r = await asRole(svc, (c) => c.query('select public.otp_request($1, $2) as r', [b.phone ?? '', req.socket.remoteAddress ?? null]));
+        const { phone, code } = r.rows[0].r;
+        sentCodes.set(phone, code);
+        return send(res, 200, { sent: true, phone });
+      }
+      if (b.action === 'verify') {
+        const r = await asRole(svc, (c) => c.query('select public.otp_verify($1, $2) as r', [b.phone ?? '', b.code ?? '']));
+        return send(res, 200, r.rows[0].r);
+      }
+      return send(res, 400, { error: 'action_invalid' });
+    } catch (e) {
+      const key = ['phone_invalid', 'account_exists', 'otp_too_soon', 'otp_limit'].find((k) => e.message.includes(k));
+      if (!key) console.error('[otp]', e.message);
+      return send(res, key ? 400 : 500, { error: key ?? 'otp_failed' });
+    }
+  }
+  if (path === '/dev/last-otp') {
+    const code = sentCodes.get(String(url.searchParams.get('phone') ?? '').trim().replace(/^ /, '+'));
+    return code ? send(res, 200, { code }) : send(res, 404, { msg: 'no code sent' });
   }
   if (path === '/dev/last-link') {
     const link = sentLinks.get(String(url.searchParams.get('email') ?? '').toLowerCase());
