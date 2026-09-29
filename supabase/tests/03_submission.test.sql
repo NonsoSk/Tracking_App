@@ -50,7 +50,7 @@ create temp table s1 as select public.submit_grievance(jsonb_build_object(
   'description', 'The road to the market has been flooded since June.',
   'desired_resolution', 'Please repair the drainage.')) as r;
 select is((select r ->> 'result' from s1), 'created', 'grievance created');
-select matches((select r ->> 'tracking_id' from s1), '^IPL-GRV-2026-[0-9]{6}$', 'tracking ID format IPL-GRV-2026-NNNNNN');
+select matches((select r ->> 'tracking_id' from s1), '^HC-2026-[0-9]{4}$', 'a Host community grievance gets an HC- ID (HC-2026-NNNN)');
 
 -- Retry of the same device submission (e.g. after a dropped connection).
 create temp table s2 as select public.submit_grievance(jsonb_build_object(

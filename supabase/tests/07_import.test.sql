@@ -53,7 +53,7 @@ select is((select category_name from imp where source_sheet = '2019'),
           'Corporate Social Responsibility (CSR) & Community Engagement', '"CSR Project" -> standard CSR category');
 select is((select legacy_category from imp where source_sheet = '2019'), 'CSR Project', '... original category preserved');
 select is((select date_received_precision from imp where source_sheet = '2019'), 'month', '"Apr 2019" keeps month precision');
-select matches((select tracking_id from imp where source_sheet = '2019'), '^IPL-GRV-2019-H[0-9]{5}$', 'historical tracking ID IPL-GRV-2019-Hnnnnn');
+select matches((select tracking_id from imp where source_sheet = '2019'), '^HC-2019-[0-9]{4}$', 'historical Host grievance ID HC-2019-NNNN (year received)');
 select is((select status_code || '/' || ack_state from imp where source_sheet = '2019'), 'CLOSED/not_captured',
   'closed, with acknowledgement marked "not captured" (not assumed)');
 select is((select count(*)::int from public.grievance_comments c join imp on imp.id = c.grievance_id where imp.source_sheet = '2019'

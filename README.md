@@ -110,6 +110,24 @@ PGHOST=… PGUSER=postgres python3 import_workbooks.py --complete … --tracker 
 
 Import after the officer accounts and scopes exist, so open items are assigned. To undo, run `select app.rollback_legacy_batch('<batch id>')`.
 
+**One combined workbook** (sheets `2018`–`2025` plus the tracker as sheet `2026`):
+
+```bash
+python3 import_workbooks.py --total "<Total Grievance>.xlsx" \
+    --previous-complete "<Complete…>.xlsx" --previous-tracker "<…2026.1>.xlsx"
+```
+
+Each row is matched to the same row of the files imported before. The run stops if any row is new, missing, or
+classified differently, or if a field it cannot update has changed. The generated SQL
+(`app.import_or_update_legacy`) updates the grievances already imported: status, resolution, name, sub-category
+and complaint wording. A change is applied only if the grievance still has the value from the first import.
+Anything changed in the app since then is left alone and flagged for review. On a project without the earlier
+import, the same SQL does a normal import.
+
+**Tracking IDs** show the community type: `HC-` Host, `PC-` Pipeline, `IC-` Indirectly impacted, `JC-` Jetty,
+`GC-` no community recorded. They are numbered per type and year (e.g. `HC-2026-0001`, oldest first). Older IDs
+(`IPL-GRV-…`) are kept as `former_tracking_id` and still find the grievance.
+
 The source workbooks contain complainant names and phone numbers. **Do not commit them.** `.gitignore` blocks `*.xlsx`, `*.csv` and `audit-output/`.
 
 ## Quick setup on Supabase (no command line)
@@ -122,7 +140,8 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
    [`07-update-2026-09-27.sql`](supabase/setup/07-update-2026-09-27.sql), then
    [`08-update-2026-09-28.sql`](supabase/setup/08-update-2026-09-28.sql), then
    [`09-update-2026-09-29.sql`](supabase/setup/09-update-2026-09-29.sql), then
-   [`10-update-2026-09-30.sql`](supabase/setup/10-update-2026-09-30.sql).
+   [`10-update-2026-09-30.sql`](supabase/setup/10-update-2026-09-30.sql), then
+   [`11-update-2026-10-01.sql`](supabase/setup/11-update-2026-10-01.sql).
 2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
    [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
 3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and

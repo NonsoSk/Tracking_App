@@ -23,7 +23,7 @@ test('offline: grievance is saved on the phone, then submitted exactly once when
   await expect(page.getByText('Not yet received by IPL')).toBeVisible();
 
   await context.setOffline(false);
-  await expect(page.getByTestId('tracking-id')).toHaveText(/^IPL-GRV-\d{4}-\d{6}$/, { timeout: 30_000 });
+  await expect(page.getByTestId('tracking-id')).toHaveText(/^HC-\d{4}-\d{4}$/, { timeout: 30_000 });
   const tid = await page.getByTestId('tracking-id').textContent();
 
   // Exactly one grievance reached the server.

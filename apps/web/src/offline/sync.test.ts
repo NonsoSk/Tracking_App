@@ -17,7 +17,7 @@ function fakeServer() {
       calls.push(p);
       const existing = store.get(p.client_submission_id);
       if (existing) return { ...existing, result: 'already_submitted' };
-      const r: SubmitResult = { id: `g${++seq}`, tracking_id: `IPL-GRV-2026-${String(seq).padStart(6, '0')}`, submitted_at: new Date().toISOString(), result: 'created' };
+      const r: SubmitResult = { id: `g${++seq}`, tracking_id: `HC-2026-${String(seq).padStart(4, '0')}`, submitted_at: new Date().toISOString(), result: 'created' };
       store.set(p.client_submission_id, r);
       return r;
     },
@@ -41,7 +41,7 @@ describe('outbox sync', () => {
     expect(await syncOutbox(USER, { submit: server.submit })).toBe(1);
     const item = await db.outbox.get('a');
     expect(item?.state).toBe('synced');
-    expect(item?.trackingId).toBe('IPL-GRV-2026-000001');
+    expect(item?.trackingId).toBe('HC-2026-0001');
     expect(server.calls[0].client_submission_id).toBe('a');
   });
 
@@ -69,7 +69,7 @@ describe('outbox sync', () => {
     await syncOutbox(USER, { submit: lostReply });
     await syncOutbox(USER, { submit: server.submit, force: true });
     expect(server.store.size).toBe(1);
-    expect((await db.outbox.get('c'))?.trackingId).toBe('IPL-GRV-2026-000001');
+    expect((await db.outbox.get('c'))?.trackingId).toBe('HC-2026-0001');
   });
 
   it('a permanent error (expired code) stops retrying and keeps the text; a new code can be used', async () => {

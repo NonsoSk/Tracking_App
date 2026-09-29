@@ -82,8 +82,8 @@ export function Track() {
   return (
     <form onSubmit={submit} className="space-y-5 animate-fade-up">
       <PageHeader title="Track a grievance" back="/" />
-      <Field label="Tracking ID" htmlFor="tid" hint="It looks like IPL-GRV-2026-000123. Older paper forms have IDs like IPL20261391F.">
-        <Input id="tid" autoFocus autoCapitalize="characters" className="font-mono uppercase" value={id} onChange={(e) => setId(e.target.value.toUpperCase())} placeholder="IPL-GRV-2026-000123" />
+      <Field label="Tracking ID" htmlFor="tid" hint="It looks like HC-2026-0123 (HC Host, PC Pipeline, IC Indirectly impacted, JC Jetty). Older IDs such as IPL-GRV-2026-000123 or IPL20261391F still work.">
+        <Input id="tid" autoFocus autoCapitalize="characters" className="font-mono uppercase" value={id} onChange={(e) => setId(e.target.value.toUpperCase())} placeholder="HC-2026-0123" />
       </Field>
       {error && <Banner tone="warning">{error}</Banner>}
       <Button size="lg" icon={Search} loading={busy} disabled={id.trim().length < 5}>Find grievance</Button>

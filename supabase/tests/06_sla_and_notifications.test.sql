@@ -44,7 +44,7 @@ update public.grievances set legacy_needs_review = true where id = (select id fr
 select is(app.scan_overdue(), 1, 'overdue scan flags exactly the late grievance (legacy item awaiting review is excluded)');
 select is((select count(*)::int from public.notifications where type = 'grievance_overdue'
              and user_id = (select v from ids where k = 'officer')), 1, 'the responsible officer receives an overdue alert');
-select ok((select body like 'Grievance IPL-GRV-%unresolved for % working days. Community: Aleto.%' from public.notifications
+select ok((select body like 'Grievance HC-%unresolved for % working days. Community: Aleto.%' from public.notifications
            where type = 'grievance_overdue'), 'alert says which grievance, how long, and where');
 select is(app.scan_overdue(), 0, 'no repeat alert within the re-alert interval');
 update public.grievances set last_overdue_alert_at = now() - interval '25 hours' where id = (select id from g where k = 'late');

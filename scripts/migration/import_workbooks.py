@@ -27,8 +27,11 @@ import json
 import re
 import secrets
 import subprocess
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+import openpyxl
 
 from audit_workbooks import COMPLETE_SHEETS, TRACKER_SHEET, is_blank, key, read_sheet
 
@@ -74,10 +77,22 @@ def raw_row(rec: dict) -> dict:
     return out
 
 
-def build_records(complete: Path, tracker: Path) -> list[dict]:
+COMPLETE_LABEL = "Complete Grievance Tracker (2018-2026)"
+TRACKER_LABEL = "Indorama Grievance Tracker 2026.1"
+TOTAL_LABEL = "Total Grievance (2018-2026)"
+TOTAL_TRACKER_SHEET = "2026"
+
+
+def build_records(complete: Path, tracker: Path, total: bool = False) -> list[dict]:
+    """total=True: one workbook holding the 2018-2025 sheets plus the tracker as sheet '2026'."""
     recs: list[dict] = []
+    a_label, b_label = (TOTAL_LABEL, TOTAL_LABEL) if total else (COMPLETE_LABEL, TRACKER_LABEL)
+    b_sheet = TOTAL_TRACKER_SHEET if total else TRACKER_SHEET
+    present = set(openpyxl.load_workbook(complete, read_only=True).sheetnames)
 
     for sheet in COMPLETE_SHEETS:
+        if total and sheet not in present:
+            continue
         df, _ = read_sheet(complete, sheet, "Complete 2018-2026")
         for rec in df.to_dict("records"):
             old = sheet in OLD_ERA
@@ -104,11 +119,11 @@ def build_records(complete: Path, tracker: Path) -> list[dict]:
             f["community"] = clean(rec.get("Community"))
             f["category"] = clean(rec.get("Grievance Category"))
             f["status"] = clean(rec.get("Status"))
-            recs.append(dict(key=f"A:{sheet}:{rec['_row']}", workbook="Complete Grievance Tracker (2018-2026)",
+            recs.append(dict(key=f"A:{sheet}:{rec['_row']}", workbook=a_label,
                              sheet=sheet, row=rec["_row"], serial=clean(rec.get("S/N")), raw=raw_row(rec),
                              fields=f, role="primary", flags=[]))
 
-    df, _ = read_sheet(tracker, TRACKER_SHEET, "Tracker 2026.1")
+    df, _ = read_sheet(tracker, b_sheet, "Tracker 2026.1")
     for rec in df.to_dict("records"):
         f = {"source_year": int(rec["Year"]) if not is_blank(rec.get("Year")) else None,
              "legacy_tracking_id": clean(rec.get("Tracking ID")),
@@ -126,8 +141,8 @@ def build_records(complete: Path, tracker: Path) -> list[dict]:
         f["submitted_date"], _ = parse_date(rec.get("Date of Submission"), False)
         f["date_received"], f["date_received_precision"] = f["submitted_date"], "day"
         f["closure_date"], _ = parse_date(rec.get("Date of Closure"), False)
-        recs.append(dict(key=f"B:{rec['_row']}", workbook="Indorama Grievance Tracker 2026.1",
-                         sheet=TRACKER_SHEET, row=rec["_row"], serial=clean(rec.get("S/N")), raw=raw_row(rec),
+        recs.append(dict(key=f"B:{rec['_row']}", workbook=b_label,
+                         sheet=b_sheet, row=rec["_row"], serial=clean(rec.get("S/N")), raw=raw_row(rec),
                          fields=f, role="primary", flags=[]))
     return recs
 
@@ -255,27 +270,124 @@ def report(recs: list[dict], out: Path) -> str:
     return text
 
 
+# Changes the update can apply to grievances already imported (anything else stops the run).
+UPDATABLE = {"status": "status", "resolution_details": "resolution_details", "name": "name",
+             "description": "description", "subcategory": "subcategory"}
+APPLY_ORDER = ["status", "resolution_details", "subcategory", "name", "description"]
+
+
+def effective(f: dict, field: str):
+    return (f.get("status_override") or f.get("status")) if field == "status" else f.get(field)
+
+
+def pair_with_previous(new: list[dict], old: list[dict]) -> list[str]:
+    """Match each row of the total workbook to the same row of the earlier files and list what changed.
+
+    Returns a list of problems; the run stops if there are any."""
+    problems: list[str] = []
+    old_by_pos = {(("A", r["sheet"]) if r["key"].startswith("A:") else ("B", None), r["row"]): r for r in old}
+    seen = set()
+    for r in new:
+        pos = (("A", r["sheet"]) if r["key"].startswith("A:") else ("B", None), r["row"])
+        o = old_by_pos.get(pos)
+        if o is None:
+            problems.append(f"{r['sheet']} row {r['row']} is not in the earlier files (a new record)")
+            continue
+        seen.add(pos)
+        r["prev"] = {"workbook": o["workbook"], "sheet": o["sheet"], "row": o["row"]}
+        if o["role"] != r["role"]:
+            problems.append(f"{r['sheet']} row {r['row']}: classified {r['role']} now, {o['role']} before")
+        changes = []
+        for field in sorted(set(o["fields"]) | set(r["fields"])):
+            if field in ("status_override",):
+                continue
+            before, after = effective(o["fields"], field), effective(r["fields"], field)
+            if before == after:
+                continue
+            if field not in UPDATABLE:
+                problems.append(f"{r['sheet']} row {r['row']}: '{field}' changed ({before!r} -> {after!r}); not supported")
+                continue
+            changes.append({"field": field, "old": before, "new": after})
+        if changes and r["role"] == "primary":
+            extra = {"closure_officer": r["fields"].get("closure_officer"),
+                     "old_closure_officer": o["fields"].get("closure_officer")}
+            r["changes"] = [dict(c, **extra) for c in sorted(changes, key=lambda c: APPLY_ORDER.index(c["field"]))]
+        elif changes:
+            r["note"] = ((r.get("note") or "") + "; values changed in the source row (kept as source only)").lstrip("; ")
+            # A copy was edited but its primary row was not: ask an officer rather than choose.
+            primary = next((x for x in new if x["key"] == r.get("link_key")), None)
+            if primary is not None:
+                primary.setdefault("review", []).append({"row": r["row"], "sheet": r["sheet"], "changes": changes})
+    for pos, o in old_by_pos.items():
+        if pos not in seen:
+            problems.append(f"{o['sheet']} row {o['row']} of the earlier files is missing from the new workbook")
+    return problems
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--complete", required=True, type=Path)
-    ap.add_argument("--tracker", required=True, type=Path)
+    ap.add_argument("--complete", type=Path)
+    ap.add_argument("--tracker", type=Path)
+    ap.add_argument("--total", type=Path, help="one workbook with sheets 2018-2025 and the tracker as '2026'")
+    ap.add_argument("--previous-complete", type=Path, help="with --total: the Complete workbook imported before")
+    ap.add_argument("--previous-tracker", type=Path, help="with --total: the tracker imported before")
     ap.add_argument("--out", default=Path("audit-output"), type=Path)
     ap.add_argument("--apply", action="store_true", help="run the batch with psql (PG* environment variables)")
     a = ap.parse_args()
     a.out.mkdir(exist_ok=True)
 
-    recs = build_records(a.complete, a.tracker)
+    if a.total:
+        recs = build_records(a.total, a.total, total=True)
+        files = [a.total]
+    else:
+        if not (a.complete and a.tracker):
+            ap.error("give --complete and --tracker, or --total")
+        recs = build_records(a.complete, a.tracker)
+        files = [a.complete, a.tracker]
     reconcile(recs)
     print(report(recs, a.out))
 
-    sha = hashlib.sha256(a.complete.read_bytes() + a.tracker.read_bytes()).hexdigest()
-    batch = {"file_name": f"{a.complete.name} + {a.tracker.name}", "file_sha256": sha,
-             "workbook": "Historical trackers 2018-2026",
+    fn = "app.import_legacy_batch"
+    if a.total and a.previous_complete and a.previous_tracker:
+        old = build_records(a.previous_complete, a.previous_tracker)
+        reconcile(old)
+        problems = pair_with_previous(recs, old)
+        if problems:
+            print("STOPPED: the new workbook does not line up with the earlier import:")
+            print("\n".join("  - " + p for p in problems))
+            sys.exit(1)
+        changed = [r for r in recs if r.get("changes")]
+        reviews = [r for r in recs if r.get("review")]
+        lines = ["", "## Changes since the earlier import", "",
+                 f"Rows compared: **{len(recs)}** (all matched) · grievances with changes: **{len(changed)}**", "",
+                 "| Sheet | Row | Change |", "|---|---|---|"]
+        for r in changed:
+            for c in r["changes"]:
+                shown = (lambda v: "blank" if v is None else (v if c["field"] == "status" else f"{len(v)} characters"))
+                lines.append(f"| {r['sheet']} | {r['row']} | {c['field']}: {shown(c['old'])} → {shown(c['new'])} |")
+        if reviews:
+            lines += ["", "Copies edited while their primary row was not (the grievance is flagged for review):", ""]
+            lines += [f"- {r['sheet']} row {r['row']}: copies in rows " + ", ".join(str(v["row"]) for v in r["review"])
+                      for r in reviews]
+        text = "\n".join(lines) + "\n"
+        print(text)
+        with (a.out / "import_report.md").open("a") as fh:
+            fh.write(text)
+        fn = "app.import_or_update_legacy"
+
+    sha = hashlib.sha256(b"".join(f.read_bytes() for f in files)).hexdigest()
+    batch = {"file_name": " + ".join(f.name for f in files), "file_sha256": sha,
+             "workbook": "Total Grievance 2018-2026" if a.total else "Historical trackers 2018-2026",
              "report": {"generated_at": dt.datetime.now().isoformat(timespec="seconds")}}
+    if a.total:
+        # Oldest first, so IDs such as HC-2019-0001 follow the order grievances were received.
+        when = lambda r: (r["fields"].get("date_received") or r["fields"].get("submitted_date")
+                          or r["fields"].get("form_issued_date") or "9999")
+        recs = sorted(recs, key=lambda r: (r["role"] != "primary", when(r)[:4], when(r)))
     payload = [{k: r.get(k) for k in ("key", "workbook", "sheet", "row", "serial", "raw", "fields",
-                                      "role", "link_key", "flags", "note")} for r in recs]
+                                      "role", "link_key", "flags", "note", "prev", "changes", "review")} for r in recs]
     tag = "imp" + secrets.token_hex(6)
-    sql = (f"select app.import_legacy_batch(${tag}${json.dumps(batch, ensure_ascii=False)}${tag}$::jsonb,\n"
+    sql = (f"select {fn}(${tag}${json.dumps(batch, ensure_ascii=False)}${tag}$::jsonb,\n"
            f"  ${tag}${json.dumps(payload, ensure_ascii=False, default=str)}${tag}$::jsonb);\n")
     (a.out / "import_batch.sql").write_text(sql)
     print(f"Wrote {a.out / 'import_report.md'} and {a.out / 'import_batch.sql'}")
