@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Import spreadsheet{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Import your existing Excel database</h1><div class="subtitle">Move the current recruitment spreadsheet into the portal in one go. Existing candidates (same email or phone) are updated, not duplicated.</div></div></div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-body">
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary"><i class="bi bi-upload"></i> Import</button></form>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Recognised column headings</div><div class="card-body small">
+    <p class="text-muted">Headings are matched case-insensitively; unknown columns are kept as searchable text.</p>
+    <table class="table table-sm"><tbody>{% for field, names in header_map.items %}<tr><td class="fw-semibold">{{ field }}</td><td>{{ names|join:", " }}</td></tr>{% endfor %}</tbody></table>
+  </div></div></div>
+</div>
+{% endblock %}

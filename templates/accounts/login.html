@@ -1,0 +1,37 @@
+{% load static portal %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · {{ COMPANY_SHORT_NAME }} {{ PORTAL_NAME }}</title>
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="text-center text-white mb-4">
+      <div class="d-inline-grid mb-2" style="width:56px;height:56px;border-radius:14px;background:#1b9e5a;place-items:center;font-weight:800">{{ COMPANY_SHORT_NAME }}</div>
+      <h1 class="h4 fw-bold mb-0">{{ PORTAL_NAME }}</h1>
+      <div class="small opacity-75">{{ COMPANY_NAME }} · HR &amp; A Department</div>
+    </div>
+    <div class="card shadow-lg border-0">
+      <div class="card-body p-4">
+        <h2 class="h6 fw-bold mb-3">Sign in to continue</h2>
+        {% if form.errors %}<div class="alert alert-danger py-2 small">Your username and password didn't match. Please try again.</div>{% endif %}
+        <form method="post">{% csrf_token %}
+          <div class="mb-3"><label class="form-label small fw-semibold" for="id_username">Username</label>
+            <input class="form-control" id="id_username" name="username" autofocus required value="{{ form.username.value|default:'' }}"></div>
+          <div class="mb-3"><label class="form-label small fw-semibold" for="id_password">Password</label>
+            <input class="form-control" id="id_password" name="password" type="password" required></div>
+          <input type="hidden" name="next" value="{{ next }}">
+          <button class="btn btn-primary w-100">Sign in</button>
+        </form>
+      </div>
+    </div>
+    <p class="text-center mt-3 small"><a class="text-white" href="{% url 'careers:jobs' %}"><i class="bi bi-globe2"></i> Looking for a job? Visit our careers page</a></p>
+  </div>
+</div>
+</body>
+</html>

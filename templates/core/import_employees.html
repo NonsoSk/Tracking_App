@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Import staff list{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Import staff list</h1><div class="subtitle">Upload the HR employee export so the portal can forecast retirements automatically.</div></div></div>
+<div class="row g-3"><div class="col-lg-6"><div class="card"><div class="card-body">
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary"><i class="bi bi-upload"></i> Import</button></form>
+</div></div></div>
+<div class="col-lg-6"><div class="card"><div class="card-body small">
+  <h2 class="h6">How retirement dates are worked out</h2>
+  <p>An employee retires on whichever comes first: reaching the retirement age, or completing the maximum years of service (both configurable in <code>.env</code>). Existing staff IDs are updated; new ones are added.</p>
+  <p class="mb-1">Expected columns (header names are case-insensitive):</p>
+  <code>staff_id, first_name, last_name, email, department, job_title, grade, date_of_birth, date_of_employment, status</code>
+  <p class="mt-2 mb-0">Department can be the department name or code. Dates can be <code>2026-05-31</code> or <code>31/05/2026</code>.</p>
+</div></div></div></div>
+{% endblock %}

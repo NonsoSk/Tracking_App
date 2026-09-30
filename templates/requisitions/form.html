@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}{% if is_new %}Raise requisition{% else %}Edit {{ requisition.reference }}{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>{% if is_new %}Raise a requisition{% else %}Edit {{ requisition.reference }}{% endif %}</h1>
+  <div class="subtitle">Tell the hiring team who you need. The requirements you pick here are used to score every applicant automatically.</div></div>
+</div>
+<form method="post" id="requisition-form" novalidate>{% csrf_token %}
+{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+<div class="row g-3">
+  <div class="col-xl-8">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-briefcase"></i> 1. The position</div><div class="card-body"><div class="row">
+      {% field form.department "col-md-6 mb-3" %}
+      {% field form.job_role "col-md-6 mb-3" %}
+      {% field form.title "col-md-8 mb-3" %}
+      {% field form.positions "col-md-4 mb-3" %}
+      {% field form.employment_type "col-md-4 mb-3" %}
+      {% field form.grade "col-md-4 mb-3" %}
+      {% field form.location "col-md-4 mb-3" %}
+      {% field form.reason "col-md-6 mb-3" %}
+      {% field form.replacing_employee "col-md-6 mb-3" %}
+      {% field form.target_start_date "col-md-6 mb-3" %}
+    </div></div></div>
+
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><span><i class="bi bi-list-check"></i> 2. Requirements (used for automatic matching)</span>
+      <button type="button" class="btn btn-sm btn-success" id="suggest-btn"><i class="bi bi-stars"></i> Suggest skills &amp; tools{% if AI_ENABLED %} with AI{% endif %}</button></div>
+      <div class="card-body">
+        <div id="suggestions" class="mb-3 p-3 rounded" style="background:#f6faf8;border:1px dashed #c4e7d2"><div class="small text-muted"><i class="bi bi-info-circle"></i> Enter the position title and click <strong>Suggest skills &amp; tools</strong> — pick from the suggestions or type your own in any box below.</div></div>
+        <div class="row">
+          {% field form.min_experience_years "col-md-4 mb-3" %}
+          {% field form.max_experience_years "col-md-4 mb-3" %}
+          {% field form.education_level "col-md-4 mb-3" %}
+          {% field form.min_degree_class "col-md-6 mb-3" %}
+          {% field form.requires_nysc "col-md-6 mb-3 pt-md-4" %}
+          {% field form.courses "col-12 mb-3" %}
+          {% field form.required_skills "col-12 mb-3" %}
+          {% field form.preferred_skills "col-12 mb-3" %}
+          {% field form.tools "col-12 mb-3" %}
+          {% field form.certifications "col-12 mb-3" %}
+          {% field form.other_requirements "col-12 mb-3" %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-chat-left-text"></i> 3. Context</div><div class="card-body">
+      {% field form.justification %}
+      {% field form.job_description %}
+    </div></div>
+    <div class="card"><div class="card-body small text-muted">
+      <p class="mb-2"><i class="bi bi-diagram-3 text-brand"></i> <strong>What happens next</strong></p>
+      <ol class="ps-3 mb-0">
+        <li>The hiring team reviews and approves your request.</li>
+        <li>The vacancy is published; applications, referrals and emailed CVs are read and scored automatically.</li>
+        <li>You follow shortlisted candidates, interviews and offers live from your dashboard.</li>
+      </ol>
+    </div></div>
+  </div>
+</div>
+<div class="sticky-actions d-flex gap-2 justify-content-end">
+  <a class="btn btn-light" href="{% if requisition %}{{ requisition.get_absolute_url }}{% else %}{% url 'requisitions:list' %}{% endif %}">Cancel</a>
+  <button class="btn btn-outline-primary" name="save" value="1">Save {% if is_new or requisition.is_editable_by_department %}draft{% else %}changes{% endif %}</button>
+  {% if is_new or requisition.is_editable_by_department %}<button class="btn btn-primary" name="submit" value="1"><i class="bi bi-send"></i> Submit to hiring team</button>{% endif %}
+</div>
+</form>
+{% endblock %}

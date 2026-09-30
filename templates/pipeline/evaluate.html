@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Selection report · {{ app.candidate.full_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Selection report</h1><div class="subtitle">{{ app.candidate.full_name }} · {{ app.requisition.title }}{% if interview %} · {{ interview.get_round_display }}{% endif %}{% if evaluation.submitted_at %} · <span class="text-success">submitted {{ evaluation.submitted_at|date:"d M H:i" }} (you can update it)</span>{% endif %}</div></div>
+  <a class="btn btn-light" href="{{ app.get_absolute_url }}">Back to candidate</a></div>
+<form method="post" id="evaluation-form">{% csrf_token %}
+{% if interview %}<input type="hidden" name="interview" value="{{ interview.pk }}">{% endif %}
+{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+<div class="card mb-3"><div class="table-responsive"><table class="table align-middle mb-0">
+  <thead><tr><th style="width:36px">Sr</th><th>Criterion</th><th class="text-center">E</th><th class="text-center">VG</th><th class="text-center">G</th><th class="text-center">S</th><th class="text-center">P</th><th class="text-center">Max</th><th style="width:130px">Secured marks</th><th class="text-center">Rating</th></tr></thead>
+  <tbody>
+  {% for criterion, f in form.criterion_fields %}
+    <tr class="marks-row"><td class="text-muted">{{ forloop.counter }}</td><td class="fw-semibold">{{ criterion.name }}{% if criterion.description %}<div class="small text-muted fw-normal">{{ criterion.description }}</div>{% endif %}</td>
+      <td class="rating-cell cursor-pointer border" data-code="E" title="Excellent 91%+">E</td><td class="rating-cell cursor-pointer border" data-code="VG" title="Very good 71-90%">VG</td><td class="rating-cell cursor-pointer border" data-code="G" title="Good 51-70%">G</td><td class="rating-cell cursor-pointer border" data-code="S" title="Satisfactory 31-50%">S</td><td class="rating-cell cursor-pointer border" data-code="P" title="Poor 0-30%">P</td>
+      <td class="text-center text-muted">{{ criterion.max_marks }}</td>
+      <td>{{ f }}{% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+      <td class="text-center"><span class="badge rating-badge bg-light text-muted">–</span></td></tr>
+  {% endfor %}
+  <tr class="table-light"><td></td><td class="fw-bold text-end" colspan="6">Total</td><td class="text-center fw-bold">{{ max_total }}</td><td class="fw-bold fs-5"><span id="eval-total">0</span></td><td class="text-center"><span id="eval-rating" class="badge bg-light text-muted">–</span></td></tr>
+  </tbody></table></div>
+  <div class="card-footer bg-white small text-muted">Legend: P – Poor 0–30% · S – Satisfactory 31–50% · G – Good 51–70% · VG – Very Good 71–90% · E – Excellent 91% and above. Tip: click a rating letter to fill a typical mark for that band, then adjust.</div>
+</div>
+<div class="card mb-3"><div class="card-body">
+  <div class="mb-3"><label class="form-label fw-semibold small">Remarks</label>{{ form.remarks }}</div>
+  <label class="form-label fw-semibold small">Recommendation <span class="text-danger">*</span></label>
+  <div class="d-flex gap-4">{% for radio in form.recommendation %}<div class="form-check">{{ radio.tag }}<label class="form-check-label fw-semibold" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label></div>{% endfor %}</div>
+  {% for e in form.recommendation.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+  <p class="small text-muted mt-3 mb-0"><i class="bi bi-pen"></i> Submitting signs this report electronically as <strong>{{ request.user.display_name }}</strong> on {% now "d M Y" %}.</p>
+</div></div>
+<div class="sticky-actions d-flex justify-content-end"><button class="btn btn-primary btn-lg"><i class="bi bi-check2-circle"></i> Submit selection report</button></div>
+</form>
+{% endblock %}

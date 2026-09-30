@@ -1,0 +1,6 @@
+{% extends "public_base.html" %}
+{% block title %}Track your application{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width:480px"><h1 class="h4 fw-bold">Track your application</h1><p class="text-muted">Use the reference from your confirmation email.</p>
+<div class="card"><div class="card-body"><form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary w-100">Find my application</button></form></div></div></div>
+{% endblock %}

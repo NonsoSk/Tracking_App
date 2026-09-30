@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Onboarding{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Onboarding</h1><div class="subtitle">New joiners handed over by the hiring team.</div></div>
+  <div class="btn-group"><a class="btn btn-sm {% if show == 'open' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?show=open">In progress</a><a class="btn btn-sm {% if show != 'open' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?show=all">All</a></div></div>
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>New joiner</th><th>Position</th><th>Date of joining</th><th>Officer</th><th style="width:200px">Progress</th><th>Status</th></tr></thead><tbody>
+  {% for ob in items %}<tr class="cursor-pointer" onclick="location='{% url 'pipeline:onboarding' ob.pk %}'"><td class="fw-semibold"><a href="{% url 'pipeline:onboarding' ob.pk %}">{{ ob.application.candidate.full_name }}</a></td><td>{{ ob.application.requisition.title }}<div class="small text-muted">{{ ob.application.requisition.department }}</div></td><td>{{ ob.start_date|date:"d M Y"|default:"TBC" }}</td><td class="small">{{ ob.officer.display_name|default:"—" }}</td><td><div class="match-bar"><span style="width: {{ ob.progress }}%"></span></div><div class="small text-muted">{{ ob.progress }}%</div></td><td><span class="badge text-bg-{% if ob.status == 'completed' %}success{% elif ob.status == 'in_progress' %}primary{% else %}secondary{% endif %}">{{ ob.get_status_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="6">{% include "partials/_empty.html" with icon="bi-person-badge" text="Nobody to onboard right now." %}</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

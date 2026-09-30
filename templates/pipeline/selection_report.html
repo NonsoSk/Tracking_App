@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}Selection report · {{ app.candidate.full_name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3 no-print"><a class="btn btn-light" href="{{ app.get_absolute_url }}"><i class="bi bi-arrow-left"></i> Back</a><button class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print / save as PDF</button></div>
+<div class="report-sheet">
+  <div class="text-center mb-3"><div class="fw-bold fs-5">{{ COMPANY_NAME }}</div><div class="fw-bold">HR &amp; A Department</div></div>
+  <table class="mb-3"><tr><td class="shade">FOR OFFICE USE ONLY</td></tr></table>
+  <table class="mb-3"><tr><td style="width:25%"><strong>Candidate</strong></td><td>{{ app.candidate.full_name }}</td><td style="width:20%"><strong>Reference</strong></td><td>{{ app.reference }}</td></tr>
+    <tr><td><strong>Position</strong></td><td>{{ app.requisition.title }}</td><td><strong>Department</strong></td><td>{{ app.requisition.department }}</td></tr></table>
+  <div class="mb-1">Selection Report</div>
+  <table>
+    <thead><tr><th style="width:40px">Sr</th><th>Criterion</th>{% for b in bands %}<th class="text-center" style="width:48px">{{ b }}</th>{% endfor %}<th class="text-center" style="width:80px">Max. Marks</th><th class="text-center" style="width:90px">Secured Marks</th></tr></thead>
+    <tbody>
+    {% if summary %}
+      {% for row in summary.rows %}<tr><td class="text-center">{{ forloop.counter }}</td><td>{{ row.criterion.name }}</td>{% for b in bands %}<td class="text-center">{% if row.rating.code == b %}✔{% endif %}</td>{% endfor %}<td class="text-center">{{ row.criterion.max_marks }}</td><td class="text-center">{{ row.average|floatformat:"-1" }}</td></tr>{% endfor %}
+      <tr><td></td><td class="text-end fw-bold">Total</td>{% for b in bands %}<td class="text-center">{% if summary.rating.code == b %}✔{% endif %}</td>{% endfor %}<td class="text-center fw-bold">{{ summary.max_total }}</td><td class="text-center fw-bold">{{ summary.total }}</td></tr>
+    {% else %}
+      {% for c in criteria %}<tr><td class="text-center">{{ forloop.counter }}</td><td>{{ c.name }}</td>{% for b in bands %}<td></td>{% endfor %}<td class="text-center">{{ c.max_marks }}</td><td></td></tr>{% endfor %}
+    {% endif %}
+    </tbody>
+  </table>
+  <p class="small text-center mt-2 mb-3">Legend: P – Poor – 0 to 30%; S – Satisfactory – 31 to 50%; G – Good – 51 to 70%<br>VG – Very Good – 71 to 90%; E – Excellent – 91% and above</p>
+  {% if summary and summary.count > 1 %}<p class="small">Secured marks are the average of {{ summary.count }} selection reports ({% for e in summary.evaluations %}{{ e.evaluator.display_name }}{% if e.interview %} ({{ e.interview.round_short }}){% endif %}: {{ e.total|floatformat:"-1" }}{% if not forloop.last %}; {% endif %}{% endfor %}).</p>{% endif %}
+  <table class="mb-3"><tr><td style="height:70px;vertical-align:top"><strong>Remarks</strong><br>{% if app.decision_notes %}{{ app.decision_notes }}<br>{% endif %}{% for e in summary.evaluations %}{% if e.remarks %}<span class="small">{{ e.evaluator.display_name }}{% if e.interview %} ({{ e.interview.round_short }}){% endif %}: {{ e.remarks }}</span><br>{% endif %}{% endfor %}</td></tr></table>
+  <table class="mb-3" style="border:0"><tr style="border:0">
+    <td style="border:0"><strong>Recommendation:</strong></td>
+    <td style="border:0">Select {% if app.decision == 'select' %}☑{% else %}☐{% endif %}</td>
+    <td style="border:0">Reject {% if app.decision == 'reject' %}☑{% else %}☐{% endif %}</td>
+    <td style="border:0">On Hold {% if app.decision == 'on_hold' %}☑{% else %}☐{% endif %}</td></tr></table>
+  <table class="mb-3" style="border:0"><tr style="border:0"><td style="border:0;width:15%"><strong>Signature:</strong></td>
+    {% for e in summary.signatories|slice:":3" %}<td style="border:0" class="text-center"><div style="border-bottom:1px dashed #333;min-height:26px" class="small fst-italic">Signed electronically {{ e.submitted_at|date:"d/m/Y" }}</div>({{ e.evaluator.display_name }})</td>{% empty %}<td style="border:0" class="text-center">______________<br>(Name)</td><td style="border:0" class="text-center">______________<br>(Name)</td><td style="border:0" class="text-center">______________<br>(Name)</td>{% endfor %}</tr>
+    <tr style="border:0"><td style="border:0"><strong>Date:</strong></td><td style="border:0" colspan="3">{% if app.decided_at %}{{ app.decided_at|date:"d/m/Y" }}{% elif summary %}{{ summary.evaluations.0.submitted_at|date:"d/m/Y" }}{% else %}__________________{% endif %}</td></tr></table>
+  <table><tr><td style="height:160px;vertical-align:top">
+    <p><strong>Salary Negotiations:</strong> {% if offer %}{{ offer.negotiation_notes|default:"" }}{% if offer.counter_salary %} Candidate asked {{ offer.counter_salary|naira }}.{% endif %}{% if offer.management_comment %} Management: {{ offer.management_comment }}{% endif %}{% endif %}</p>
+    <p><strong>Offer Made:</strong> {% if offer %}{{ offer.annual_salary|naira }} per annum ({{ offer.get_status_display }}){% endif %}</p>
+    <p class="mb-0"><strong>Date of joining:</strong> {% if onboarding and onboarding.start_date %}{{ onboarding.start_date|date:"d/m/Y" }}{% elif offer and offer.start_date %}{{ offer.start_date|date:"d/m/Y" }}{% endif %}</p>
+  </td></tr></table>
+</div>
+{% endblock %}

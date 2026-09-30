@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}Offer review · {{ app.candidate.full_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Offer review — {{ app.candidate.full_name }}</h1><div class="subtitle">{{ offer.job_title }} · {{ app.requisition.department }} · <a href="{{ app.get_absolute_url }}">open application</a></div></div></div>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">Current offer (v{{ offer.version }})</div><div class="card-body">
+      <div class="row small">
+        <div class="col-6 mb-2"><div class="small-label">Annual salary</div><div class="fs-5 fw-bold">{{ offer.annual_salary|naira }}</div>{{ offer.monthly_salary|naira }} / month</div>
+        <div class="col-6 mb-2"><div class="small-label">Candidate asks</div><div class="fs-5 fw-bold text-warning">{{ offer.counter_salary|naira|default:"—" }}</div></div>
+        <div class="col-12 mb-2"><div class="small-label">Candidate's comment</div>“{{ offer.candidate_comment|default:"—" }}”</div>
+        {% if offer.benefits %}<div class="col-12 mb-2"><div class="small-label">Benefits</div>{{ offer.benefits }}</div>{% endif %}
+        {% if offer.negotiation_notes %}<div class="col-12 mb-2"><div class="small-label">Negotiation notes</div>{{ offer.negotiation_notes }}</div>{% endif %}
+      </div>
+    </div></div>
+    <div class="card"><div class="card-header">Candidate</div><div class="card-body small">
+      {{ app.candidate.get_highest_qualification_display }} {{ app.candidate.course }} · {{ app.candidate.years_experience|floatformat:"-1" }} years<br>
+      Match {{ app.match_score }}% (grade {{ app.match_grade }}){% if summary %} · Panel {{ summary.percentage }}% ({{ summary.rating.label }}){% endif %}
+      {% if history %}<hr><div class="small-label">Previous offers</div>{% for o in history %}<div>v{{ o.version }}: {{ o.annual_salary|naira }} — {{ o.get_status_display }}</div>{% endfor %}{% endif %}
+    </div></div>
+  </div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Management decision</div><div class="card-body">
+    {% if offer.status == 'review_requested' %}
+      {% if request.user.is_management or request.user.is_superuser or request.user.role == 'hr_admin' %}
+      <form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary">Record decision</button></form>
+      {% else %}<p class="text-muted small mb-0">Waiting for management to decide.</p>{% endif %}
+    {% else %}<p class="mb-0">Decision: <strong>{{ offer.get_management_decision_display|default:offer.get_status_display }}</strong>{% if offer.management_comment %} — {{ offer.management_comment }}{% endif %}</p>{% endif %}
+  </div></div></div>
+</div>
+{% endblock %}

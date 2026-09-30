@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Talent database{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Talent database</h1><div class="subtitle">{{ total }} candidate{{ total|pluralize }} — everyone who applied, was referred, emailed a CV or dropped a hard copy.</div></div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-primary" href="{% url 'candidates:intake' %}"><i class="bi bi-cloud-arrow-up"></i> Upload CVs</a>
+    <a class="btn btn-outline-primary" href="{% url 'candidates:import' %}"><i class="bi bi-file-earmark-spreadsheet"></i> Import Excel</a>
+    <a class="btn btn-light" href="{% url 'candidates:create' %}"><i class="bi bi-plus"></i> Add manually</a>
+  </div>
+</div>
+<div class="card mb-3"><div class="card-body py-2">
+  <form class="row g-2" method="get">
+    <div class="col-md-4"><input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Name, email, phone, course or any word in the CV"></div>
+    <div class="col-md-2"><input class="form-control form-control-sm" name="skill" value="{{ filters.skill }}" placeholder="Skill / tool / cert."></div>
+    <div class="col-md-2"><select name="highest_qualification" class="form-select form-select-sm"><option value="">Any qualification</option>{% for v, l in levels %}<option value="{{ v }}" {% if filters.highest_qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="source" class="form-select form-select-sm"><option value="">Any source</option>{% for v, l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><input class="form-control form-control-sm" name="min_exp" value="{{ filters.min_exp }}" placeholder="Min yrs"></div>
+    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Search</button></div>
+  </form>
+</div></div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th>Candidate</th><th>Qualification</th><th class="text-center">Exp.</th><th>Top skills</th><th>Source</th><th class="text-center">Applications</th><th>Added</th></tr></thead>
+    <tbody>
+    {% for c in candidates %}
+      <tr class="cursor-pointer" onclick="location='{{ c.get_absolute_url }}'">
+        <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ c.initials }}</span><div><a class="fw-semibold" href="{{ c.get_absolute_url }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email }}{% if c.phone %} · {{ c.phone }}{% endif %}</div></div></div></td>
+        <td class="small">{{ c.qualification_short }}<div class="text-muted">{{ c.course }}</div></td>
+        <td class="text-center">{{ c.years_experience|floatformat:"-1" }}</td>
+        <td>{% for s in c.skills|slice:":3" %}<span class="chip soft">{{ s }}</span>{% endfor %}</td>
+        <td class="small">{{ c.source_short }}{% if c.parse_method == 'ai' %} <i class="bi bi-stars text-success" title="Read by AI"></i>{% endif %}</td>
+        <td class="text-center">{{ c.n_apps }}</td>
+        <td class="small text-muted">{{ c.created_at|date:"d M Y" }}</td>
+      </tr>
+    {% empty %}<tr><td colspan="7">{% include "partials/_empty.html" with icon="bi-people" text="No candidates found." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

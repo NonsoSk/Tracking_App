@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load portal humanize %}
+{% block title %}{{ c.full_name }}{% endblock %}
+{% block breadcrumb %}{% if request.user.is_hr %}<a href="{% url 'candidates:list' %}">Talent database</a> / {% endif %}{{ c.full_name }}{% endblock %}
+{% block content %}
+{% with u=request.user %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-3">
+    <span class="avatar avatar-lg">{{ c.initials }}</span>
+    <div><h1>{{ c.full_name }}</h1><div class="subtitle">{{ c.current_job_title|default:"" }}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}{% if c.location %} · {{ c.location }}{% endif %}</div>
+      <div class="small mt-1">{% if c.email %}<a href="mailto:{{ c.email }}"><i class="bi bi-envelope"></i> {{ c.email }}</a>{% endif %}{% if c.phone %} · <a href="tel:{{ c.phone }}"><i class="bi bi-telephone"></i> {{ c.phone }}</a>{% endif %}{% if c.linkedin_url %} · <a href="{{ c.linkedin_url }}" target="_blank"><i class="bi bi-linkedin"></i> LinkedIn</a>{% endif %}</div></div>
+  </div>
+  {% if u.is_hr %}
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-light" href="{% url 'candidates:edit' c.pk %}"><i class="bi bi-pencil"></i> Edit profile</a>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-lg"></i> Consider for a vacancy</button>
+  </div>
+  {% endif %}
+</div>
+
+{% if c.parse_notes %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ c.parse_notes|linebreaksbr }}</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-person-vcard"></i> Profile</span>
+        <span class="small text-muted">{% if c.parse_method %}Filled by {{ c.get_parse_method_display|lower }}{% if c.parsed_at %} · {{ c.parsed_at|naturaltime }}{% endif %}{% endif %} · {{ c.profile_completeness }}% complete</span></div>
+      <div class="card-body">
+        <div class="row small">
+          <div class="col-sm-4 mb-3"><div class="small-label">Highest qualification</div>{{ c.get_highest_qualification_display|default:"—" }}</div>
+          <div class="col-sm-4 mb-3"><div class="small-label">Course</div>{{ c.course|default:"—" }}</div>
+          <div class="col-sm-4 mb-3"><div class="small-label">Institution</div>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</div>
+          <div class="col-sm-4 mb-3"><div class="small-label">Class of degree</div>{{ c.get_degree_class_display|default:"—" }}</div>
+          <div class="col-sm-4 mb-3"><div class="small-label">NYSC</div>{{ c.get_nysc_status_display|default:"—" }}</div>
+          <div class="col-sm-4 mb-3"><div class="small-label">Experience</div>{{ c.years_experience|floatformat:"-1" }} years</div>
+          <div class="col-sm-4 mb-3"><div class="small-label">Source</div>{{ c.get_source_display }}{% if c.referred_by %}<br><span class="text-muted">by {{ c.referred_by.display_name }}</span>{% endif %}</div>
+          {% if c.gender %}<div class="col-sm-4 mb-3"><div class="small-label">Gender</div>{{ c.get_gender_display }}</div>{% endif %}
+          {% if c.date_of_birth %}<div class="col-sm-4 mb-3"><div class="small-label">Date of birth</div>{{ c.date_of_birth|date:"d M Y" }}</div>{% endif %}
+        </div>
+        {% if c.summary %}<div class="small-label">Summary</div><p class="small">{{ c.summary }}</p>{% endif %}
+        {% if c.referral_note %}<div class="small-label">Referral note</div><p class="small">{{ c.referral_note }}</p>{% endif %}
+        <div class="small-label">Skills</div><div class="mb-2">{% for s in c.skills %}<span class="chip">{{ s }}</span>{% empty %}<span class="small text-muted">—</span>{% endfor %}</div>
+        <div class="small-label">Tools / software</div><div class="mb-2">{% for s in c.tools %}<span class="chip">{{ s }}</span>{% empty %}<span class="small text-muted">—</span>{% endfor %}</div>
+        <div class="small-label">Certifications</div><div>{% for s in c.certifications %}<span class="chip">{{ s }}</span>{% empty %}<span class="small text-muted">—</span>{% endfor %}</div>
+      </div>
+    </div>
+
+    {% if c.work_history %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-briefcase"></i> Work history</div><div class="card-body"><ul class="timeline">
+      {% for w in c.work_history %}<li><strong>{{ w.job_title|default:"Role" }}</strong>{% if w.company %} · {{ w.company }}{% endif %}<div class="when">{{ w.start }} – {{ w.end }}</div>{% if w.description %}<div class="small">{{ w.description }}</div>{% endif %}</li>{% endfor %}
+    </ul></div></div>
+    {% endif %}
+    {% if c.education_history %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-mortarboard"></i> Education</div><div class="card-body"><ul class="timeline">
+      {% for e in c.education_history %}<li><strong>{{ e.qualification }}</strong>{% if e.course %} · {{ e.course }}{% endif %}<div class="when">{{ e.institution }}{% if e.year %} · {{ e.year }}{% endif %}</div></li>{% endfor %}
+    </ul></div></div>
+    {% endif %}
+
+    <div class="card mb-3" id="documents">
+      <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-folder2-open"></i> Document folder</span>
+        {% if u.is_hr or u.is_onboarding %}<button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#uploadBox"><i class="bi bi-upload"></i> Upload</button>{% endif %}</div>
+      {% if u.is_hr or u.is_onboarding %}
+      <div class="collapse border-bottom" id="uploadBox"><div class="card-body">
+        <form method="post" enctype="multipart/form-data" action="{% url 'candidates:upload' c.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+          <div class="col-md-4">{{ upload_form.doc_type }}</div><div class="col-md-5">{{ upload_form.file }}</div>
+          <div class="col-md-3"><button class="btn btn-primary w-100">Upload</button></div>
+          <div class="col-12"><div class="form-check small">{{ upload_form.read_cv }}<label class="form-check-label" for="{{ upload_form.read_cv.id_for_label }}">{{ upload_form.read_cv.label }} (scanned CVs supported)</label></div></div>
+        </form>
+      </div></div>
+      {% endif %}
+      <div class="list-group list-group-flush">
+        {% for d in documents %}
+        <div class="list-group-item d-flex align-items-center gap-3 flex-wrap">
+          <i class="bi {{ d.icon }} fs-4 text-brand"></i>
+          <div class="flex-grow-1"><a class="fw-semibold" href="{% url 'candidates:document' d.pk %}" target="_blank">{{ d.get_doc_type_display }}</a>
+            <div class="small text-muted">{{ d.original_name }} · {{ d.uploaded_at|date:"d M Y H:i" }}{% if d.uploaded_by %} · {{ d.uploaded_by.display_name }}{% else %} · by candidate{% endif %}</div>
+            {% if d.review_note %}<div class="small text-muted">Note: {{ d.review_note }}</div>{% endif %}</div>
+          <span class="badge text-bg-{% if d.status == 'verified' %}success{% elif d.status == 'rejected' %}danger{% else %}secondary{% endif %}">{{ d.get_status_display }}</span>
+          {% if u.is_hr %}
+          <div class="d-flex gap-1">
+            {% if d.doc_type == 'cv' %}<form method="post" action="{% url 'candidates:reparse' d.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light" title="Read this CV again and fill empty fields"><i class="bi bi-magic"></i></button></form>{% endif %}
+            {% if d.status != 'verified' %}<form method="post" action="{% url 'candidates:review_document' d.pk %}">{% csrf_token %}<input type="hidden" name="status" value="verified"><button class="btn btn-sm btn-outline-success" title="Verify"><i class="bi bi-check2"></i></button></form>{% endif %}
+            {% if d.status != 'rejected' %}<form method="post" action="{% url 'candidates:review_document' d.pk %}">{% csrf_token %}<input type="hidden" name="status" value="rejected"><button class="btn btn-sm btn-outline-danger" title="Reject"><i class="bi bi-x"></i></button></form>{% endif %}
+            <form method="post" action="{% url 'candidates:delete_document' d.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light" data-confirm="Delete this document permanently?" title="Delete"><i class="bi bi-trash"></i></button></form>
+          </div>
+          {% endif %}
+        </div>
+        {% empty %}{% include "partials/_empty.html" with icon="bi-folder" text="No documents yet." %}{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-3"></i> Applications</div>
+      <div class="list-group list-group-flush">
+        {% for a in applications %}
+        <a class="list-group-item list-group-item-action" href="{{ a.get_absolute_url }}">
+          <div class="d-flex justify-content-between"><strong class="small">{{ a.requisition.title }}</strong>{% score_pill a.match_score a.match_grade %}</div>
+          <div class="small text-muted">{{ a.requisition.department }} · {{ a.reference }}</div>
+          <span class="stage-badge mt-1 d-inline-block"><i class="bi {{ a.stage_icon }}"></i> {{ a.get_stage_display }}</span>{% if a.status != 'active' %} <span class="badge text-bg-{{ a.status_color }}">{{ a.get_status_display }}</span>{% endif %}
+        </a>
+        {% empty %}{% include "partials/_empty.html" with icon="bi-diagram-3" text="Not linked to a vacancy yet." %}{% endfor %}
+      </div>
+    </div>
+    <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Timeline</div><div class="card-body"><ul class="timeline">
+      {% for a in activity %}<li>{{ a.message }}{% if a.application %} <span class="text-muted">({{ a.application.requisition.title }})</span>{% endif %}<div class="when">{{ a.created_at|date:"d M Y H:i" }}{% if a.actor %} · {{ a.actor.display_name }}{% endif %}</div></li>{% empty %}<li class="text-muted">No activity.</li>{% endfor %}
+    </ul></div></div>
+  </div>
+</div>
+
+{% if u.is_hr %}
+<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><form class="modal-content" method="post" action="{% url 'candidates:add_to_requisition' c.pk %}">{% csrf_token %}
+  <div class="modal-header"><h5 class="modal-title">Consider for a vacancy</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">{% include "partials/_form_fields.html" with form=add_form %}<p class="small text-muted mb-0">The candidate is scored against the vacancy immediately.</p></div>
+  <div class="modal-footer"><button class="btn btn-primary">Add &amp; score</button></div></form></div></div>
+{% endif %}
+{% endwith %}
+{% endblock %}

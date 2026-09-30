@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}Candidate tracker{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Candidate tracker</h1><div class="subtitle">{% if request.user.is_department_user %}Every candidate for your department's vacancies, live.{% else %}Every active candidate across vacancies.{% endif %}</div></div></div>
+<div class="card mb-3"><div class="card-body py-2">
+  <form class="row g-2" method="get">
+    <div class="col-md-3"><input class="form-control form-control-sm" name="q" value="{{ filters.q }}" placeholder="Name, email or reference"></div>
+    <div class="col-md-3"><select name="requisition" class="form-select form-select-sm"><option value="">All vacancies</option>{% for r in requisitions %}<option value="{{ r.pk }}" {% if filters.requisition == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.reference }} · {{ r.title }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="stage" class="form-select form-select-sm"><option value="">All stages</option>{% for v, l in stages %}<option value="{{ v }}" {% if filters.stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="status" class="form-select form-select-sm"><option value="">Active &amp; on hold</option>{% for v, l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><select name="grade" class="form-select form-select-sm"><option value="">Grade</option>{% for g in "ABCD" %}<option value="{{ g }}" {% if filters.grade == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Filter</button></div>
+  </form>
+</div></div>
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>Candidate</th><th>Vacancy</th><th>Match</th><th>Stage</th><th>Panel score</th><th>Updated</th></tr></thead>
+  <tbody>
+  {% for a in applications %}
+    <tr class="cursor-pointer" onclick="location='{{ a.get_absolute_url }}'">
+      <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ a.candidate.initials }}</span><div><a class="fw-semibold" href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a><div class="small text-muted">{{ a.reference }}</div></div></div></td>
+      <td>{{ a.requisition.title }}<div class="small text-muted">{{ a.requisition.department }}</div></td>
+      <td>{% score_pill a.match_score a.match_grade %}</td>
+      <td><span class="stage-badge"><i class="bi {{ a.stage_icon }}"></i> {{ a.get_stage_display }}</span>{% if a.status != 'active' %} <span class="badge text-bg-{{ a.status_color }}">{{ a.get_status_display }}</span>{% endif %}</td>
+      <td>{% with s=a.evaluation_summary %}{% if s %}<span class="badge rating-{{ s.rating.code }}">{{ s.percentage }}%</span>{% else %}<span class="text-muted small">—</span>{% endif %}{% endwith %}</td>
+      <td class="small text-muted">{{ a.updated_at|timesince }} ago</td>
+    </tr>
+  {% empty %}<tr><td colspan="6">{% include "partials/_empty.html" with icon="bi-kanban" text="No candidates match these filters." %}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+{% endblock %}

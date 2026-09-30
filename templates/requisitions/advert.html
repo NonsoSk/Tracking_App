@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Job advert · {{ req.reference }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Job advert</h1><div class="subtitle">{{ req.reference }} · {{ req.title }} — shown on the public careers page.</div></div>
+  <form method="post">{% csrf_token %}<button class="btn btn-success" name="generate" value="1" data-confirm="Replace the current advert text with a new draft?"><i class="bi bi-stars"></i> Draft advert{% if AI_ENABLED %} with AI{% endif %}</button></form></div>
+<div class="card"><div class="card-body">
+  <form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}
+    <button class="btn btn-primary">Save advert</button> <a class="btn btn-light" href="{{ req.get_absolute_url }}">Back</a></form>
+</div></div>
+{% endblock %}

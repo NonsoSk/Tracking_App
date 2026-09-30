@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Onboarding · {{ app.candidate.full_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Onboarding — {{ app.candidate.full_name }}</h1><div class="subtitle">{{ app.requisition.title }} · {{ app.requisition.department }} · <a href="{{ app.get_absolute_url }}">application</a></div></div>
+  {% if ob.status != 'completed' %}<form method="post" action="{% url 'pipeline:onboarding_complete' ob.pk %}">{% csrf_token %}<button class="btn btn-success" data-confirm="Mark onboarding complete and record {{ app.candidate.full_name }} as hired?"><i class="bi bi-trophy"></i> Complete onboarding</button></form>{% else %}<span class="badge text-bg-success fs-6">Completed {{ ob.completed_at|date:"d M Y" }}</span>{% endif %}</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-check2-square"></i> Checklist</span><span class="small text-muted">{{ ob.progress }}% done</span></div>
+    <div class="list-group list-group-flush">
+      {% for t in tasks %}<form method="post" action="{% url 'pipeline:onboarding_task' ob.pk t.pk %}" class="list-group-item d-flex align-items-center gap-2">{% csrf_token %}
+        <button class="btn btn-sm {% if t.done %}btn-success{% else %}btn-outline-secondary{% endif %}" style="width:34px"><i class="bi {% if t.done %}bi-check-lg{% else %}bi-square{% endif %}"></i></button>
+        <span class="flex-grow-1 {% if t.done %}text-decoration-line-through text-muted{% endif %}">{{ t.title }}</span>
+        {% if t.done %}<span class="small text-muted">{{ t.done_by.display_name }} · {{ t.done_at|date:"d M" }}</span>{% endif %}</form>{% endfor %}
+      <form method="post" action="{% url 'pipeline:onboarding_add_task' ob.pk %}" class="list-group-item d-flex gap-2">{% csrf_token %}{{ task_form.title }}<button class="btn btn-outline-primary btn-sm">Add</button></form>
+    </div></div></div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header">Details</div><div class="card-body"><form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary" name="save" value="1">Save</button></form></div></div>
+    <div class="card"><div class="card-header">Documents on file</div><div class="list-group list-group-flush">{% for d in documents %}<a class="list-group-item list-group-item-action small" href="{% url 'candidates:document' d.pk %}" target="_blank"><i class="bi {{ d.icon }}"></i> {{ d.get_doc_type_display }} <span class="badge text-bg-{% if d.status == 'verified' %}success{% else %}secondary{% endif %} float-end">{{ d.get_status_display }}</span></a>{% empty %}<div class="list-group-item small text-muted">None</div>{% endfor %}</div></div>
+  </div>
+</div>
+{% endblock %}

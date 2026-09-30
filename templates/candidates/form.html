@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}{% if c %}Edit {{ c.full_name }}{% else %}New candidate{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{% if c %}Edit {{ c.full_name }}{% else %}Add candidate manually{% endif %}</h1><div class="subtitle">{% if c %}Saving re-scores all of this candidate's applications.{% else %}Tip: uploading the CV in <a href="{% url 'candidates:intake' %}">CV intake</a> fills this for you.{% endif %}</div></div></div>
+<form method="post">{% csrf_token %}
+<div class="card"><div class="card-body"><div class="row">
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  {% field form.first_name "col-md-4 mb-3" %}{% field form.last_name "col-md-4 mb-3" %}{% field form.gender "col-md-4 mb-3" %}
+  {% field form.email "col-md-4 mb-3" %}{% field form.phone "col-md-4 mb-3" %}{% field form.date_of_birth "col-md-4 mb-3" %}
+  {% field form.location "col-md-6 mb-3" %}{% field form.linkedin_url "col-md-6 mb-3" %}
+  {% field form.highest_qualification "col-md-4 mb-3" %}{% field form.course "col-md-4 mb-3" %}{% field form.institution "col-md-4 mb-3" %}
+  {% field form.graduation_year "col-md-3 mb-3" %}{% field form.degree_class "col-md-3 mb-3" %}{% field form.nysc_status "col-md-3 mb-3" %}{% field form.years_experience "col-md-3 mb-3" %}
+  {% field form.current_employer "col-md-6 mb-3" %}{% field form.current_job_title "col-md-6 mb-3" %}
+  {% field form.skills "col-12 mb-3" %}{% field form.tools "col-12 mb-3" %}{% field form.certifications "col-12 mb-3" %}
+  {% field form.summary "col-12 mb-3" %}
+  {% field form.source "col-md-4 mb-3" %}{% field form.referred_by "col-md-4 mb-3" %}{% field form.referral_note "col-md-4 mb-3" %}
+</div></div></div>
+<div class="sticky-actions d-flex justify-content-end gap-2"><a class="btn btn-light" href="{% if c %}{{ c.get_absolute_url }}{% else %}{% url 'candidates:list' %}{% endif %}">Cancel</a><button class="btn btn-primary">Save</button></div>
+</form>
+{% endblock %}

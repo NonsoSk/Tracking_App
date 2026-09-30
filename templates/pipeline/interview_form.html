@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}{% if interview %}Reschedule{% else %}Schedule{% endif %} interview{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{% if interview %}Reschedule interview{% else %}Schedule interview{% endif %}</h1><div class="subtitle">{{ app.candidate.full_name }} · {{ app.requisition.title }}</div></div></div>
+<div class="row g-3"><div class="col-lg-8"><div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}<div class="row">
+  {% field form.round "col-md-6 mb-3" %}{% field form.scheduled_at "col-md-4 mb-3" %}{% field form.duration_minutes "col-md-2 mb-3" %}
+  {% field form.mode "col-md-4 mb-3" %}{% field form.location "col-md-8 mb-3" %}{% field form.meeting_link "col-md-8 mb-3" %}
+  {% field form.panel "col-md-6 mb-3" %}{% field form.instructions "col-md-6 mb-3" %}
+</div>
+<button class="btn btn-primary"><i class="bi bi-send"></i> {% if interview %}Update &amp; resend invites{% else %}Schedule &amp; send invites{% endif %}</button>
+<a class="btn btn-light" href="{{ app.get_absolute_url }}">Cancel</a></form>
+</div></div></div>
+<div class="col-lg-4"><div class="card"><div class="card-body small text-muted">
+  <p class="mb-2"><i class="bi bi-envelope-check text-brand"></i> <strong>What gets sent</strong></p>
+  <ul class="ps-3 mb-2"><li>The candidate gets an email invite with a calendar file and a button to confirm or ask for another time.</li><li>Each panel member gets a notification and calendar invite, and is reminded to fill the selection report after the interview.</li></ul>
+  <p class="mb-0">For video interviews, paste a Teams/Zoom link or leave it empty and a meeting room is created automatically.</p>
+</div></div></div></div>
+{% endblock %}

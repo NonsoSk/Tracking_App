@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Retirements & exits{% endblock %}
+{% block content %}
+{% with u=request.user %}
+<div class="page-header">
+  <div><h1>Retirements &amp; exits</h1><div class="subtitle">Spot vacancies before they happen and ask departments if they need a replacement.</div></div>
+  {% if u.is_hr %}<a class="btn btn-outline-primary" href="{% url 'core:import_employees' %}"><i class="bi bi-upload"></i> Import staff list</a>{% endif %}
+</div>
+<div class="card mb-3"><div class="card-body py-2">
+  <form class="row g-2 align-items-center" method="get">
+    <div class="col-auto"><div class="btn-group" role="group">
+      <a class="btn btn-sm {% if view == 'retiring' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?view=retiring">Retiring soon</a>
+      <a class="btn btn-sm {% if view == 'exits' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?view=exits">Resigned / left</a>
+      <a class="btn btn-sm {% if view == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?view=all">All staff</a>
+    </div></div>
+    <input type="hidden" name="view" value="{{ view }}">
+    {% if view == 'retiring' %}<div class="col-auto"><select name="months" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="3" {% if months == 3 %}selected{% endif %}>Next 3 months</option><option value="6" {% if months == 6 %}selected{% endif %}>Next 6 months</option><option value="12" {% if months == 12 %}selected{% endif %}>Next 12 months</option><option value="24" {% if months == 24 %}selected{% endif %}>Next 24 months</option><option value="36" {% if months == 36 %}selected{% endif %}>Next 36 months</option></select></div>{% endif %}
+    {% if u.sees_all_departments %}<div class="col-auto"><select name="department" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if department == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="col"><input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search name, staff ID or job title"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Filter</button></div>
+  </form>
+</div></div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th>Employee</th><th>Department</th><th>Job title</th><th>Retirement date</th><th>Status</th><th class="text-end">Replacement</th></tr></thead>
+    <tbody>
+    {% for e in employees %}
+      <tr>
+        <td><strong>{{ e.full_name }}</strong><div class="small text-muted">{{ e.staff_id }}{% if e.grade %} · {{ e.grade }}{% endif %}</div></td>
+        <td>{{ e.department|default:"—" }}</td>
+        <td>{{ e.job_title }}</td>
+        <td>{% if e.retirement_date %}{{ e.retirement_date|date:"d M Y" }}{% if e.status == 'active' %}<div class="small {% if e.retirement_date < today %}text-danger{% elif e.months_to_retirement <= 6 %}text-danger{% else %}text-muted{% endif %}">{% if e.retirement_date < today %}overdue{% else %}in {{ e.months_to_retirement }} month{{ e.months_to_retirement|pluralize }}{% endif %}</div>{% endif %}{% else %}<span class="text-muted">DOB missing</span>{% endif %}</td>
+        <td><span class="badge text-bg-{% if e.status == 'active' %}success{% else %}secondary{% endif %}">{{ e.get_status_display }}</span>{% if e.exit_date %}<div class="small text-muted">{{ e.exit_date|date:"d M Y" }}</div>{% endif %}</td>
+        <td class="text-end">
+          {% if e.pk in open_replacements %}<span class="badge text-bg-info">Requisition raised</span>{% else %}
+          <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
+            {% if u.can_raise_requisition %}<a class="btn btn-sm btn-outline-primary" href="{% url 'requisitions:create' %}?replace={{ e.pk }}">Raise replacement</a>{% endif %}
+            {% if u.is_hr %}
+              <form method="post" action="{% url 'core:notify_replacement' e.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-light" title="Email and notify the department"><i class="bi bi-send"></i> Notify dept</button></form>
+              {% if e.status == 'active' %}<div class="dropdown"><button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown">Record exit</button>
+                <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:230px"><form method="post" action="{% url 'core:record_exit' e.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <select name="status" class="form-select form-select-sm mb-2"><option value="resigned">Resigned</option><option value="retired">Retired</option><option value="terminated">Terminated / dismissed</option><option value="transferred">Transferred</option></select>
+                  <input type="date" name="exit_date" class="form-control form-control-sm mb-2"><button class="btn btn-sm btn-primary w-100">Save</button></form></div></div>{% endif %}
+            {% endif %}
+          </div>
+          {% if e.replacement_notified_at %}<div class="small text-muted mt-1">Dept notified {{ e.replacement_notified_at|date:"d M" }}</div>{% endif %}
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}<tr><td colspan="6">{% include "partials/_empty.html" with icon="bi-people" text="No staff match this view. Import the staff list to track retirements." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endwith %}
+{% endblock %}

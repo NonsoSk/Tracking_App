@@ -1,0 +1,29 @@
+{% extends "public_base.html" %}
+{% block title %}Vacancies{% endblock %}
+{% block hero %}
+<section class="careers-hero"><div class="container">
+  <h1 class="display-6">Build your career with us</h1>
+  <p class="lead opacity-75 mb-4">{{ COMPANY_NAME }} — producing fertilizer that feeds Nigeria and the world.</p>
+  <form class="row g-2" method="get" style="max-width:720px">
+    <div class="col-md-6"><input class="form-control form-control-lg" name="q" value="{{ q }}" placeholder="Search job title or department"></div>
+    <div class="col-md-4"><select name="type" class="form-select form-select-lg"><option value="">All job types</option>{% for v, l in types %}<option value="{{ v }}" {% if type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-success btn-lg w-100">Search</button></div>
+  </form>
+</div></section>
+{% endblock %}
+{% block content %}
+<div class="lift">
+  <div class="row g-3">
+  {% for job in jobs %}
+    <div class="col-md-6 col-lg-4"><div class="card job-card h-100"><div class="card-body d-flex flex-column">
+      <div class="small text-muted mb-1">{{ job.department }}</div>
+      <h2 class="h5 fw-bold"><a class="stretched-link text-body" href="{% url 'careers:job' job.reference %}">{{ job.title }}</a></h2>
+      <div class="mb-3"><span class="chip soft"><i class="bi bi-geo-alt"></i> {{ job.location }}</span><span class="chip soft">{{ job.get_employment_type_display }}</span>{% if job.min_experience_years %}<span class="chip soft">{{ job.min_experience_years }}+ yrs</span>{% endif %}</div>
+      <div class="mt-auto small text-muted">{% if job.closing_date %}Closes {{ job.closing_date|date:"d M Y" }}{% else %}Open until filled{% endif %}</div>
+    </div></div></div>
+  {% empty %}
+    <div class="col-12"><div class="card">{% include "partials/_empty.html" with icon="bi-briefcase" text="There are no open vacancies right now. Please check back soon." %}</div></div>
+  {% endfor %}
+  </div>
+</div>
+{% endblock %}

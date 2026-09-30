@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}CV intake{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>CV intake</h1><div class="subtitle">Drop in CVs that arrived by email, as hard copies (scan or photograph them) or through referrals. Each one is read, turned into a candidate profile, filed in their folder and — if you pick a vacancy — scored immediately.</div></div></div>
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card"><div class="card-body">
+      <form method="post" enctype="multipart/form-data">{% csrf_token %}
+        {% include "partials/_form_fields.html" %}
+        <button class="btn btn-primary w-100"><i class="bi bi-magic"></i> Read &amp; add CVs</button>
+      </form>
+    </div></div>
+    <div class="card mt-3"><div class="card-body small text-muted">
+      <p class="mb-1"><i class="bi bi-info-circle text-brand"></i> <strong>How reading works</strong></p>
+      <ul class="ps-3 mb-0">
+        <li>PDF and Word CVs are read directly.</li>
+        <li>Scanned PDFs and photos of hard-copy CVs are read by {% if AI_ENABLED %}<strong>AI</strong> (enabled){% else %}AI when an API key is configured, or by OCR if installed{% endif %}.</li>
+        <li>Duplicates are detected by email / phone — an existing profile is updated instead of duplicated.</li>
+        <li>CVs from the <em>{{ COMPANY_SHORT_NAME }} careers mailbox</em> can also be pulled in automatically (see README: <code>fetch_cv_emails</code>).</li>
+      </ul>
+    </div></div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header"><i class="bi bi-list-check"></i> Results</div>
+      {% if results %}
+      <div class="list-group list-group-flush">
+        {% for name, r in results %}
+        <div class="list-group-item">
+          {% if r.error %}
+            <div class="text-danger small"><i class="bi bi-x-circle"></i> {{ r.error }}</div>
+          {% else %}
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div><a class="fw-semibold" href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a> <span class="badge text-bg-{% if r.created %}success{% else %}info{% endif %}">{% if r.created %}New{% else %}Updated existing{% endif %}</span>
+                <div class="small text-muted"><i class="bi bi-file-earmark"></i> {{ name }} · read by {{ r.parsed.method|default:"—" }}</div>
+                <div class="small">{{ r.candidate.get_highest_qualification_display|default:"" }} {{ r.candidate.course }}{% if r.candidate.years_experience %} · {{ r.candidate.years_experience|floatformat:"-1" }} yrs{% endif %}{% if r.candidate.email %} · {{ r.candidate.email }}{% endif %}</div>
+                <div>{% for s in r.candidate.skills|slice:":5" %}<span class="chip soft">{{ s }}</span>{% endfor %}</div>
+                {% for n in r.parsed.notes %}<div class="small text-warning"><i class="bi bi-exclamation-triangle"></i> {{ n }}</div>{% endfor %}
+              </div>
+              {% if r.application %}<a href="{{ r.application.get_absolute_url }}">{% score_pill r.application.match_score r.application.match_grade %}</a>{% endif %}
+            </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}{% include "partials/_empty.html" with icon="bi-cloud-arrow-up" text="Upload CVs to see what was extracted." %}{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

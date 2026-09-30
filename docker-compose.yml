@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: recruitment
+      POSTGRES_USER: recruitment
+      POSTGRES_PASSWORD: recruitment
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    env_file: .env
+    environment:
+      POSTGRES_DB: recruitment
+      POSTGRES_USER: recruitment
+      POSTGRES_PASSWORD: recruitment
+      POSTGRES_HOST: db
+      SECURE_COOKIES: "false"   # set to true once served over HTTPS
+    ports:
+      - "8000:8000"
+    volumes:
+      - media:/app/media
+    depends_on:
+      - db
+
+  # Background jobs: retirement alerts (daily), reminders (hourly), mailbox CVs (every 15 min).
+  scheduler:
+    build: .
+    env_file: .env
+    environment:
+      POSTGRES_DB: recruitment
+      POSTGRES_USER: recruitment
+      POSTGRES_PASSWORD: recruitment
+      POSTGRES_HOST: db
+    volumes:
+      - media:/app/media
+    depends_on:
+      - web
+    command: >
+      sh -c 'i=0; while true; do
+        python manage.py send_reminders;
+        [ -n "$$CV_INBOX_HOST" ] && python manage.py fetch_cv_emails;
+        [ $$((i % 96)) -eq 0 ] && python manage.py send_retirement_alerts;
+        i=$$((i + 1)); sleep 900; done'
+
+volumes:
+  pgdata:
+  media:

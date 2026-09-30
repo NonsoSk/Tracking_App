@@ -1,0 +1,34 @@
+{% extends "public_base.html" %}
+{% load portal %}
+{% block title %}Apply · {{ job.title }}{% endblock %}
+{% block content %}
+<a href="{% url 'careers:job' job.reference %}" class="small"><i class="bi bi-arrow-left"></i> {{ job.title }}</a>
+<h1 class="h3 fw-bold mt-2">Apply for {{ job.title }}</h1>
+<p class="text-muted">{{ job.department }} · {{ job.location }}</p>
+<form method="post" enctype="multipart/form-data" id="apply-form" data-parse-url="{% url 'careers:parse_cv' %}" novalidate>{% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card mb-3 border-success"><div class="card-body">
+    <h2 class="h6 fw-bold"><i class="bi bi-1-circle text-success"></i> Start with your CV</h2>
+    {% field form.cv "mb-2" %}
+    <div id="cv-status" class="small text-muted"><i class="bi bi-magic"></i> Once you choose your CV we read it and fill in the form below — you just check and correct.</div>
+  </div></div>
+  <div class="card mb-3"><div class="card-body"><h2 class="h6 fw-bold"><i class="bi bi-2-circle text-brand"></i> Your details</h2><div class="row">
+    {% field form.first_name "col-md-6 mb-3" %}{% field form.last_name "col-md-6 mb-3" %}
+    {% field form.email "col-md-6 mb-3" %}{% field form.phone "col-md-6 mb-3" %}
+    {% field form.location "col-md-4 mb-3" %}{% field form.gender "col-md-4 mb-3" %}{% field form.date_of_birth "col-md-4 mb-3" %}
+    {% field form.linkedin_url "col-12 mb-3" %}
+  </div></div></div>
+  <div class="card mb-3"><div class="card-body"><h2 class="h6 fw-bold"><i class="bi bi-3-circle text-brand"></i> Education &amp; experience</h2><div class="row">
+    {% field form.highest_qualification "col-md-4 mb-3" %}{% field form.course "col-md-4 mb-3" %}{% field form.institution "col-md-4 mb-3" %}
+    {% field form.graduation_year "col-md-3 mb-3" %}{% field form.degree_class "col-md-3 mb-3" %}{% field form.nysc_status "col-md-3 mb-3" %}{% field form.years_experience "col-md-3 mb-3" %}
+    {% field form.current_employer "col-md-6 mb-3" %}{% field form.current_job_title "col-md-6 mb-3" %}
+    {% field form.skills "col-12 mb-3" %}{% field form.tools "col-12 mb-3" %}{% field form.certifications "col-12 mb-3" %}
+  </div></div></div>
+  <div class="card mb-3"><div class="card-body"><h2 class="h6 fw-bold"><i class="bi bi-4-circle text-brand"></i> Anything else</h2>
+    {% field form.cover_letter %}{% field form.other_documents %}
+    <div style="position:absolute;left:-5000px" aria-hidden="true">{{ form.website }}</div>
+    {% field form.consent %}
+  </div></div>
+  <button class="btn btn-success btn-lg"><i class="bi bi-send"></i> Submit application</button>
+</form>
+{% endblock %}

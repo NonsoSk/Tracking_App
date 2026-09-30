@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Notifications</h1><div class="subtitle">Everything the portal has told you about.</div></div>
+  <form method="post" action="{% url 'core:read_all' %}">{% csrf_token %}<button class="btn btn-outline-primary btn-sm">Mark all as read</button></form></div>
+<div class="card"><div class="list-group list-group-flush">
+  {% for n in items %}
+    <a class="list-group-item list-group-item-action {% if not n.is_read %}bg-light{% endif %}" href="{% url 'core:open_notification' n.pk %}">
+      <div class="d-flex justify-content-between"><span class="{% if not n.is_read %}fw-bold{% endif %}"><i class="bi bi-circle-fill text-{{ n.level }} me-2" style="font-size:.55rem"></i>{{ n.title }}</span><span class="small text-muted">{{ n.created_at|naturaltime }}</span></div>
+      {% if n.message %}<div class="small text-muted ms-3">{{ n.message|truncatechars:220 }}</div>{% endif %}
+    </a>
+  {% empty %}{% include "partials/_empty.html" with icon="bi-bell-slash" text="No notifications yet." %}{% endfor %}
+</div></div>
+{% endblock %}

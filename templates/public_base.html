@@ -1,0 +1,39 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Careers{% endblock %} · {{ COMPANY_NAME }}</title>
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+</head>
+<body data-terms-url="{% url 'requisitions:api_terms' %}">
+<nav class="navbar navbar-expand bg-white border-bottom">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'careers:jobs' %}">
+      <span class="brand-mark d-inline-grid" style="width:34px;height:34px;border-radius:9px;background:#1b9e5a;color:#fff;place-items:center;font-size:.72rem;font-weight:700">{{ COMPANY_SHORT_NAME }}</span>
+      <span class="fw-bold text-brand d-none d-sm-inline">Careers</span>
+    </a>
+    <div class="ms-auto d-flex gap-2">
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'careers:jobs' %}">Vacancies</a>
+      <a class="btn btn-sm btn-light" href="{% url 'careers:status' %}"><i class="bi bi-search"></i> Track application</a>
+    </div>
+  </div>
+</nav>
+{% block hero %}{% endblock %}
+<main class="container py-4">
+  {% include "partials/_messages.html" %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="border-top py-4 mt-4 bg-white">
+  <div class="container small text-muted d-flex flex-wrap justify-content-between gap-2">
+    <span>&copy; {% now "Y" %} {{ COMPANY_NAME }}</span>
+    <span>We never ask candidates for payment at any stage of recruitment.</span>
+  </div>
+</footer>
+<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load portal %}
+{% block title %}Offer reviews{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Offer reviews</h1><div class="subtitle">Candidates who asked for their offer to be reviewed. Decide to revise, maintain or withdraw.</div></div></div>
+<div class="card mb-4"><div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>Candidate</th><th>Position</th><th>Current offer</th><th>Candidate asks</th><th>Comment</th><th></th></tr></thead><tbody>
+  {% for o in offers %}<tr><td class="fw-semibold">{{ o.application.candidate.full_name }}</td><td>{{ o.job_title }}<div class="small text-muted">{{ o.application.requisition.department }}</div></td><td>{{ o.annual_salary|naira }}</td><td>{{ o.counter_salary|naira|default:"—" }}</td><td class="small">{{ o.candidate_comment|truncatechars:80 }}</td><td class="text-end"><a class="btn btn-sm btn-warning" href="{% url 'pipeline:offer_review' o.pk %}">Review</a></td></tr>
+  {% empty %}<tr><td colspan="6">{% include "partials/_empty.html" with icon="bi-check2-all" text="No offer reviews waiting." %}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+{% if history %}<h2 class="h6">Recent decisions</h2>
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle"><tbody>
+  {% for o in history %}<tr><td>{{ o.application.candidate.full_name }}</td><td>{{ o.job_title }}</td><td>{{ o.annual_salary|naira }}</td><td>{{ o.get_management_decision_display }}</td><td class="small text-muted">{{ o.management_by.display_name }} · {{ o.management_at|date:"d M Y" }}</td></tr>{% endfor %}
+</tbody></table></div></div>{% endif %}
+{% endblock %}

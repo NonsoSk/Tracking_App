@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Interviews{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{% if request.user.is_hr %}Interview calendar{% else %}My interviews{% endif %}</h1><div class="subtitle">{% if request.user.is_hr %}All scheduled interviews.{% else %}Interviews where you sit on the panel.{% endif %}</div></div>
+  <div class="btn-group"><a class="btn btn-sm {% if scope == 'upcoming' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?scope=upcoming">Upcoming</a><a class="btn btn-sm {% if scope == 'past' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?scope=past">Past</a></div></div>
+{% for day, items in days.items %}
+  <h2 class="h6 text-muted mt-3">{{ day|date:"l, d F Y" }}</h2>
+  <div class="card mb-2"><div class="list-group list-group-flush">
+  {% for i in items %}
+    <div class="list-group-item d-flex gap-3 align-items-center flex-wrap">
+      <div class="text-center" style="width:64px"><div class="fw-bold text-brand">{{ i.scheduled_at|time:"H:i" }}</div><div class="small text-muted">{{ i.duration_minutes }} min</div></div>
+      <div class="flex-grow-1"><a class="fw-semibold" href="{{ i.application.get_absolute_url }}#interviews">{{ i.application.candidate.full_name }}</a> <span class="badge text-bg-{{ i.status_color }}">{{ i.get_status_display }}</span>
+        <div class="small text-muted">{{ i.get_round_display }} · {{ i.application.requisition.title }} · {{ i.get_mode_display }}{% if i.mode == 'video' %} · <a href="{{ i.meeting_link }}" target="_blank">join</a>{% elif i.location %} · {{ i.location }}{% endif %}</div>
+        <div class="small">Panel: {% for p in i.panel.all %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
+      <div class="d-flex gap-1"><a class="btn btn-sm btn-light" href="{% url 'pipeline:ics' i.pk %}" title="Add to calendar"><i class="bi bi-calendar-plus"></i></a>
+        {% if request.user in i.panel.all and i.status != 'cancelled' %}<a class="btn btn-sm btn-success" href="{% url 'pipeline:evaluate' i.application.pk %}?interview={{ i.pk }}"><i class="bi bi-clipboard-check"></i> Score</a>{% endif %}</div>
+    </div>
+  {% endfor %}
+  </div></div>
+{% empty %}<div class="card">{% include "partials/_empty.html" with icon="bi-calendar2-x" text="No interviews to show." %}</div>{% endfor %}
+{% endblock %}
