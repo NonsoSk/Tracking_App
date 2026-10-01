@@ -40,6 +40,10 @@ python manage.py seed_demo      # optional: demo departments, users and candidat
 python manage.py runserver
 ```
 
+> **Windows:** keep the project in a short folder outside OneDrive (e.g. `C:\Users\<you>\portal`). Deep OneDrive
+> paths exceed Windows' 260-character path limit and `pip install` fails with "No such file or directory" (often on
+> `lxml`).
+
 Open http://localhost:8000. With demo data, every account's password is **`Demo@2026`**:
 
 | Username | Role | What to try |
