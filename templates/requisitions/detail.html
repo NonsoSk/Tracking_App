@@ -123,7 +123,7 @@
     </div>
     {% endif %}
     {% else %}
-      {% empty_state "No candidates here yet" "Applications from the careers page, referrals and uploaded CVs appear here automatically, ranked by match." object_name="Stack of CV folders" %}
+      {% empty_state "No candidates here yet" "Applications from the careers page, referrals and uploaded CVs appear here automatically, ranked by match." object_name="Lab beaker of polymer pellets" %}
     {% endif %}
     </form>
   </section>
@@ -212,7 +212,7 @@
           <td data-label="Status"><span class="chip {{ i.status|tone:'interview' }}">{{ i.get_status_display }}</span>{% if i.candidate_response %}<div class="small muted">{{ i.get_candidate_response_display }}</div>{% endif %}</td></tr>
       {% endfor %}
       </tbody></table></div>
-    {% else %}{% empty_state "No interviews yet" "Interviews you schedule from a candidate's page show up here." object_name="Desk calendar with a pen" %}{% endif %}
+    {% else %}{% empty_state "No interviews yet" "Interviews you schedule from a candidate's page show up here." object_name="Tablet with an interview calendar" %}{% endif %}
   </section>
 </div>
 

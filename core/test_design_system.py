@@ -104,6 +104,17 @@ class MigrationTests(TestCase):
         self.assertIn('class="glass pub-nav"', careers)  # glass only on the bar over the hero
         self.assertNotIn('class="glass', self.client.get(reverse("careers:status")).content.decode())
 
+    def test_every_3d_placeholder_is_one_of_the_seven_specified_objects(self):
+        from core.styleguide import OBJECTS_3D
+
+        allowed = {name for name, *_ in OBJECTS_3D}
+        pattern = re.compile(r'(?:ph3d |object_name=|empty_state "[^"]+" "[^"]*" \w+ "[^"]+" )"([^"]+)"')
+        used = set()
+        for path in (BASE / "templates").rglob("*.html"):
+            used |= set(pattern.findall(path.read_text(encoding="utf-8")))
+        self.assertTrue(used)
+        self.assertEqual(sorted(used - allowed), [])
+
     def test_error_pages_render_without_a_signed_in_user(self):
         from django.template.loader import render_to_string
 
@@ -184,6 +195,22 @@ class TagTests(TestCase):
         self.assertIn("is-gold", html)
         self.assertIn('aria-label="match 97.5 out of 100"', html)
         self.assertIn("not available", str(ds.score_ring(None)))
+
+    @override_settings(STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+                                 "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
+    def test_placeholder_becomes_the_render_once_supplied(self):
+        import tempfile
+        from unittest import mock
+
+        name = "Brushed steel valve wheel"
+        self.assertIn('class="ph3d', str(ds.ph3d(name, 220, 160)))
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "brushed-steel-valve-wheel.webp").write_bytes(b"RIFF")
+            with mock.patch.object(ds, "RENDER_DIR", Path(tmp)):
+                html = str(ds.ph3d(name, 220, 160))
+        self.assertIn('<img class="render3d', html)
+        self.assertIn("img/3d/brushed-steel-valve-wheel.webp", html)
+        self.assertIn('width="220" height="160"', html)
 
     def test_avatar_initials(self):
         self.assertIn(">CO<", str(ds.avatar("Chinedu Okafor")))

@@ -68,7 +68,7 @@
       </tr>
     {% endfor %}
     </tbody></table></div>
-  {% else %}{% if u.is_hr %}{% url 'core:import_employees' as imp_url %}{% empty_state "No staff in this view" "Import the HR staff list so retirements can be forecast." imp_url "Import staff list" "Hourglass on a stack of files" "upload" %}{% else %}{% empty_state "No staff in this view" "Try a longer time window." object_name="Hourglass on a stack of files" %}{% endif %}{% endif %}
+  {% else %}{% if u.is_hr %}{% url 'core:import_employees' as imp_url %}{% empty_state "No staff in this view" "Import the HR staff list so retirements can be forecast." imp_url "Import staff list" "Lab beaker of polymer pellets" "upload" %}{% else %}{% empty_state "No staff in this view" "Try a longer time window." object_name="Lab beaker of polymer pellets" %}{% endif %}{% endif %}
 </section>
 {% endwith %}
 {% endblock %}

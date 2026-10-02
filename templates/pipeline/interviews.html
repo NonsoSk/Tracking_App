@@ -53,7 +53,7 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="sheet">{% if scope == 'upcoming' %}{% empty_state "No interviews coming up" "When an interview is scheduled, it appears here with a calendar invite." object_name="Desk calendar with a pen" %}{% else %}{% empty_state "No past interviews yet" "" object_name="Desk calendar with a pen" %}{% endif %}</div>
+<div class="sheet">{% if scope == 'upcoming' %}{% empty_state "No interviews coming up" "When an interview is scheduled, it appears here with a calendar invite." object_name="Tablet with an interview calendar" %}{% else %}{% empty_state "No past interviews yet" "" object_name="Tablet with an interview calendar" %}{% endif %}</div>
 {% endif %}
 {% endwith %}
 {% endblock %}

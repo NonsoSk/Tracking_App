@@ -187,7 +187,12 @@ candidates/      candidate profiles, document folders, CV reader, bulk intake, r
 pipeline/        applications, matching, interviews, selection reports, decisions, offers, medicals, onboarding
 careers/         public careers site and the candidate's personal application page
 templates/, static/   Design system UI (static/ds), all assets vendored, no CDN needed
+docs/            3D render spec sheets for the designer
 ```
+
+The design system and every component are shown at `/styleguide/` (signed in). The seven 3D objects appear as
+labelled grey placeholders until the renders are supplied; [docs/3d-render-specs.md](docs/3d-render-specs.md) has the
+Blender brief, and dropping a render into `static/img/3d/` with the listed file name swaps it in everywhere.
 
 ## Tests
 

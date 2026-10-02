@@ -222,9 +222,26 @@ def empty_state(title, body="", action_url=None, action_label=None, object_name=
             "object_name": object_name, "action_icon": action_icon}
 
 
+RENDER_DIR = Path(settings.BASE_DIR) / "static" / "img" / "3d"
+
+
+def render_file(name: str):
+    """static/img/3d/<slug>.webp (or .png) once the Blender render for this object has been supplied."""
+    from django.utils.text import slugify
+
+    for ext in ("webp", "png"):
+        if (RENDER_DIR / f"{slugify(name)}.{ext}").is_file():
+            return f"img/3d/{slugify(name)}.{ext}"
+    return None
+
+
 @register.simple_tag
 def ph3d(name, width, height, cls=""):
-    """Labelled grey placeholder for a 3D render that has not been supplied yet (never fake 3D)."""
+    """The 3D render when it has been supplied; until then a labelled grey placeholder of the same size (never fake 3D)."""
+    found = render_file(name)
+    if found:
+        return format_html('<img class="render3d {}" src="{}" width="{}" height="{}" alt="" loading="lazy" decoding="async">',
+                           cls, static(found), width, height)
     return format_html(
         '<div class="ph3d {}" style="width:{}px;height:{}px" role="img" aria-label="Placeholder for 3D render: {}">'
         '<span>3D · {}<small>{}×{} · render pending</small></span></div>',

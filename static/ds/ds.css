@@ -321,6 +321,7 @@ a.card:active, .card.is-interactive:active { box-shadow: var(--slab-1), var(--be
 .ph3d { position: relative; display: grid; place-items: center; text-align: center; border-radius: 18px; color: #4A5168; padding: var(--s-16);
   background: repeating-linear-gradient(135deg, #C9CED9 0 12px, #C3C9D5 12px 24px); border: 1.5px dashed #9AA2B6;
   font-size: var(--fs-caption); font-weight: 800; letter-spacing: .04em; line-height: 1.4; }
+.render3d { display: block; object-fit: contain; max-width: 100%; filter: drop-shadow(0 18px 24px rgb(5 12 40 / .28)); }
 .ph3d small { display: block; font-weight: 600; letter-spacing: 0; opacity: .85; margin-top: var(--s-4); }
 
 /* Logo: exactly as supplied, on a white plate (8px padding, radius 10, e1). Never recoloured or stretched. */

@@ -47,6 +47,6 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="sheet">{% if request.user.can_raise_requisition %}{% url 'requisitions:create' as new_url %}{% empty_state "No requisitions here yet" "When a department needs someone, the request starts here." new_url "Raise requisition" "Clipboard with a hard hat" %}{% else %}{% empty_state "No requisitions here yet" "Try another filter, or clear the search." object_name="Clipboard with a hard hat" %}{% endif %}</div>
+<div class="sheet">{% if request.user.can_raise_requisition %}{% url 'requisitions:create' as new_url %}{% empty_state "No requisitions here yet" "When a department needs someone, the request starts here." new_url "Raise requisition" "Brushed steel valve wheel" %}{% else %}{% empty_state "No requisitions here yet" "Try another filter, or clear the search." object_name="Brushed steel valve wheel" %}{% endif %}</div>
 {% endif %}
 {% endblock %}
