@@ -44,6 +44,12 @@ python manage.py runserver
 > paths exceed Windows' 260-character path limit and `pip install` fails with "No such file or directory" (often on
 > `lxml`).
 
+> **Windows, every day after that:** double-click `start-portal.bat`. It applies any database updates, starts the
+> portal and opens it in your browser. Keep its window open while you work; close it to stop the portal. To start it
+> automatically when you sign in to Windows, press Win+R, type `shell:startup`, and put a shortcut to
+> `start-portal.bat` in that folder (set the shortcut to run minimised). This is still only on your PC; for the hiring
+> team, see [Deployment](#deployment).
+
 Open http://localhost:8000. With demo data, every account's password is **`Demo@2026`**:
 
 | Username | Role | What to try |
