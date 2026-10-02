@@ -43,6 +43,7 @@ const MESSAGES: Record<string, string> = {
   code_deactivated: 'This submission code is no longer active.',
   code_wrong_community: 'This code is for a different community. Please use the code for your community.',
   code_full: 'The maximum number of grievances for this code has been reached.',
+  monthly_limit: 'You have sent the most grievances allowed this month. You can send another from the 1st of next month. For anything urgent, please contact the Community Relations office.',
   code_person_limit: 'You have already sent the most grievances allowed with this code. Please contact the Community Relations office if you need to raise another.',
   max_below_used: 'The maximum cannot be lower than the number of grievances already sent with this code.',
   grievance_closed: 'This grievance is closed, so replies are no longer possible. Please submit a new grievance if needed.',

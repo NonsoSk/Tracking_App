@@ -115,6 +115,9 @@ export function Submit() {
         <h1 className="text-[22px] font-bold">Submit a grievance</h1>
       </div>
       <Stepper steps={steps} current={step} />
+      {status.data?.monthly_left === 0 && (
+        <div className="mt-4"><Banner tone="warning">{messageFor('monthly_limit')}</Banner></div>
+      )}
 
       <div className="mt-6 min-h-[44vh] space-y-5">
         {name === 'Code' && (

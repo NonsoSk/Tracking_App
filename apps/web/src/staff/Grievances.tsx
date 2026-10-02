@@ -91,7 +91,8 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 export function GrievanceList() {
   const [filters, setFilters] = useUrlFilters();
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState('overdue_first');
+  // A link can choose the order, e.g. ?sort=resolved_desc from the "Resolved" card.
+  const [sort, setSort] = useState(() => new URLSearchParams(window.location.search).get('sort') ?? 'overdue_first');
   const { can } = useAuth();
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
@@ -122,7 +123,7 @@ export function GrievanceList() {
         <label htmlFor="sort" className="text-ink-500">Sort</label>
         <Select id="sort" className="h-9 !w-auto text-sm" value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="overdue_first">Overdue first</option><option value="received_desc">Newest</option>
-          <option value="received_asc">Oldest</option><option value="days_desc">Longest outstanding</option><option value="updated_desc">Recently updated</option>
+          <option value="received_asc">Oldest</option><option value="days_desc">Longest outstanding</option><option value="updated_desc">Recently updated</option><option value="resolved_desc">Latest resolved</option>
         </Select>
       </div>
       <div className="mt-3">

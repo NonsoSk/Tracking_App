@@ -19,6 +19,8 @@ export function Home() {
   const needAck = list.filter((g) => g.needs_acknowledgement).length;
   const settled = list.filter((g) => g.status_code === 'RESOLVED' || g.status_code === 'CLOSED').length;
   const open = status.data?.open;
+  const monthLeft = status.data?.monthly_left ?? null;
+  const monthLimit = status.data?.monthly_limit ?? null;
   const noCode = status.data?.code_required === false;
   const sharedCode = status.data?.code ?? null;
   const codeHint = noCode ? 'No submission code is needed right now.'
@@ -54,9 +56,15 @@ export function Home() {
         </section>
       )}
 
-      <Button size="lg" icon={PenLine} onClick={() => nav('/submit')} className="h-16 text-lg">
+      <Button size="lg" icon={PenLine} onClick={() => nav('/submit')} className="h-16 text-lg" disabled={monthLeft === 0}>
         Submit a grievance
       </Button>
+      {monthLimit != null && monthLeft != null && (
+        <p className={cx('-mt-2 text-center text-sm', monthLeft === 0 ? 'font-bold text-warning' : 'text-ink-500')}>
+          {monthLeft === 0 ? 'You have used all your grievances for this month. You can send again from the 1st.'
+            : `You can send ${monthLeft} more ${monthLeft === 1 ? 'grievance' : 'grievances'} this month (limit ${monthLimit}).`}
+        </p>
+      )}
       {!noCode && <p className="-mt-2 text-center text-sm text-ink-500">{sharedCode ? `Submission code: ${sharedCode}` : "You'll need the submission code from your community leader."}</p>}
 
       <QuickActions items={[

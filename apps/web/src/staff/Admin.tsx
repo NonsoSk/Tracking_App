@@ -577,6 +577,7 @@ const SETTING_UI: Record<string, { label: string; type: 'number' | 'bool' | 'sel
   overdue_realert_hours: { label: 'Re-alert officers every (hours)', type: 'number' },
   code_offline_grace_hours: { label: 'Offline grace period for codes (hours)', type: 'number' },
   whatsapp_enabled: { label: 'Send WhatsApp notifications', type: 'bool' },
+  monthly_submission_limit: { label: 'Grievances each member may send per month (leave empty for unlimited)', type: 'number' },
   submission_code_required: { label: 'Members need a submission code to send a grievance (switch off to let them send without one)', type: 'bool' },
   phone_otp_required: { label: 'Confirm phone numbers by text-message code at registration', type: 'bool' },
   whatsapp_resolution_template: { label: 'WhatsApp resolution template name', type: 'text' },
@@ -600,7 +601,7 @@ export function SettingsPage() {
               <div key={s.key} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
                 <div className="flex-1"><p className="font-semibold">{ui.label}</p><p className="text-sm text-ink-500">{s.description}</p></div>
                 <div className="flex items-center gap-2">
-                  {ui.type === 'number' && <Input type="number" className="h-10 w-24" value={String(v ?? '')} onChange={(e) => setDraft({ ...draft, [s.key]: e.target.value === '' ? null : Number(e.target.value) })} />}
+                  {ui.type === 'number' && <Input type="number" aria-label={ui.label} className="h-10 w-24" value={String(v ?? '')} onChange={(e) => setDraft({ ...draft, [s.key]: e.target.value === '' ? null : Number(e.target.value) })} />}
                   {ui.type === 'text' && <Input className="h-10 w-56" value={String(v ?? '')} onChange={(e) => setDraft({ ...draft, [s.key]: e.target.value })} />}
                   {ui.type === 'select' && <Select className="h-10 w-72" value={String(v)} onChange={(e) => setDraft({ ...draft, [s.key]: e.target.value })}>{ui.options!.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>}
                   {ui.type === 'bool' && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5 accent-brand-700" checked={v === true} onChange={(e) => setDraft({ ...draft, [s.key]: e.target.checked })} />{v === true ? 'On' : 'Off'}</label>}

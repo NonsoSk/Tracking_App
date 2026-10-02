@@ -46,6 +46,9 @@ export interface SubmissionStatus {
   code: string | null;
   /** grievances this member may still send with the open code, when a per-person limit is set */
   uses_left: number | null;
+  /** grievances a member may send per calendar month (null = unlimited), and how many are left this month */
+  monthly_limit: number | null;
+  monthly_left: number | null;
 }
 
 export interface MyGrievance {

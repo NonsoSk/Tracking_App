@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Clock, Flag, Inbox, Search, ThumbsUp } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Flag, Inbox, Search, ThumbsUp } from 'lucide-react';
 import { useAuth } from '@/app/auth';
 import { useMasterData } from '@/app/hooks';
 import { api } from '@/lib/api';
@@ -112,11 +112,12 @@ export function OfficerHome() {
   const home = useQuery({ queryKey: ['officer-home'], queryFn: api.officerHome, refetchInterval: 60_000 });
   const overdue = useQuery({ queryKey: ['officer-overdue'], queryFn: () => api.staffList({ overdue: true }, 1, 5, 'days_desc') });
   const h = home.data;
-  const cards: { label: string; value?: number; tone: 'danger' | 'warning' | 'neutral' | 'success'; icon: typeof Inbox; f: Filters; hint: string }[] = [
+  // total: a count of everything resolved (not a share of open work), so no "/open" or bar.
+  const cards: { label: string; value?: number; tone: 'danger' | 'warning' | 'neutral' | 'success'; icon: typeof Inbox; f: Filters; hint: string; sort?: string; total?: boolean }[] = [
     { label: 'Overdue', value: h?.overdue, tone: 'danger', icon: AlertTriangle, f: { overdue: true }, hint: 'past the 3-working-day limit' },
     { label: 'Due soon', value: h?.due_soon, tone: 'warning', icon: CalendarClock, f: { due_soon: true }, hint: 'within 24 hours' },
     { label: 'New', value: h?.new, tone: 'neutral', icon: Inbox, f: { status: ['SUBMITTED', 'ASSIGNED'] }, hint: 'not yet reviewed' },
-    { label: 'In progress', value: h?.in_progress, tone: 'neutral', icon: Clock, f: { status: ['IN_PROGRESS', 'AWAITING_ACTION', 'REOPENED'] }, hint: 'action being taken' },
+    { label: 'Resolved', value: h?.resolved, tone: 'success', icon: CheckCircle2, f: { status: ['RESOLVED', 'CLOSED'] }, hint: 'latest first', sort: 'resolved_desc', total: true },
     { label: 'Awaiting acknowledgement', value: h?.awaiting_ack, tone: 'neutral', icon: ThumbsUp, f: { needs_ack: true }, hint: 'resolved, waiting for complainant' },
     { label: 'Needs review', value: h?.needs_review, tone: 'warning', icon: Flag, f: { flagged: true, open: true }, hint: 'historical items to check' },
   ];
@@ -155,7 +156,7 @@ export function OfficerHome() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
-          <button key={c.label} onClick={() => nav(listHref(c.f))}
+          <button key={c.label} onClick={() => nav(listHref(c.f) + (c.sort ? `${listHref(c.f).includes('?') ? '&' : '?'}sort=${c.sort}` : ''))}
             className={cx('flex flex-col rounded-2xl bg-surface p-4 text-left shadow-card ring-inset transition-shadow hover:shadow-raised focus-visible:shadow-halo',
               c.tone === 'danger' && c.value ? 'ring-2 ring-danger/40' : '')}>
             <span className={cx('flex items-center gap-1.5 text-[13px] font-bold', c.tone === 'danger' && c.value ? 'text-danger' : 'text-ink-500')}>
@@ -163,10 +164,10 @@ export function OfficerHome() {
             </span>
             {home.isLoading ? <Skeleton className="mt-2 h-9 w-12" /> : (
               <span className={cx('mt-1.5 text-[1.6rem] font-extrabold leading-none tabular', c.tone === 'danger' && c.value ? 'text-danger' : 'text-ink-900')}>
-                {c.value ?? 0}{open > 0 && <span className="text-sm font-bold text-ink-400">/{open}</span>}
+                {c.value ?? 0}{open > 0 && !c.total && <span className="text-sm font-bold text-ink-400">/{open}</span>}
               </span>
             )}
-            <span className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunken"><span className={cx('block h-full rounded-full', c.tone === 'danger' ? 'bg-danger' : c.tone === 'warning' ? 'bg-warning' : 'bg-btn')} style={{ width: `${open ? Math.min(100, ((c.value ?? 0) / open) * 100) : 0}%` }} /></span>
+            {c.total ? <span className="mt-2 h-1.5" aria-hidden /> : <span className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunken"><span className={cx('block h-full rounded-full', c.tone === 'danger' ? 'bg-danger' : c.tone === 'warning' ? 'bg-warning' : 'bg-btn')} style={{ width: `${open ? Math.min(100, ((c.value ?? 0) / open) * 100) : 0}%` }} /></span>}
             <span className="mt-2 text-xs text-ink-500">{c.hint}</span>
           </button>
         ))}
