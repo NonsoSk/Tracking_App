@@ -1,0 +1,6 @@
+{% load ds %}<{% if href %}a href="{{ href }}"{% else %}div{% endif %} class="card kpi">
+  <div class="kpi-top">{% if icon %}<span class="tile sm {{ tile }}">{% icon icon "ico-18" %}</span>{% endif %}<span>{{ label }}</span></div>
+  <div class="kpi-num"{% if count_to %} data-count-to="{{ count_to }}"{% endif %}>{{ value }}</div>
+  {% if delta %}<div class="delta {{ tone }}">{{ delta }}</div>{% endif %}
+  {% if spark %}{% sparkline spark %}{% endif %}
+</{% if href %}a{% else %}div{% endif %}>

@@ -1,0 +1,18 @@
+{% load ds %}<div class="sg-block"><div class="k">Variants</div>
+  <div class="demo-row"><button class="btn btn-primary" type="button">Primary</button><button class="btn btn-secondary" type="button">Secondary</button><button class="btn btn-ghost" type="button">Ghost</button><button class="btn btn-tint" type="button">Tint</button><button class="btn btn-danger" type="button">Reject</button></div>
+</div>
+<div class="sg-block"><div class="k">Sizes 36 / 44 / 52</div>
+  <div class="demo-row"><button class="btn btn-primary btn-sm" type="button">Small</button><button class="btn btn-primary" type="button">Default</button><button class="btn btn-primary btn-lg" type="button">Large</button></div>
+</div>
+<div class="sg-block"><div class="k">With icons · icon-only (always labelled)</div>
+  <div class="demo-row">
+    <button class="btn btn-primary" type="button">{% icon "calendar-plus" "ico-18" %} Schedule interview</button>
+    <button class="btn btn-secondary" type="button">Next {% icon "arrow-right" "ico-18" %}</button>
+    <button class="btn btn-secondary btn-icon" type="button" aria-label="Print" data-tip="Print">{% icon "printer" "ico-18" %}</button>
+    <button class="btn btn-ghost btn-icon" type="button" aria-label="Download" data-tip="Download">{% icon "download" "ico-18" %}</button>
+    <button class="btn btn-ghost btn-icon" type="button" aria-label="More actions" data-tip="More">{% icon "ellipsis" "ico-18" %}</button>
+  </div>
+</div>
+<div class="sg-block"><div class="k">States: loading keeps its width · disabled · focus</div>
+  <div class="demo-row"><button class="btn btn-primary is-loading" type="button" aria-busy="true">Sending offer</button><button class="btn btn-secondary is-loading" type="button" aria-busy="true">Saving</button><button class="btn btn-primary" type="button" disabled>Disabled</button><button class="btn btn-primary focus-demo" type="button">Focused</button></div>
+</div>

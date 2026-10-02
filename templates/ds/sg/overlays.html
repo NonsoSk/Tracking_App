@@ -1,0 +1,47 @@
+{% load ds %}<div class="sg-block"><div class="k">Modal — centred, e3, radius 22</div>
+  <div class="modal is-static" role="presentation">
+    <div class="modal-h"><span class="tile red">{% icon "user-x" %}</span><h3>Reject Kelechi Eze?</h3></div>
+    <div class="modal-b"><p class="soft">They will get a kind regret email and stay in the talent pool for future roles.</p></div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button">Cancel</button><button class="btn btn-danger" type="button">Reject</button></div>
+  </div>
+  <div class="demo-row"><button class="btn btn-secondary btn-sm" type="button" data-open="modal-{{ theme }}">Open modal</button><button class="btn btn-secondary btn-sm" type="button" data-open="drawer-{{ theme }}">Open drawer</button><button class="btn btn-secondary btn-sm" type="button" data-open="palette">{% icon "command" "ico-16" %} Open palette</button></div>
+  <dialog class="modal" id="modal-{{ theme }}" aria-labelledby="mh-{{ theme }}">
+    <div class="modal-h"><span class="tile">{% icon "calendar-plus" %}</span><h3 id="mh-{{ theme }}">Schedule interview</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack"><div class="field"><label class="label" for="md-{{ theme }}">Date and time</label><input class="input" type="datetime-local" id="md-{{ theme }}"></div></div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="button" data-close>Send invites</button></div>
+  </dialog>
+  <dialog class="drawer" id="drawer-{{ theme }}" aria-labelledby="dh-{{ theme }}">
+    <div class="modal-h"><span class="tile">{% icon "briefcase-business" %}</span><h3 id="dh-{{ theme }}">Process Engineer</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack"><p class="soft">Production (Ammonia &amp; Urea) · Eleme, Rivers · Full time</p><p class="small muted">Closes in 6 days</p></div>
+    <div class="modal-f"><button class="btn btn-primary" type="button">Apply now</button></div>
+  </dialog>
+</div>
+<div class="sg-two">
+  <div class="sg-block"><div class="k">Drawer (right)</div>
+    <div class="drawer is-static" role="presentation">
+      <div class="modal-h"><span class="tile">{% icon "briefcase-business" %}</span><h3>Quick view</h3></div>
+      <div class="modal-b"><p class="small soft">Process Engineer · Production · closes in 6 days</p></div>
+      <div class="modal-f"><button class="btn btn-primary btn-sm" type="button">Apply now</button></div>
+    </div>
+  </div>
+  <div class="sg-block"><div class="k">Popover menu</div>
+    <div class="popover is-static" role="presentation">
+      <a class="menu-item" href="#overlays">{% icon "user" "ico-18" %} My profile</a>
+      <a class="menu-item is-active" href="#overlays">{% icon "key-round" "ico-18" %} Change password</a>
+      <hr><a class="menu-item" href="#overlays">{% icon "log-out" "ico-18" %} Sign out</a>
+    </div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Command palette — Ctrl/Cmd+K</div>
+  <div class="palette is-static" role="presentation">
+    <div class="pq">{% icon "search" "ico-24" %}<span style="font-size:17px">chin</span><span class="spacer"></span><span class="kbd">Esc</span></div>
+    <div class="pr">
+      <div class="pg">Search</div>
+      <a class="menu-item is-active" href="#overlays">{% icon "users" "ico-18" %} Candidates matching “chin”<span class="hint">Talent</span></a>
+      <a class="menu-item" href="#overlays">{% icon "square-kanban" "ico-18" %} Applications matching “chin”<span class="hint">Pipeline</span></a>
+      <div class="pg">Go to</div>
+      <a class="menu-item" href="#overlays">{% icon "calendar-days" "ico-18" %} Interviews</a>
+    </div>
+    <div class="pf"><span><span class="kbd">↑</span> <span class="kbd">↓</span> to move</span><span><span class="kbd">Enter</span> to open</span><span><span class="kbd">Esc</span> to close</span></div>
+  </div>
+</div>

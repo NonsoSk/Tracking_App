@@ -1,0 +1,97 @@
+{% load static ds %}<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>/* Apply the remembered theme before first paint (no flash) */(function(){var c="auto";try{c=localStorage.getItem("iefcl-theme")||"auto"}catch(e){}var d=c==="dark"||(c==="auto"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";document.documentElement.dataset.themeChoice=c})();</script>
+  <title>{% block title %}My tasks{% endblock %} · {{ COMPANY_SHORT_NAME }} {{ PORTAL_NAME }}</title>
+  <link rel="preload" href="{% static 'vendor/fonts/nunito-sans/nunito-sans-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'ds/ds.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <meta name="theme-color" content="#F2F4F8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B1224" media="(prefers-color-scheme: dark)">
+  {% block head %}{% endblock %}
+</head>
+<body{% block body_attrs %}{% endblock %}>
+<a class="skip-link" href="#main">Skip to content</a>
+{% nav_items as nav %}
+{% with u=request.user %}
+<nav class="rail-nav" aria-label="Main">
+  {% for item in nav %}{% if item.sep %}<span class="sep" role="separator"></span>{% else %}
+  <a href="{{ item.url }}"{% if item.current %} aria-current="page"{% endif %}{% if item.extra %} class="rail-extra"{% endif %}{% if item.external %} target="_blank" rel="noopener"{% endif %} data-tip="{{ item.long }}" data-tip-side="right">{% icon item.icon %}<span>{{ item.label }}</span>{% if item.badge %}<span class="badge">{{ item.badge }}</span>{% endif %}</a>
+  {% endif %}{% endfor %}
+  <div class="rail-foot">
+    <button class="icon-btn" type="button" data-popover="account-menu" aria-haspopup="true" aria-expanded="false" aria-label="Account: {{ u.display_name }}">{% avatar u "md" %}</button>
+    {% include "ds/_account_menu.html" with menu_id="account-menu" %}
+  </div>
+</nav>
+
+<div class="app">
+  <div class="app-main">
+    <header class="toolbar">
+      {% block toolbar_start %}<a href="{% url 'core:dashboard' %}" aria-label="My tasks">{% logo %}</a>{% endblock %}
+      <nav class="crumbs" aria-label="Breadcrumb">{% block crumbs %}{% endblock %}</nav>
+      <span class="spacer"></span>
+      <button class="search-trigger desktop-only" type="button" data-open="palette" aria-label="Search or jump to (Ctrl K)">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
+      <button class="icon-btn mobile-only" type="button" data-open="palette" aria-label="Search">{% icon "search" %}</button>
+      <div class="pop-wrap">
+        <button class="icon-btn" type="button" data-popover="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Theme">
+          <span data-theme-icon="light" hidden>{% icon "sun" %}</span><span data-theme-icon="dark" hidden>{% icon "moon" %}</span><span data-theme-icon="auto">{% icon "sun-moon" %}</span>
+        </button>
+        <div class="popover" id="theme-menu" hidden>
+          <div class="pg eyebrow" style="padding:4px 8px 8px">Appearance</div>
+          <div class="seg" role="group" aria-label="Theme">
+            <button type="button" data-theme-set="light" aria-pressed="false">{% icon "sun" "ico-16" %} Light</button>
+            <button type="button" data-theme-set="dark" aria-pressed="false">{% icon "moon" "ico-16" %} Dark</button>
+            <button type="button" data-theme-set="auto" aria-pressed="true">{% icon "monitor" "ico-16" %} Auto</button>
+          </div>
+        </div>
+      </div>
+      <div class="pop-wrap">
+        <button class="icon-btn" type="button" data-popover="notif-menu" aria-haspopup="true" aria-expanded="false" aria-label="Notifications{% if unread_notifications %}, {{ unread_notifications }} unread{% endif %}">{% icon "bell" %}{% if unread_notifications %}<span class="pip"></span>{% endif %}</button>
+        <div class="popover" id="notif-menu" hidden style="width:min(360px, calc(100vw - 32px))">
+          <div class="row" style="padding:4px 8px 8px"><span class="eyebrow">Notifications</span><span class="spacer"></span>
+            <form method="post" action="{% url 'core:read_all' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-ghost btn-sm" type="submit">Mark all read</button></form></div>
+          {% for n in recent_notifications %}
+            <a class="notif{% if not n.is_read %} unread{% endif %}" href="{% url 'core:open_notification' n.pk %}"><span class="d"></span><span>{{ n.title }}<small>{{ n.created_at|timesince }} ago</small></span></a>
+          {% empty %}
+            <p class="small muted" style="padding:8px 12px 12px">You're all caught up.</p>
+          {% endfor %}
+          <hr><a class="menu-item" href="{% url 'core:notifications' %}">{% icon "inbox" "ico-18" %} View all</a>
+        </div>
+      </div>
+      <div class="pop-wrap mobile-only">
+        <button class="icon-btn" type="button" data-popover="account-menu-m" aria-haspopup="true" aria-expanded="false" aria-label="Account">{% avatar u "sm" %}</button>
+        {% include "ds/_account_menu.html" with menu_id="account-menu-m" %}
+      </div>
+      {% block primary_action %}{% endblock %}
+    </header>
+
+    <main id="main" class="{% block main_class %}enter{% endblock %}" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite">
+  {% for message in messages %}{% with tone=message.tags|default:"info" %}
+  <div class="toast" role="{% if tone == 'error' %}alert{% else %}status{% endif %}" data-timeout="{% if tone == 'error' %}0{% else %}6000{% endif %}">
+    <span class="tile {% if tone == 'success' %}green{% elif tone == 'warning' %}amber{% elif tone == 'error' %}red{% endif %}">{% if tone == 'success' %}{% icon "circle-check" "ico-18" %}{% elif tone == 'warning' %}{% icon "triangle-alert" "ico-18" %}{% elif tone == 'error' %}{% icon "circle-alert" "ico-18" %}{% else %}{% icon "info" "ico-18" %}{% endif %}</span>
+    <div><b>{{ message }}</b></div>
+    <div class="actions"><button class="icon-btn" type="button" data-toast-close aria-label="Dismiss">{% icon "x" "ico-18" %}</button></div>
+  </div>{% endwith %}{% endfor %}
+</div>
+
+{% include "ds/_palette.html" %}
+{% endwith %}
+
+<template id="ds-toast-icon-success">{% icon "circle-check" "ico-18" %}</template>
+<template id="ds-toast-icon-warning">{% icon "triangle-alert" "ico-18" %}</template>
+<template id="ds-toast-icon-danger">{% icon "circle-alert" "ico-18" %}</template>
+<template id="ds-toast-icon-info">{% icon "info" "ico-18" %}</template>
+<template id="ds-icon-x">{% icon "x" "ico-18" %}</template>
+<template id="ds-icon-file">{% icon "file-text" "ico-16" %}</template>
+<script src="{% static 'ds/ds.js' %}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

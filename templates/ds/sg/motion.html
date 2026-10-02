@@ -1,0 +1,23 @@
+{% load ds %}<div class="sg-block"><div class="k">Durations · cubic-bezier(.2, .8, .2, 1)</div>
+  <table class="cx"><tbody>{% for k, v, use in motion %}<tr><td><code>--{{ k }}</code></td><td class="num strong">{{ v }}</td><td>{{ use }}</td></tr>{% endfor %}</tbody></table>
+</div>
+<div class="sg-block"><div class="k">Page enter (fade up 6px, 30ms stagger) · count-up · ring</div>
+  <div class="row wrap" style="gap:16px;align-items:flex-start">
+    <div class="enter stack-8" style="width:200px">{% for i in "12345" %}<div class="card pad-16 small">List item {{ i }}</div>{% endfor %}</div>
+    <div class="stack" style="justify-items:start">
+      <div class="kpi-num" style="font-size:40px" data-count-to="1284">1,284</div>
+      {% score_ring 97.5 96 True "match" %}
+      <button class="btn btn-secondary btn-sm" type="button" data-replay>{% icon "rotate-ccw" "ico-16" %} Replay</button>
+    </div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Drag on the pipeline</div>
+  <div class="sg-two">
+    <div class="kcol" style="min-height:0"><div class="kcol-h">Shortlisted <span class="count-badge">2</span></div>
+      <div class="card kcard is-dragging"><div class="nm">{% avatar "Chinedu Okafor" "sm" %}<span>Chinedu Okafor</span></div>{% score_ring 97.5 36 True animate=False %}</div></div>
+    <div class="kcol is-target" style="min-height:0"><div class="kcol-h">Interviews <span class="count-badge">4</span></div><p class="small" style="padding:8px;color:var(--on-tint)">Target column glows brand-50</p></div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Celebration (only “Offer accepted” and “Hired”)</div>
+  <div class="demo-row"><button class="btn btn-secondary" type="button" data-confetti>{% icon "party-popper" "ico-18" %} Gold confetti, under 1.2s</button><span class="small muted">Skipped entirely with reduced motion.</span></div>
+</div>

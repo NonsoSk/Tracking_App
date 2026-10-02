@@ -1,0 +1,17 @@
+{% load ds %}<div class="sg-block"><div class="k">Logo plate — exactly as supplied: white plate, 8px padding, radius 10, e1</div>
+  <div class="demo-row">{% logo %}{% logo 32 %}<span class="small muted">Never recoloured, redrawn, cropped or stretched. The supplied file is 358×73 px, so it is shown at 32px tall or less until a larger file is provided.</span></div>
+</div>
+<div class="sg-block"><div class="k">Hero band — careers, sign-in and the My tasks header only</div>
+  <div class="hero has-glass sg-hero">
+    <div class="mesh" aria-hidden="true"></div>
+    <div class="glass">{% logo %}<span class="small strong">Careers</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" type="button">Track my application</button><button class="btn btn-primary btn-sm" type="button">Sign in</button></div>
+    <div class="eyebrow">Careers at Indorama Eleme Fertilizer</div>
+    <h1 class="display" style="max-width:11ch;margin-top:8px">Build what moves Nigeria forward</h1>
+    <p class="calm">{% calm_note "candidate" %}</p>
+    <div class="hero-object">{% ph3d "Hard hat" 200 150 %}</div>
+  </div>
+  <p class="small muted">Mesh gradient (#0A4FD1 → #0033A1 → #00257A, sky glow top-right), blueprint grid at 6%, film grain at 3.5%. Glass is used only for this top bar.</p>
+</div>
+<div class="sg-block"><div class="k">3D renders — labelled placeholders until the Blender renders are supplied</div>
+  <div class="obj-grid">{% for name, use, w, h in objects_3d %}<figure>{% ph3d name w h %}<figcaption><b>{{ name }}</b>{{ use }} · {{ w }}×{{ h }}</figcaption></figure>{% endfor %}</div>
+</div>

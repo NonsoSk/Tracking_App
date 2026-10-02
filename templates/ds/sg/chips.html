@@ -1,0 +1,13 @@
+{% load ds %}<div class="sg-block"><div class="k">Status — one palette for every stage</div>
+  <div class="tags">{% for k in chip_keys %}{% status_chip key=k %}{% endfor %}</div>
+</div>
+<div class="sg-block"><div class="k">Source · signature accent · tags</div>
+  <div class="tags">
+    <span class="chip neutral no-dot">{% icon "globe" %} Online</span><span class="chip neutral no-dot">{% icon "user-plus" %} Referral</span><span class="chip neutral no-dot">{% icon "mail" %} Email</span><span class="chip neutral no-dot">{% icon "scan-text" %} Scanned</span>
+    <span class="chip gold">Top match</span><span class="chip urgent">Urgent</span>
+  </div>
+  <div class="tags"><span class="tag on">{% icon "check" "ico-14" %} HAZOP</span><span class="tag on">Aspen HYSYS</span><span class="tag">CO2 removal</span><span class="tag">COREN</span><span class="kbd">Ctrl K</span><span class="count-badge">12</span></div>
+</div>
+<div class="sg-block"><div class="k">Avatars 24 / 28 / 40 / 64 / 88 · panel stack</div>
+  <div class="demo-row">{% avatar "Chinedu Okafor" "xs" %}{% avatar "Chinedu Okafor" "sm" %}{% avatar "Chinedu Okafor" "md" %}{% avatar "Chinedu Okafor" "lg" %}{% avatar "Chinedu Okafor" "xl" %}{% avatar_stack panel 3 %}</div>
+</div>

@@ -1,0 +1,10 @@
+{% load ds %}<p class="small muted">{{ t.passed }} of {{ t.total }} pairs pass. Text needs 4.5:1. Borders, focus rings and state markers need 3:1. <span class="strong">--text-4</span> is only used for disabled and decorative marks.</p>
+<div class="table-wrap" style="max-height:none"><table class="cx">
+  <thead><tr><th>Sample</th><th>Pair</th><th>Used for</th><th class="r">Ratio</th></tr></thead>
+  <tbody>{% for r in t.contrast %}<tr>
+    <td><span class="aa" style="color:{{ r.fg_hex }};background:{{ r.bg_hex }}">{% if r.kind == "ui" %}{% icon "square" "ico-18" %}{% else %}Aa{% endif %}</span></td>
+    <td><code>{{ r.fg }}</code><br><code>on {{ r.bg }}</code></td>
+    <td>{{ r.usage }}</td>
+    <td class="r">{{ r.ratio }}<br>{% if r.ok %}<span class="chip success no-dot">{% if r.kind == "ui" %}3:1{% else %}AA{% endif %}</span>{% else %}<span class="chip danger">Fail</span>{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>

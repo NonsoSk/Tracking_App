@@ -1,0 +1,14 @@
+{% load ds %}<div class="sg-block">
+  {% for key, name, size, sample in type_scale %}<div class="type-row"><div class="meta"><b>{{ name }}</b>{{ size }} px</div>
+    <div class="{% if key == 'display' %}display{% elif key == 'h1' or key == 'h2' or key == 'h3' %}{{ key }}{% else %}t-{{ key }}{% endif %}">{{ sample }}</div></div>{% endfor %}
+  <div class="type-row"><div class="meta"><b>Eyebrow</b>12.5 caps</div><div class="eyebrow">Needs you today</div></div>
+  <div class="type-row"><div class="meta"><b>KPI number</b>800, −0.03em</div><div class="kpi-num" style="font-size:40px">1,284</div></div>
+  <div class="type-row"><div class="meta"><b>Weights</b>400 / 600 / 800</div><div><span>Regular 400</span> · <span style="font-weight:600">Semibold 600</span> · <span style="font-weight:800">Heavy 800</span></div></div>
+  <div class="type-row"><div class="meta"><b>Tabular</b>scores, money, dates</div><div class="num">97.5 · 84.6% · ₦16,800,000 · 31/08/2026 · 11:30</div></div>
+</div>
+<div class="sg-block"><div class="k">Page header pattern</div>
+  <div class="page-head" style="margin:0">
+    <div><div class="eyebrow">Requisitions</div><h1>Process Engineer</h1><p class="lede">Production (Ammonia &amp; Urea) · 12 applicants · closes in 6 days</p><p class="calm">{% calm_note %}</p></div>
+    <div class="actions"><button class="btn btn-secondary" type="button">Edit</button><button class="btn btn-primary" type="button">Shortlist</button></div>
+  </div>
+</div>

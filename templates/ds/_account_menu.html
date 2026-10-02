@@ -1,0 +1,8 @@
+{% load ds %}<div class="popover" id="{{ menu_id }}" hidden style="width:260px">
+  <div class="who">{% avatar request.user "md" %}<div><b>{{ request.user.display_name }}</b><span>{{ request.user.get_role_display }}{% if request.user.department %} · {{ request.user.department.code }}{% endif %}</span></div></div>
+  <a class="menu-item" href="{% url 'accounts:profile' %}">{% icon "user" "ico-18" %} My profile</a>
+  <a class="menu-item" href="{% url 'accounts:password_change' %}">{% icon "key-round" "ico-18" %} Change password</a>
+  <a class="menu-item" href="{% url 'core:styleguide' %}">{% icon "layout-grid" "ico-18" %} Style guide</a>
+  <hr>
+  <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="menu-item" type="submit">{% icon "log-out" "ico-18" %} Sign out</button></form>
+</div>

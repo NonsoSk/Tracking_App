@@ -265,3 +265,11 @@ def record_exit(request, pk):
         log(f"{employee.full_name} recorded as {employee.get_status_display().lower()}.", verb="employee", actor=request.user)
         messages.success(request, f"{employee.full_name} marked as {employee.get_status_display().lower()}.")
     return redirect(safe_next(request, "core:employees"))
+
+
+@login_required
+def styleguide(request):
+    """Living style guide: every design token and component, light and dark side by side."""
+    from . import styleguide as guide
+
+    return render(request, "ds/styleguide.html", guide.context())

@@ -1,0 +1,16 @@
+{% load ds %}<div class="sg-block"><div class="k">Spacing (4/8 grid)</div>
+  <div class="demo-row" style="align-items:flex-end;gap:12px">{% for n in spacing %}<div style="display:grid;gap:6px;justify-items:center"><i style="display:block;width:{{ n }}px;height:{{ n }}px;border-radius:3px;background:linear-gradient(135deg,var(--primary),var(--sky))"></i><span class="caption muted num">{{ n }}</span></div>{% endfor %}</div>
+</div>
+<div class="sg-block"><div class="k">Radii</div>
+  <div class="rad-grid">{% for k, v, use in radii %}<div style="border-radius:var(--{{ k }})">{{ v }}<br>{{ use }}</div>{% endfor %}</div>
+</div>
+<div class="sg-block"><div class="k">Elevation</div>
+  <div class="elev-grid">{% for k, use in elevation %}<div style="box-shadow:var(--{{ k }}){% if k != 'e0' %}, var(--hi){% endif %}">{{ k }}<br>{{ use }}</div>{% endfor %}</div>
+</div>
+<div class="sg-block"><div class="k">Cards lift on hover · focus ring</div>
+  <div class="demo-row">
+    <a class="card pad-20" href="#space" style="width:200px"><b>Hover me</b><p class="small muted">e1 → e2, −2px, 180ms</p></a>
+    <button class="btn btn-secondary focus-demo" type="button">Keyboard focus</button>
+    <input class="input focus-demo" style="width:180px" value="Focused field" aria-label="Focused field example">
+  </div>
+</div>

@@ -1,0 +1,6 @@
+{% load ds %}<div class="empty">
+  {% ph3d object_name 200 150 %}
+  <h3>{{ title }}</h3>
+  {% if body %}<p>{{ body }}</p>{% endif %}
+  {% if action_url %}<a class="btn btn-primary" href="{{ action_url }}">{% icon action_icon "ico-18" %} {{ action_label }}</a>{% endif %}
+</div>

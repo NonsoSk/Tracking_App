@@ -1,0 +1,9 @@
+{% load ds %}<div class="stage-rail-wrap">
+  <ol class="stage-rail" aria-label="Hiring stage: {{ position }} of {{ total }}, {{ label }}{% if status_label %} ({{ status_label }}){% endif %}">
+    {% for s in items %}<li class="st {{ s.state }}"{% if s.state == "now" or s.state == "halted" %} aria-current="step"{% endif %}>
+      <span class="dot">{% if s.state == "done" or s.state == "gold" %}{% icon "check" "ico-14" %}{% elif s.state == "halted" %}{% icon "x" "ico-14" %}{% endif %}</span>
+      <span class="label">{{ s.label }}</span>
+    </li>{% endfor %}
+  </ol>
+  <p class="stage-summary" aria-hidden="true">Stage {{ position }} of {{ total }} · <b>{{ label }}</b>{% if status_label %} · {{ status_label }}{% endif %}</p>
+</div>

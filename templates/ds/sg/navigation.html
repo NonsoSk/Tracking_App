@@ -1,0 +1,51 @@
+{% load ds %}<div class="sg-two">
+  <div class="sg-block"><div class="k">Floating rail (bottom bar on phones)</div>
+    <nav class="rail-nav is-static" aria-label="Rail example">
+      <a href="#navigation" aria-current="page">{% icon "list-checks" %}<span>My tasks</span><span class="badge">5</span></a>
+      <a href="#navigation">{% icon "clipboard-list" %}<span>Roles</span></a>
+      <a href="#navigation">{% icon "square-kanban" %}<span>Pipeline</span><span class="badge">3</span></a>
+      <a href="#navigation">{% icon "calendar-days" %}<span>Interviews</span></a>
+      <span class="sep"></span>
+      <a href="#navigation">{% icon "hourglass" %}<span>Retiring</span></a>
+    </nav>
+  </div>
+  <div class="stack-24">
+    <div class="sg-block"><div class="k">Breadcrumb · search</div>
+      <nav class="crumbs" aria-label="Breadcrumb example"><a href="#navigation">Requisitions</a>{% icon "chevron-right" "ico-16" %}<a href="#navigation">Process Engineer</a>{% icon "chevron-right" "ico-16" %}<span aria-current="page">Chinedu Okafor</span></nav>
+      <button class="search-trigger" type="button" data-open="palette">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
+    </div>
+    <div class="sg-block"><div class="k">Segmented control</div>
+      <div class="seg" data-seg role="group" aria-label="View"><button type="button" aria-pressed="true">{% icon "columns-3" "ico-16" %} Board</button><button type="button" aria-pressed="false">{% icon "layout-list" "ico-16" %} List</button></div>
+      <div class="seg" data-seg role="group" aria-label="Period"><button type="button" aria-pressed="false">Week</button><button type="button" aria-pressed="true">Month</button><button type="button" aria-pressed="false">Quarter</button></div>
+    </div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Tabs: underline with a sliding indicator (arrow keys move between tabs)</div>
+  <div class="tabs" role="tablist" aria-label="Candidate">
+    <button role="tab" id="tab-a-{{ theme }}" aria-controls="tp-a-{{ theme }}" aria-selected="false" tabindex="-1">Overview</button>
+    <button role="tab" id="tab-b-{{ theme }}" aria-controls="tp-b-{{ theme }}" aria-selected="true">CV &amp; documents <span class="count-badge">10</span></button>
+    <button role="tab" id="tab-c-{{ theme }}" aria-controls="tp-c-{{ theme }}" aria-selected="false" tabindex="-1">Scores</button>
+    <button role="tab" id="tab-d-{{ theme }}" aria-controls="tp-d-{{ theme }}" aria-selected="false" tabindex="-1">Interviews <span class="count-badge">3</span></button>
+  </div>
+  <div role="tabpanel" id="tp-a-{{ theme }}" aria-labelledby="tab-a-{{ theme }}" hidden><p class="small muted">Overview panel.</p></div>
+  <div role="tabpanel" id="tp-b-{{ theme }}" aria-labelledby="tab-b-{{ theme }}"><p class="small muted">CV &amp; documents panel. Try the arrow keys.</p></div>
+  <div role="tabpanel" id="tp-c-{{ theme }}" aria-labelledby="tab-c-{{ theme }}" hidden><p class="small muted">Scores panel.</p></div>
+  <div role="tabpanel" id="tp-d-{{ theme }}" aria-labelledby="tab-d-{{ theme }}" hidden><p class="small muted">Interviews panel.</p></div>
+</div>
+<div class="sg-block"><div class="k">Stepper — horizontal</div>
+  <ol class="stepper" style="list-style:none;padding:0;margin:0">
+    <li class="step done"><span class="num">{% icon "check" "ico-16" %}</span>Role</li>
+    <li class="step done"><span class="num">{% icon "check" "ico-16" %}</span>Requirements</li>
+    <li class="step current" aria-current="step"><span class="num">3</span>Skills &amp; tools</li>
+    <li class="step"><span class="num">4</span>Advert</li>
+    <li class="step"><span class="num">5</span>Review</li>
+  </ol>
+</div>
+<div class="sg-block"><div class="k">Stepper — vertical (requisition wizard)</div>
+  <ol class="stepper vertical" style="list-style:none;padding:0;margin:0;max-width:320px">
+    <li class="step done"><span class="num">{% icon "check" "ico-16" %}</span><span>Role<small>Process Engineer</small></span></li>
+    <li class="step done"><span class="num">{% icon "check" "ico-16" %}</span><span>Requirements<small>B.Eng, 3+ years</small></span></li>
+    <li class="step current" aria-current="step"><span class="num">3</span><span>Skills &amp; tools<small>5 selected</small></span></li>
+    <li class="step"><span class="num">4</span><span>Advert<small>What candidates will see</small></span></li>
+  </ol>
+</div>

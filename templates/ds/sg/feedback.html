@@ -1,0 +1,21 @@
+{% load ds %}<div class="sg-block"><div class="k">Banners — always the exact fix</div>
+  <div class="banner"><span class="tile">{% icon "info" "ico-18" %}</span><div><b>CVs are read automatically</b><span class="small">Check the highlighted fields before you shortlist.</span></div></div>
+  <div class="banner success"><span class="tile">{% icon "circle-check" "ico-18" %}</span><div><b>Offer accepted</b><span class="small">Medicals are next. The clinic has been emailed.</span></div></div>
+  <div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>2 panel scores missing</b><span class="small">The selection report can be printed once Grace and Musa submit.</span></div><button class="btn btn-secondary btn-sm" type="button">Remind them</button></div>
+  <div class="banner danger"><span class="tile">{% icon "wifi-off" "ico-18" %}</span><div><b>You appear to be offline</b><span class="small">Your changes were not saved. Check your connection, then select Retry.</span></div><button class="btn btn-secondary btn-sm" type="button">{% icon "refresh-cw" "ico-16" %} Retry</button></div>
+  <div class="notice-band">{% icon "shield-check" "ico-16" %} Indorama never charges fees at any stage of recruitment.</div>
+</div>
+<div class="sg-block"><div class="k">Toasts — bottom-right, auto-dismiss, undo</div>
+  <div class="toast is-static" role="status"><span class="tile green">{% icon "circle-check" "ico-18" %}</span><div><b>3 candidates shortlisted</b><p>They have been emailed.</p></div><div class="actions"><button class="btn btn-ghost btn-sm" type="button">Undo</button><button class="icon-btn" type="button" aria-label="Dismiss">{% icon "x" "ico-18" %}</button></div></div>
+  <div class="demo-row"><button class="btn btn-secondary btn-sm" type="button" data-toast="Interview scheduled" data-toast-body="Invites sent to the panel and the candidate." data-toast-tone="success">Show a toast</button><button class="btn btn-secondary btn-sm" type="button" data-toast="Moved to Interviews" data-toast-tone="info" data-toast-undoable>Toast with undo</button></div>
+</div>
+<div class="sg-block"><div class="k">Tooltip</div>
+  <div class="demo-row"><button class="btn btn-secondary" type="button" data-tip="Days since the last stage change">{% icon "clock" "ico-18" %} Hover or focus me</button></div>
+</div>
+<div class="sg-block"><div class="k">Skeletons — in the shape of the content, never a spinner</div>
+  <div class="card task" aria-hidden="true"><span class="skeleton" style="width:40px;height:40px;border-radius:12px"></span><div class="stack-8"><span class="skeleton title"></span><span class="skeleton line" style="width:40%"></span></div><span></span><span class="skeleton line" style="width:56px"></span><span class="skeleton" style="width:88px;height:36px"></span></div>
+  <div class="sg-kpis" aria-hidden="true"><div class="card kpi"><span class="skeleton line" style="width:60%"></span><span class="skeleton" style="height:36px;width:40%;margin-top:12px"></span><span class="skeleton line" style="margin-top:8px"></span></div><div class="card kpi"><span class="skeleton line" style="width:50%"></span><span class="skeleton" style="height:36px;width:30%;margin-top:12px"></span><span class="skeleton line" style="margin-top:8px"></span></div></div>
+</div>
+<div class="sg-block"><div class="k">Empty state — one object, one sentence, one button</div>
+  <div class="sheet">{% empty_state "No candidates yet" "When people apply or HR uploads CVs, they appear here, already scored." "#feedback" "Upload CVs" action_icon="cloud-upload" %}</div>
+</div>

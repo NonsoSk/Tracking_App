@@ -1,0 +1,74 @@
+{% load ds %}<div class="sg-block"><div class="k">KPI tiles with sparklines</div>
+  <div class="sg-kpis">
+    {% kpi "Open roles" 12 "clipboard-list" "+2 this week" "up" spark_a %}
+    {% kpi "Active candidates" 148 "users" "+18 this week" "up" spark_b %}
+    {% kpi "Interviews this week" 9 "calendar-days" "3 today" "" spark_c %}
+    {% kpi "Offers out" 4 "banknote" "1 awaiting review" "warn" spark_d %}
+  </div>
+</div>
+<div class="sg-block"><div class="k">Score rings · mini 36 · 56 · 72 · 112 · gold for top match · no score</div>
+  <div class="demo-row" style="gap:20px">{% score_ring 64 36 %}{% score_ring 78 56 %}{% score_ring 84.6 72 False "panel" %}{% score_ring 97.5 112 True "match" %}{% score_ring None 72 False "match" %}</div>
+</div>
+<div class="sg-block"><div class="k">Stage rail — current (red, once per screen) · stopped · hired (gold)</div>
+  <div class="tray pad-20">{% stage_rail stage="offer" %}</div>
+  <div class="tray pad-20">{% stage_rail stage="interview" status="rejected" %}</div>
+  <div class="tray pad-20">{% stage_rail stage="hired" status="hired" %}</div>
+</div>
+<div class="sg-block"><div class="k">Criterion bars (met = blue, partial = sky, missing = track)</div>
+  <div class="card pad-20">
+    <div class="crit"><div class="top">Skills<span>30 / 30</span></div><div class="cbar"><i class="met" style="width:100%"></i></div><p>5 of 5 required · 1 of 2 nice-to-have</p></div>
+    <div class="crit"><div class="top">Certifications<span>7.5 / 10</span></div><div class="cbar"><i class="met" style="width:50%"></i><i class="part" style="width:25%"></i></div><p>COREN ✓ · NEBOSH IGC partly evidenced</p></div>
+    <div class="crit"><div class="top">Experience<span>10 / 25</span></div><div class="cbar"><i class="met" style="width:40%"></i></div><p>2 years · 3+ required</p></div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Task cards</div>
+  <div class="task-list">
+    <div class="card task is-urgent"><span class="tile red">{% icon "banknote" %}</span><div class="what"><b>Respond to an offer review</b> for Chinedu Okafor<div class="meta">Candidate asked for a review · Process Engineer</div></div><span class="for">Management</span><span class="age red">2 days</span><button class="btn btn-primary btn-sm" type="button">Respond</button></div>
+    <div class="card task"><span class="tile">{% icon "clipboard-check" %}</span><div class="what"><b>Score 3 candidates</b> for Instrument Technician<div class="meta">Technical interview · 3 Oct</div></div><span class="for">Maintenance</span><span class="age amber">6 days</span><button class="btn btn-secondary btn-sm" type="button">Score</button></div>
+    <div class="card task"><span class="tile">{% icon "calendar-plus" %}</span><div class="what"><b>Schedule interviews</b> for 5 shortlisted<div class="meta">HSE Officer</div></div><span class="for">HSE</span><span class="age">Today</span><button class="btn btn-secondary btn-sm" type="button">Schedule</button></div>
+  </div>
+</div>
+<div class="sg-block"><div class="row"><span class="k" style="font-size:var(--fs-caption);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)">Data table — sticky header, zebra, row hover, density</span><span class="spacer"></span>
+  <div class="seg" data-seg role="group" aria-label="Row density"><button type="button" aria-pressed="true" data-set-density="comfortable" data-target="tbl-{{ theme }}">{% icon "rows-2" "ico-16" %}<span class="sr-only">Comfortable</span></button><button type="button" aria-pressed="false" data-set-density="compact" data-target="tbl-{{ theme }}">{% icon "rows-3" "ico-16" %}<span class="sr-only">Compact</span></button></div></div>
+  <div class="sheet"><div class="table-wrap" id="tbl-{{ theme }}" data-density="comfortable"><table class="table">
+    <thead><tr><th>Candidate</th><th>Stage</th><th class="num">Match</th><th class="num">Applied</th></tr></thead>
+    <tbody>
+      <tr><td><div class="who">{% avatar "Chinedu Okafor" "sm" %}<div><b>Chinedu Okafor</b><span>APP-2026-00001</span></div></div></td><td>{% status_chip key="offer" %}</td><td class="num">97.5</td><td class="num">31 Aug</td></tr>
+      <tr><td><div class="who">{% avatar "Amina Bello" "sm" %}<div><b>Amina Bello</b><span>APP-2026-00014</span></div></div></td><td>{% status_chip key="interview" %}</td><td class="num">88.0</td><td class="num">2 Sep</td></tr>
+      <tr><td><div class="who">{% avatar "Emeka Uche" "sm" %}<div><b>Emeka Uche</b><span>APP-2026-00021</span></div></div></td><td>{% status_chip key="shortlisted" %}</td><td class="num">81.5</td><td class="num">4 Sep</td></tr>
+      <tr><td><div class="who">{% avatar "Fatima Yusuf" "sm" %}<div><b>Fatima Yusuf</b><span>APP-2026-00030</span></div></div></td><td>{% status_chip key="on_hold" %}</td><td class="num">74.0</td><td class="num">6 Sep</td></tr>
+      <tr><td><div class="who">{% avatar "Kelechi Eze" "sm" %}<div><b>Kelechi Eze</b><span>APP-2026-00033</span></div></div></td><td>{% status_chip key="received" %}</td><td class="num">62.5</td><td class="num">9 Sep</td></tr>
+    </tbody></table></div></div>
+</div>
+<div class="sg-block"><div class="k">Pipeline board</div>
+  <div class="board sg-board">
+    <div class="kcol"><div class="kcol-h">Shortlisted <span class="count-badge">2</span></div>
+      <div class="card kcard"><div class="nm">{% avatar "Amina Bello" "sm" %}<span>Amina Bello</span></div>{% score_ring 88 36 animate=False %}<div class="ft"><span class="tag">HAZOP</span><span class="tag">DCS</span><span class="age">2d</span></div></div>
+      <div class="card kcard"><div class="nm">{% avatar "Emeka Uche" "sm" %}<span>Emeka Uche</span></div>{% score_ring 81.5 36 animate=False %}<div class="ft"><span class="tag">Aspen</span><span class="tag">COREN</span><span class="age amber">6d</span></div></div>
+    </div>
+    <div class="kcol"><div class="kcol-h">Interviews <span class="count-badge">1</span></div>
+      <div class="card kcard"><div class="nm">{% avatar "Fatima Yusuf" "sm" %}<span>Fatima Yusuf</span></div>{% score_ring 74 36 animate=False %}<div class="ft"><span class="tag">NEBOSH</span><span class="tag">ISO 14001</span><span class="age red">12d</span></div></div>
+    </div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Week calendar (Technical · Behavioural · HOD)</div>
+  <div class="week">
+    <div class="day"><div class="dn">Mon</div><div class="dd">5</div><div class="event p1"><b>10:00 Technical</b><span>Amina Bello</span></div></div>
+    <div class="day"><div class="dn">Tue</div><div class="dd">6</div></div>
+    <div class="day today"><div class="dn">Wed</div><div class="dd">7</div><div class="event p2"><b>11:30 Behavioural</b><span>Emeka Uche</span>{% avatar_stack panel 2 "xs" %}</div></div>
+    <div class="day"><div class="dn">Thu</div><div class="dd">8</div><div class="event p3"><b>14:00 HOD</b><span>Chinedu Okafor</span></div></div>
+    <div class="day"><div class="dn">Fri</div><div class="dd">9</div></div>
+    <div class="day"><div class="dn">Sat</div><div class="dd">10</div></div>
+    <div class="day"><div class="dn">Sun</div><div class="dd">11</div></div>
+  </div>
+</div>
+<div class="sg-block"><div class="k">Checklist with circular progress</div>
+  <div class="card pad-20 row" style="align-items:flex-start;gap:20px">
+    {% score_ring 67 72 False "done" %}
+    <div class="checklist" style="flex:1">
+      <div class="check-item done"><span class="box">{% icon "check" "ico-14" %}</span><span class="t">Medical fitness confirmed<small>Clinic report uploaded</small></span><span class="caption muted">2 Oct</span></div>
+      <div class="check-item done"><span class="box">{% icon "check" "ico-14" %}</span><span class="t">Staff ID issued</span><span class="caption muted">3 Oct</span></div>
+      <div class="check-item"><span class="box"></span><span class="t">Safety induction<small>Booked for Monday</small></span><span class="caption muted">6 Oct</span></div>
+    </div>
+  </div>
+</div>

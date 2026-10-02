@@ -1,0 +1,9 @@
+{% load ds %}<div class="sg-block"><div class="k">Feature tiles</div>
+  <div class="demo-row"><span class="tile">{% icon "clipboard-list" %}</span><span class="tile">{% icon "calendar-days" %}</span><span class="tile green">{% icon "circle-check" %}</span><span class="tile amber">{% icon "hourglass" %}</span><span class="tile gold">{% icon "trophy" %}</span><span class="tile red">{% icon "triangle-alert" %}</span><span class="tile sm">{% icon "file-text" "ico-18" %}</span></div>
+</div>
+<div class="sg-block"><div class="k">Sizes, aligned with text</div>
+  <div class="demo-row soft"><span>{% icon "calendar-days" "ico-14" %} 14</span><span>{% icon "calendar-days" "ico-16" %} 16</span><span>{% icon "calendar-days" "ico-18" %} 18</span><span>{% icon "calendar-days" %} 20</span><span>{% icon "calendar-days" "ico-24" %} 24</span><span>{% icon "calendar-days" "ico-32" %} 32</span></div>
+</div>
+<div class="sg-block"><div class="k">All {{ icons|length }} vendored icons (hover for the name)</div>
+  <div class="icon-grid">{% for n in icons %}<span data-tip="{{ n }}" tabindex="0" aria-label="{{ n }}">{% icon n %}</span>{% endfor %}</div>
+</div>

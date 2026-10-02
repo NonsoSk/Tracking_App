@@ -1,0 +1,57 @@
+{% load ds %}<div class="sg-two">
+  <div class="field"><label class="label" for="f-name-{{ theme }}">Full name<span class="req" aria-hidden="true">*</span></label><input class="input" id="f-name-{{ theme }}" value="Chinedu Okafor"><span class="help">As it appears on the certificate.</span></div>
+  <div class="field has-error"><label class="label" for="f-mail-{{ theme }}">Email</label><input class="input" id="f-mail-{{ theme }}" value="chinedu.okafor@" aria-invalid="true" aria-describedby="f-mail-e-{{ theme }}"><span class="error" id="f-mail-e-{{ theme }}">{% icon "circle-alert" "ico-16" %} Enter a full email address, like name@example.com</span></div>
+  <div class="field float"><input class="input" id="f-phone-{{ theme }}" placeholder=" " value="0803 123 4567"><label for="f-phone-{{ theme }}">Phone number</label></div>
+  <div class="field float"><input class="input" id="f-loc-{{ theme }}" placeholder=" "><label for="f-loc-{{ theme }}">Location (floating label)</label></div>
+  <div class="field"><label class="label" for="f-dep-{{ theme }}">Department</label><select class="select" id="f-dep-{{ theme }}"><option>Production (Ammonia &amp; Urea)</option><option>Maintenance</option><option>HSE</option></select></div>
+  <div class="field"><label class="label" for="f-q-{{ theme }}">Search</label><div class="input-icon">{% icon "search" "ico-18" %}<input class="input" id="f-q-{{ theme }}" placeholder="Name, skill or reference"></div></div>
+  <div class="field"><label class="label" for="f-date-{{ theme }}">Closing date</label><input class="input" type="date" id="f-date-{{ theme }}" value="2026-10-16"></div>
+  <div class="field"><label class="label" for="f-dt-{{ theme }}">Interview time</label><input class="input" type="datetime-local" id="f-dt-{{ theme }}" value="2026-10-08T10:30"></div>
+</div>
+<div class="field"><label class="label" for="f-notes-{{ theme }}">Panel notes</label><textarea class="textarea" id="f-notes-{{ theme }}" placeholder="What stood out? Be specific; candidates may ask for feedback."></textarea></div>
+<div class="sg-two">
+  <div class="stack-8">
+    <label class="check"><input type="checkbox" checked> NYSC certificate seen</label>
+    <label class="check"><input type="checkbox"> Reference letter received</label>
+    <label class="check"><input type="radio" name="r-{{ theme }}" checked> In person</label>
+    <label class="check"><input type="radio" name="r-{{ theme }}"> Microsoft Teams</label>
+    <label class="check switch"><input type="checkbox" role="switch" checked> Email the candidate</label>
+  </div>
+  <div class="stack">
+    <div class="field"><span class="label">Requirement</span>
+      <div class="row wrap"><span class="tag on">Aspen HYSYS</span><div class="seg must" data-seg role="group" aria-label="Aspen HYSYS requirement"><button type="button" aria-pressed="true">Must have</button><button type="button" aria-pressed="false">Nice to have</button></div></div></div>
+    <div class="field"><span class="label">Interview score</span>
+      <div class="rating" role="radiogroup" aria-label="Technical knowledge, 1 to 5">{% for n in "12345" %}<label><input type="radio" name="rate-{{ theme }}" value="{{ n }}"{% if n == "4" %} checked{% endif %}><span>{{ n }}</span></label>{% endfor %}</div></div>
+  </div>
+</div>
+<div class="field"><label class="label" for="f-tags-{{ theme }}">Skills (multi-select)</label>
+  <div class="tag-input"><span class="tag on">HAZOP <button type="button" aria-label="Remove HAZOP">{% icon "x" "ico-14" %}</button></span><span class="tag on">Process simulation <button type="button" aria-label="Remove Process simulation">{% icon "x" "ico-14" %}</button></span><input id="f-tags-{{ theme }}" placeholder="Add a skill…"></div>
+</div>
+<div class="field"><span class="label">{% icon "sparkles" "ico-16" %} Suggested for Process Engineer</span>
+  <div class="tags">
+    <button class="pick pick-in" style="--i:0" type="button" aria-pressed="true">{% icon "check" "ico-16" %} Steam reforming</button>
+    <button class="pick pick-in" style="--i:1" type="button" aria-pressed="false">{% icon "plus" "ico-16" %} CO2 removal</button>
+    <button class="pick pick-in" style="--i:2" type="button" aria-pressed="false">{% icon "plus" "ico-16" %} Root cause analysis</button>
+    <button class="pick pick-in" style="--i:3" type="button" aria-pressed="true">{% icon "check" "ico-16" %} DCS</button>
+    <button class="pick pick-in" style="--i:4" type="button" aria-pressed="false">{% icon "plus" "ico-16" %} Management of change</button>
+  </div>
+</div>
+<div class="field"><span class="label">File drop-zone</span>
+  <label class="dropzone" tabindex="0" data-list="files-{{ theme }}">
+    <span class="tile">{% icon "cloud-upload" %}</span>
+    <span class="title">Drop CVs here or <u>browse</u></span>
+    <span class="help">PDF, Word or photos of paper CVs · up to 10 MB each</span>
+    <input type="file" multiple>
+  </label>
+  <div class="filelist" id="files-{{ theme }}">
+    <div class="fileitem"><span class="tile sm">{% icon "file-text" "ico-16" %}</span><div><div class="name">Chinedu_Okafor_CV.pdf</div><div class="progress"><i style="width:100%"></i></div></div><span class="chip success no-dot">Read</span></div>
+    <div class="fileitem"><span class="tile sm">{% icon "image" "ico-16" %}</span><div><div class="name">scanned_cv_photo.jpg</div><div class="progress"><i style="width:62%"></i></div></div><span class="caption muted num">62%</span></div>
+  </div>
+</div>
+<div class="field"><span class="label">Decision</span>
+  <div class="choices" role="radiogroup" aria-label="Decision">
+    <label class="choice danger"><input type="radio" name="dec-{{ theme }}"><span class="tile">{% icon "user-x" %}</span><b>Reject</b><span class="d">Send a kind regret email</span></label>
+    <label class="choice warning"><input type="radio" name="dec-{{ theme }}"><span class="tile">{% icon "hourglass" %}</span><b>On hold</b><span class="d">Keep in the talent pool</span></label>
+    <label class="choice success"><input type="radio" name="dec-{{ theme }}" checked><span class="tile">{% icon "user-check" %}</span><b>Accept</b><span class="d">Move to document review</span></label>
+  </div>
+</div>

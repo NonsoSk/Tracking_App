@@ -1,0 +1,3 @@
+{% for g in t.groups %}<div class="sg-block"><div class="k">{{ g.title }}</div>
+  <div class="sw-grid">{% for tok in g.tokens %}<div class="sw"><i style="background:var(--{{ tok.name }})"></i><div><b>--{{ tok.name }}</b><span>{{ tok.hex }}</span></div></div>{% endfor %}</div>
+</div>{% endfor %}

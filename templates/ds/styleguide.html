@@ -1,0 +1,43 @@
+{% extends "ds/base.html" %}{% load static ds %}
+{% block title %}Style guide{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'ds/styleguide.css' %}">{% endblock %}
+{% block crumbs %}<span>Design system</span>{% icon "chevron-right" "ico-16" %}<span aria-current="page">Style guide</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Design system</div>
+    <h1>Style guide</h1>
+    <p class="lede">Every token and component in light and dark, rendered from the CSS that ships.</p>
+    <p class="calm">{% calm_note %}</p>
+  </div>
+  <div class="actions">
+    <span class="chip {% if contrast_ok %}success{% else %}danger{% endif %}">{% if contrast_ok %}All {{ contrast_total }} colour pairs pass AA{% else %}Contrast failures — see Contrast{% endif %}</span>
+  </div>
+</header>
+<nav class="sg-toc" aria-label="Sections">{% for slug, title, desc in sections %}<a href="#{{ slug }}">{{ title }}</a>{% endfor %}</nav>
+{% for slug, title, desc in sections %}
+<section class="sg-section" id="{{ slug }}" aria-labelledby="h-{{ slug }}">
+  <div class="sg-head"><span class="eyebrow">{{ forloop.counter|stringformat:"02d" }}</span><h2 id="h-{{ slug }}">{{ title }}</h2><p>{{ desc }}</p></div>
+  <div class="sg-pair">
+    {% for t in themes %}
+    <div class="sg-theme" data-theme="{{ t.name }}">
+      <div class="sg-label">{% if t.name == "light" %}{% icon "sun" "ico-16" %}{% else %}{% icon "moon" "ico-16" %}{% endif %} {{ t.label }}</div>
+      {% with "ds/sg/"|add:slug|add:".html" as part %}{% include part with theme=t.name t=t %}{% endwith %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener("click", function (e) {
+  var b = e.target.closest("[data-replay]");
+  if (!b) return;
+  var pane = b.closest(".sg-theme");
+  pane.querySelectorAll(".enter").forEach(function (el) { el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter"); });
+  pane.querySelectorAll(".ring[data-animate]").forEach(function (r) { window.DS.animateRing(r); });
+  pane.querySelectorAll("[data-count-to]").forEach(function (n) { window.DS.countUp(n); });
+});
+</script>
+{% endblock %}
