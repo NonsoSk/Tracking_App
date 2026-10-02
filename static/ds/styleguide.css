@@ -32,7 +32,8 @@
 
 .sp-row { display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: var(--s-12); font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .sp-row i { display: block; height: 12px; border-radius: 3px; background: linear-gradient(90deg, var(--primary), var(--sky)); }
-.rad-grid, .elev-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-16); }
+.rad-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-16); }
+.elev-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-20); }
 .rad-grid > div { aspect-ratio: 1.3; background: var(--tint); border: 1.5px solid var(--tint-line); display: grid; place-items: center; text-align: center; font-size: 12px; color: var(--on-tint); font-weight: 700; padding: 6px; }
 .elev-grid > div { aspect-ratio: 1.3; background: var(--raised); border-radius: var(--r-md); display: grid; place-items: center; text-align: center; font-size: 12px; color: var(--text-2); font-weight: 700; padding: 6px; }
 @media (max-width: 640px) { .rad-grid, .elev-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

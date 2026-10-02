@@ -149,3 +149,50 @@ class StyleguideTests(TestCase):
         self.assertEqual(html.count('class="sg-theme" data-theme="light"'), len(SECTIONS))
         self.assertIn(f"All {len(contrast.report())} colour pairs pass AA", html)
         self.assertNotIn("bootstrap", html.lower())
+
+
+class PaletteSearchTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from candidates.models import Candidate
+        from core.models import Department
+        from pipeline.models import Application
+        from requisitions.models import Requisition
+
+        dept = Department.objects.create(name="Production", code="PROD")
+        cls.hr = User.objects.create_user("hr", password="x", role=User.Role.HR_ADMIN)
+        cls.hod = User.objects.create_user("hod", password="x", role=User.Role.HOD, department=dept)
+        cls.employee = User.objects.create_user("emp", password="x", role=User.Role.EMPLOYEE)
+        req = Requisition.objects.create(title="Process Engineer", department=dept, raised_by=cls.hod,
+                                         status=Requisition.Status.OPEN)
+        person = Candidate.objects.create(first_name="Chinedu", last_name="Okafor", email="chinedu@example.com")
+        Application.objects.create(candidate=person, requisition=req)
+        Candidate.objects.create(first_name="Chinedu", last_name="Eze", email="ce@example.com")
+
+    def search(self, user, q):
+        self.client.force_login(user)
+        return self.client.get(reverse("core:palette_search"), {"q": q}).json()
+
+    def test_full_name_finds_the_application_first(self):
+        data = self.search(self.hr, "chinedu okafor")
+        self.assertEqual(data["groups"][0]["title"], "Applications")
+        self.assertEqual([i["label"] for i in data["groups"][0]["items"]], ["Chinedu Okafor"])
+        self.assertIn("/pipeline/applications/", data["groups"][0]["items"][0]["url"])
+
+    def test_talent_database_results_are_for_hr_only(self):
+        hr_titles = [g["title"] for g in self.search(self.hr, "chinedu")["groups"]]
+        hod_titles = [g["title"] for g in self.search(self.hod, "chinedu")["groups"]]
+        self.assertIn("Candidates", hr_titles)
+        self.assertNotIn("Candidates", hod_titles)
+        self.assertIn("Applications", hod_titles)
+
+    def test_respects_department_access(self):
+        self.assertEqual(self.search(self.employee, "chinedu")["groups"], [])
+
+    def test_roles_and_short_queries(self):
+        titles = [g["title"] for g in self.search(self.hod, "process eng")["groups"]]
+        self.assertEqual(titles, ["Roles"])
+        self.assertEqual(self.search(self.hr, "c")["groups"], [])
+
+    def test_requires_sign_in(self):
+        self.assertEqual(self.client.get(reverse("core:palette_search"), {"q": "chinedu"}).status_code, 302)

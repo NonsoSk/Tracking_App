@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -273,3 +274,45 @@ def styleguide(request):
     from . import styleguide as guide
 
     return render(request, "ds/styleguide.html", guide.context())
+
+
+def _terms_filter(query, fields):
+    """Every word must match one of the fields, so "chinedu okafor" finds Chinedu Okafor."""
+    condition = Q()
+    for term in query.split()[:5]:
+        any_field = Q()
+        for field in fields:
+            any_field |= Q(**{f"{field}__icontains": term})
+        condition &= any_field
+    return condition
+
+
+@login_required
+def palette_search(request):
+    """Live results for the command palette. Uses the same access rules as the list pages."""
+    from candidates.models import Candidate
+
+    query = request.GET.get("q", "").strip()[:80]
+    user = request.user
+    groups = []
+    if len(query) >= 2:
+        apps = (applications_for(user).select_related("candidate", "requisition")
+                .filter(_terms_filter(query, ["candidate__first_name", "candidate__last_name", "candidate__email", "reference"]))
+                .order_by("-applied_at")[:5])
+        if apps:
+            groups.append({"title": "Applications", "kind": "application", "items": [
+                {"label": a.candidate.full_name or a.reference, "hint": f"{a.requisition.title} · {a.get_stage_display()}",
+                 "url": reverse("pipeline:application", args=[a.pk])} for a in apps]})
+        if user.is_hr:
+            people = (Candidate.objects.filter(_terms_filter(query, ["first_name", "last_name", "email", "phone"]))
+                      .order_by("-id")[:5])
+            if people:
+                groups.append({"title": "Candidates", "kind": "candidate", "items": [
+                    {"label": c.full_name or c.email or f"Candidate {c.pk}", "hint": c.current_job_title or c.email or "",
+                     "url": reverse("candidates:detail", args=[c.pk])} for c in people]})
+        roles = requisitions_for(user).filter(_terms_filter(query, ["title", "reference", "department__name"]))[:5]
+        if roles:
+            groups.append({"title": "Roles", "kind": "role", "items": [
+                {"label": r.title, "hint": f"{r.reference} · {r.get_status_display()}",
+                 "url": reverse("requisitions:detail", args=[r.pk])} for r in roles]})
+    return JsonResponse({"query": query, "groups": groups})

@@ -8,7 +8,8 @@ TOKEN_GROUPS = [
     ("Brand", ["brand-50", "brand-100", "brand-200", "brand-500", "brand-700", "brand-800", "brand-900"]),
     ("Signature", ["sky", "red", "gold", "gold-light"]),
     ("Ink (raw palette)", ["ink-900", "ink-700", "ink-500", "ink-400"]),
-    ("Surfaces", ["canvas", "surface", "raised", "overlay", "sunken", "line", "line-strong", "field-line", "grid"]),
+    ("Surfaces", ["canvas", "surface", "raised", "raised-2", "overlay", "sunken", "line", "line-strong", "field-line", "grid"]),
+    ("Depth edges", ["edge-1", "edge-2", "primary-top", "primary-edge", "danger-edge"]),
     ("Text", ["text", "text-2", "text-3", "text-4", "link", "eyebrow"]),
     ("Actions", ["primary", "primary-hover", "on-primary", "tint", "tint-2", "tint-line", "on-tint"]),
     ("Accent (once per screen)", ["accent", "accent-ink", "accent-bg"]),
@@ -22,7 +23,8 @@ TOKEN_GROUPS = [
 
 SPACING = [4, 8, 12, 16, 20, 24, 32, 40, 56, 72]
 RADII = [("r-sm", "10px", "Inputs, chips"), ("r-md", "16px", "Cards"), ("r-lg", "22px", "Sheets, hero, modals"), ("r-full", "999px", "Avatars, pills")]
-ELEVATION = [("e0", "Flat with a hairline"), ("e1", "Card"), ("e2", "Hover, sheets"), ("e3", "Popover, modal")]
+ELEVATION = [("e0", "Flat with a hairline"), ("e1", "Small parts: chips, plates"), ("e2", "Paper, hero"), ("e3", "Popover, modal"),
+             ("slab-1", "Card: 2px edge"), ("slab-2", "Sheet, rail, hover: 3px edge")]
 MOTION = [("t-hover", "120ms", "Hover"), ("t-press", "180ms", "Press and lift"), ("t-enter", "240ms", "Enter"), ("t-modal", "320ms", "Modals and drawers")]
 TYPE_SCALE = [
     ("display", "Display", "40 / 32", "Build what moves Nigeria forward"),

@@ -1,12 +1,6 @@
 {% load ds %}<dialog class="palette" id="palette" aria-label="Search or jump to">
-  <div class="pq">{% icon "search" "ico-24" %}<input type="text" placeholder="Search or jump to…" aria-label="Search or jump to" autocomplete="off"><span class="kbd">Esc</span></div>
-  <div class="pr" role="listbox">
-    <div class="pg">Search</div>
-    {% if request.user.is_hr %}<a class="menu-item" data-query-url="{% url 'candidates:list' %}?q=" href="#" hidden>{% icon "users" "ico-18" %} Candidates matching “<span class="q"></span>”<span class="hint">Talent</span></a>{% endif %}
-    {% if request.user.is_hr or request.user.is_department_user or request.user.is_management %}
-    <a class="menu-item" data-query-url="{% url 'pipeline:applications' %}?q=" href="#" hidden>{% icon "square-kanban" "ico-18" %} Applications matching “<span class="q"></span>”<span class="hint">Pipeline</span></a>
-    <a class="menu-item" data-query-url="{% url 'requisitions:list' %}?q=" href="#" hidden>{% icon "clipboard-list" "ico-18" %} Roles matching “<span class="q"></span>”<span class="hint">Requisitions</span></a>
-    {% endif %}
+  <div class="pq">{% icon "search" "ico-24" %}<input type="text" placeholder="Search people, roles or pages…" aria-label="Search people, roles or pages" aria-controls="palette-list" autocomplete="off"><span class="kbd">Esc</span></div>
+  <div class="pr" role="listbox" id="palette-list">
     <div class="pg">Go to</div>
     {% for item in nav %}{% if not item.sep %}<a class="menu-item" href="{{ item.url }}" data-search="{{ item.long }} {{ item.label }}"{% if item.external %} target="_blank" rel="noopener"{% endif %}>{% icon item.icon "ico-18" %} {{ item.long }}</a>{% endif %}{% endfor %}
     <div class="pg">Actions</div>
@@ -15,6 +9,17 @@
     <a class="menu-item" href="{% url 'candidates:create' %}" data-search="add candidate new">{% icon "user-plus" "ico-18" %} Add a candidate</a>{% endif %}
     <a class="menu-item" href="{% url 'core:notifications' %}" data-search="notifications alerts inbox">{% icon "bell" "ico-18" %} Notifications</a>
     <a class="menu-item" href="{% url 'core:styleguide' %}" data-search="style guide design system tokens components">{% icon "layout-grid" "ico-18" %} Style guide</a>
+    <div class="palette-results" id="palette-results" data-url="{% url 'core:palette_search' %}"></div>
+    <div class="pg">Search everywhere</div>
+    {% if request.user.is_hr %}<a class="menu-item" data-query-url="{% url 'candidates:list' %}?q=" href="#" hidden>{% icon "users" "ico-18" %}<span class="lbl">All candidates matching “<span class="q"></span>”</span><span class="hint">Talent</span></a>{% endif %}
+    {% if request.user.is_hr or request.user.is_department_user or request.user.is_management %}
+    <a class="menu-item" data-query-url="{% url 'pipeline:applications' %}?q=" href="#" hidden>{% icon "square-kanban" "ico-18" %}<span class="lbl">All applications matching “<span class="q"></span>”</span><span class="hint">Pipeline</span></a>
+    <a class="menu-item" data-query-url="{% url 'requisitions:list' %}?q=" href="#" hidden>{% icon "clipboard-list" "ico-18" %}<span class="lbl">All roles matching “<span class="q"></span>”</span><span class="hint">Requisitions</span></a>
+    {% endif %}
+    <p class="palette-empty" hidden>Nothing found for “<span class="q"></span>”.</p>
   </div>
   <div class="pf"><span><span class="kbd">↑</span> <span class="kbd">↓</span> to move</span><span><span class="kbd">Enter</span> to open</span><span><span class="kbd">Esc</span> to close</span></div>
+  <template id="ds-pi-application">{% icon "square-kanban" "ico-18" %}</template>
+  <template id="ds-pi-candidate">{% icon "user" "ico-18" %}</template>
+  <template id="ds-pi-role">{% icon "clipboard-list" "ico-18" %}</template>
 </dialog>

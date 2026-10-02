@@ -4,8 +4,8 @@
 <div class="sg-block"><div class="k">Radii</div>
   <div class="rad-grid">{% for k, v, use in radii %}<div style="border-radius:var(--{{ k }})">{{ v }}<br>{{ use }}</div>{% endfor %}</div>
 </div>
-<div class="sg-block"><div class="k">Elevation</div>
-  <div class="elev-grid">{% for k, use in elevation %}<div style="box-shadow:var(--{{ k }}){% if k != 'e0' %}, var(--hi){% endif %}">{{ k }}<br>{{ use }}</div>{% endfor %}</div>
+<div class="sg-block"><div class="k">Elevation and depth — cards and sheets are slabs: lit from above, with a visible edge</div>
+  <div class="elev-grid">{% for k, use in elevation %}<div style="{% if k|slice:':4' == 'slab' %}background:var(--slab-bg);box-shadow:var(--{{ k }}), var(--bevel){% else %}box-shadow:var(--{{ k }}){% if k != 'e0' %}, var(--hi){% endif %}{% endif %}">{{ k }}<br>{{ use }}</div>{% endfor %}</div>
 </div>
 <div class="sg-block"><div class="k">Cards lift on hover · focus ring</div>
   <div class="demo-row">

@@ -114,30 +114,83 @@
   /* ---------- Command palette (Ctrl/Cmd+K) ---------- */
   function initPalette(dlg) {
     var input = $("input", dlg);
+    var results = $("#palette-results", dlg);
+    var empty = $(".palette-empty", dlg);
     var items = function () { return $$(".menu-item", dlg).filter(function (i) { return !i.hidden; }); };
-    var active = 0;
-    function highlight() {
+    var active = 0, timer = null, pending = null;
+    function highlight(keep) {
       var list = items();
+      if (keep) { var idx = list.indexOf(keep); active = idx >= 0 ? idx : 0; }
+      active = Math.max(0, Math.min(active, list.length - 1));
+      $$(".menu-item.is-active", dlg).forEach(function (i) { i.classList.remove("is-active"); i.removeAttribute("aria-selected"); });
       list.forEach(function (i, n) { i.classList.toggle("is-active", n === active); i.setAttribute("aria-selected", String(n === active)); });
       if (list[active]) list[active].scrollIntoView({ block: "nearest" });
     }
-    function filter() {
-      var q = input.value.trim().toLowerCase();
-      $$(".menu-item[data-search]", dlg).forEach(function (i) {
-        i.hidden = q && i.dataset.search.toLowerCase().indexOf(q) === -1;
-      });
-      $$(".menu-item[data-query-url]", dlg).forEach(function (i) {
-        i.hidden = !q;
-        $(".q", i).textContent = input.value.trim();
-        i.href = i.dataset.queryUrl + encodeURIComponent(input.value.trim());
-      });
-      $$(".pg", dlg).forEach(function (g) {
+    function tidyGroups() {
+      $$(".pr > .pg", dlg).forEach(function (g) {
         var next = g.nextElementSibling, any = false;
-        while (next && !next.classList.contains("pg")) { if (!next.hidden) any = true; next = next.nextElementSibling; }
+        while (next && !next.classList.contains("pg")) {
+          if (next.classList.contains("menu-item") && !next.hidden) any = true;
+          next = next.nextElementSibling;
+        }
         g.hidden = !any;
       });
+      var q = input.value.trim();
+      $(".q", empty).textContent = q;
+      empty.hidden = !q || items().length > 0;
+    }
+    function renderResults(data) {
+      results.innerHTML = "";
+      (data.groups || []).forEach(function (group) {
+        var head = document.createElement("div");
+        head.className = "pg";
+        head.textContent = group.title;
+        results.appendChild(head);
+        var icon = ($("#ds-pi-" + group.kind, dlg) || {}).innerHTML || "";
+        group.items.forEach(function (it) {
+          var a = document.createElement("a");
+          a.className = "menu-item";
+          a.href = it.url;
+          a.innerHTML = icon + '<span class="lbl"></span><span class="hint"></span>';
+          $(".lbl", a).textContent = it.label;
+          $(".hint", a).textContent = it.hint || "";
+          results.appendChild(a);
+        });
+      });
+    }
+    function search(q) {
+      if (pending) pending.abort();
+      if (q.length < 2) { renderResults({}); tidyGroups(); highlight(); return; }
+      pending = "AbortController" in window ? new AbortController() : null;
+      fetch(results.dataset.url + "?q=" + encodeURIComponent(q), { headers: { "Accept": "application/json" }, signal: pending && pending.signal, credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : { groups: [] }; })
+        .then(function (data) {
+          if (data.query !== input.value.trim().slice(0, 80)) return;
+          var keep = items()[active];
+          renderResults(data);
+          tidyGroups();
+          highlight(keep && keep.dataset.search !== undefined ? keep : null);
+        })
+        .catch(function () { /* aborted or offline: the "Search everywhere" links still work */ });
+    }
+    function filter() {
+      var raw = input.value.trim();
+      var words = raw.toLowerCase().split(/\s+/).filter(Boolean);
+      $$(".menu-item[data-search]", dlg).forEach(function (i) {
+        var text = i.dataset.search.toLowerCase();
+        i.hidden = words.length > 0 && !words.every(function (w) { return text.indexOf(w) !== -1; });
+      });
+      $$(".menu-item[data-query-url]", dlg).forEach(function (i) {
+        i.hidden = !raw;
+        $(".q", i).textContent = raw;
+        i.href = i.dataset.queryUrl + encodeURIComponent(raw);
+      });
+      if (!raw) results.innerHTML = "";
+      tidyGroups();
       active = 0;
       highlight();
+      clearTimeout(timer);
+      timer = setTimeout(function () { search(raw); }, 140);
     }
     input.addEventListener("input", filter);
     input.addEventListener("keydown", function (e) {
