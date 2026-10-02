@@ -1,0 +1,34 @@
+{% load ds humanize %}  <div class="cv-grid">
+    <section class="sheet" aria-labelledby="cv-h">
+      <div class="sheet-h">{% icon "file-text" "ico-18" %}<h2 class="title" id="cv-h">CV</h2>
+        {% with cv=c.latest_cv %}{% if cv %}<span class="small muted">{{ cv.original_name|truncatechars:40 }}</span>{% endif %}
+        <span class="spacer"></span>
+        {% if cv %}<a class="btn btn-ghost btn-sm" href="{% url 'candidates:document' cv.pk %}" target="_blank" rel="noopener">{% icon "download" "ico-16" %} Original</a>{% endif %}{% endwith %}
+      </div>
+      <div class="cv-wrap">
+        <div class="cv-files" aria-label="Files in this candidate's folder">
+          {% for d in documents|slice:":6" %}
+          <a class="thumb" href="{% url 'candidates:document' d.pk %}" target="_blank" rel="noopener" title="{{ d.get_doc_type_display }} · {{ d.original_name }}"{% if d.doc_type == "cv" and forloop.first %} aria-current="true"{% endif %}>
+            <i style="width:60%"></i><i></i><i></i><i style="width:80%"></i><span class="thumb-l">{{ d.extension|upper|default:"FILE" }}</span></a>
+          {% endfor %}
+        </div>
+        {% if c.cv_text %}<div class="paper cv-text" tabindex="0" aria-label="Text read from the CV">{% cv_highlight c.cv_text cv_terms %}</div>
+        {% else %}<div class="paper cv-text empty-cv"><p>No CV text yet. Upload a CV on the profile page and it is read automatically, including scans and phone photos.</p></div>{% endif %}
+      </div>
+      <p class="foot-note cv-note">{% icon "scan-text" "ico-16" %} {% if c.parse_method %}Read by {{ c.get_parse_method_display|lower }}{% if c.parsed_at %} {{ c.parsed_at|naturaltime }}{% endif %}.{% else %}Not read automatically yet.{% endif %} Hover a field to see where it came from.</p>
+    </section>
+
+    <section class="sheet" aria-labelledby="ex-h">
+      <div class="sheet-h"><h2 class="title" id="ex-h">Read from the CV</h2><span class="count">{{ cv_fields|length }} fields</span></div>
+      <div class="sheet-b stack-8 xfields">
+        {% if c.parse_notes %}<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Check these</b><span class="small">{{ c.parse_notes|linebreaksbr }}</span></div></div>{% endif %}
+        {% for f in cv_fields %}
+        <div class="xfield{% if f.missing %} is-low{% endif %}" data-k="{{ f.key }}">
+          <div><div class="k">{{ f.label }}</div><div class="v{% if f.missing %} muted{% endif %}">{{ f.value|default:"Not found" }}</div></div>
+          {% if f.missing and request.user.is_hr %}<a class="confirm-pill" href="{% url 'candidates:edit' c.pk %}#field-{{ f.key }}">{% icon "pen-line" "ico-16" %} Add</a>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+

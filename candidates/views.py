@@ -52,7 +52,11 @@ def candidate_detail(request, pk):
     candidate = get_object_or_404(Candidate, pk=pk)
     ensure(can_view_candidate(request.user, candidate))
     applications = candidate.applications.select_related("requisition", "requisition__department")
+    from pipeline import presentation
+
     return render(request, "candidates/detail.html", {
+        "cv_fields": presentation.cv_fields(candidate), "cv_terms": presentation.cv_terms(candidate),
+        "term_groups": presentation.term_groups(candidate, {}),
         "c": candidate, "applications": applications,
         "documents": candidate.documents.select_related("uploaded_by", "reviewed_by"),
         "upload_form": DocumentUploadForm(), "add_form": AddToRequisitionForm(),

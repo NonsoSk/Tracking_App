@@ -1,118 +1,195 @@
-{% extends "base.html" %}
-{% load portal humanize %}
+{% extends "ds/base.html" %}
+{% load ds portal humanize %}
 {% block title %}{{ c.full_name }}{% endblock %}
-{% block breadcrumb %}{% if request.user.is_hr %}<a href="{% url 'candidates:list' %}">Talent database</a> / {% endif %}{{ c.full_name }}{% endblock %}
+{% block crumbs %}{% if request.user.is_hr %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-16" %}{% endif %}<span aria-current="page">{{ c.full_name }}</span>{% endblock %}
+{% block primary_action %}
+  {% if request.user.is_hr %}
+  <a class="btn btn-secondary btn-sm desktop-only" href="{% url 'candidates:edit' c.pk %}">{% icon "pencil" "ico-16" %} Edit profile</a>
+  <button class="btn btn-primary btn-sm" type="button" data-open="add-modal">{% icon "plus" "ico-16" %} Consider for a vacancy</button>
+  {% endif %}
+{% endblock %}
 {% block content %}
 {% with u=request.user %}
-<div class="page-header">
-  <div class="d-flex align-items-center gap-3">
-    <span class="avatar avatar-lg">{{ c.initials }}</span>
-    <div><h1>{{ c.full_name }}</h1><div class="subtitle">{{ c.current_job_title|default:"" }}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}{% if c.location %} · {{ c.location }}{% endif %}</div>
-      <div class="small mt-1">{% if c.email %}<a href="mailto:{{ c.email }}"><i class="bi bi-envelope"></i> {{ c.email }}</a>{% endif %}{% if c.phone %} · <a href="tel:{{ c.phone }}"><i class="bi bi-telephone"></i> {{ c.phone }}</a>{% endif %}{% if c.linkedin_url %} · <a href="{{ c.linkedin_url }}" target="_blank"><i class="bi bi-linkedin"></i> LinkedIn</a>{% endif %}</div></div>
+<section class="sheet profile-head" aria-labelledby="who">
+  <div class="ph-row">
+    {% avatar c "xl" %}
+    <div class="ph-id">
+      <div class="eyebrow">Candidate · added {{ c.created_at|date:"j M Y" }}</div>
+      <h1 id="who">{{ c.full_name }}</h1>
+      <p class="ph-meta">{{ c.current_job_title|default:"" }}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}{% if c.location %}{% if c.current_job_title or c.current_employer %} · {% endif %}{{ c.location }}{% endif %}</p>
+      <div class="tags">
+        <span class="chip neutral no-dot" title="{{ c.get_source_display }}">{% icon c.source|source_icon %} {{ c.source_short }}</span>
+        {% if c.email %}<a class="chip neutral no-dot" href="mailto:{{ c.email }}">{% icon "mail" %} {{ c.email }}</a>{% endif %}
+        {% if c.phone %}<a class="chip neutral no-dot" href="tel:{{ c.phone }}">{% icon "phone" %} {{ c.phone }}</a>{% endif %}
+        {% if c.linkedin_url %}<a class="chip neutral no-dot" href="{{ c.linkedin_url }}" target="_blank" rel="noopener">{% icon "external-link" %} LinkedIn</a>{% endif %}
+        {% if c.referred_by %}<span class="chip neutral no-dot">{% icon "user-plus" %} Referred by {{ c.referred_by.display_name }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="readouts">
+      <div class="card ro ro-match">{% score_ring c.profile_completeness 64 False "profile" %}
+        <div><div class="ro-l">Profile</div><div class="ro-v">{% if c.profile_completeness >= 100 %}Complete{% else %}Partial{% endif %}</div><div class="ro-s">{% if c.parse_method %}{{ c.get_parse_method_display }}{% else %}Typed in{% endif %}</div></div></div>
+      <div class="card ro"><div class="ro-l">Experience</div><div class="ro-v num">{{ c.years_experience|floatformat:"-1" }}<small> yrs</small></div><div class="ro-s">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}</div></div>
+      <div class="card ro"><div class="ro-l">Applications</div><div class="ro-v num">{{ applications|length }}</div><div class="ro-s">{% with a=applications.first %}{% if a %}Latest: {{ a.get_stage_display }}{% else %}None yet{% endif %}{% endwith %}</div></div>
+    </div>
   </div>
-  {% if u.is_hr %}
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-light" href="{% url 'candidates:edit' c.pk %}"><i class="bi bi-pencil"></i> Edit profile</a>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-lg"></i> Consider for a vacancy</button>
-  </div>
-  {% endif %}
+</section>
+
+{% if c.parse_notes %}
+<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Please check what was read from the CV</b><span class="small">{{ c.parse_notes|linebreaksbr }}</span></div>
+  {% if u.is_hr %}<a class="btn btn-secondary btn-sm" href="{% url 'candidates:edit' c.pk %}">Review fields</a>{% endif %}</div>
+{% endif %}
+
+<div class="tabs profile-tabs" role="tablist" aria-label="Candidate" data-hash>
+  <button role="tab" type="button" id="t-profile" aria-controls="profile" aria-selected="true">Profile</button>
+  <button role="tab" type="button" id="t-cv" aria-controls="cv" aria-selected="false" tabindex="-1">CV &amp; documents <span class="count-badge">{{ documents|length }}</span></button>
+  <button role="tab" type="button" id="t-apps" aria-controls="applications" aria-selected="false" tabindex="-1">Applications <span class="count-badge">{{ applications|length }}</span></button>
+  <button role="tab" type="button" id="t-timeline" aria-controls="timeline" aria-selected="false" tabindex="-1">Timeline</button>
 </div>
 
-{% if c.parse_notes %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ c.parse_notes|linebreaksbr }}</div>{% endif %}
-
-<div class="row g-3">
-  <div class="col-xl-8">
-    <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-person-vcard"></i> Profile</span>
-        <span class="small text-muted">{% if c.parse_method %}Filled by {{ c.get_parse_method_display|lower }}{% if c.parsed_at %} · {{ c.parsed_at|naturaltime }}{% endif %}{% endif %} · {{ c.profile_completeness }}% complete</span></div>
-      <div class="card-body">
-        <div class="row small">
-          <div class="col-sm-4 mb-3"><div class="small-label">Highest qualification</div>{{ c.get_highest_qualification_display|default:"—" }}</div>
-          <div class="col-sm-4 mb-3"><div class="small-label">Course</div>{{ c.course|default:"—" }}</div>
-          <div class="col-sm-4 mb-3"><div class="small-label">Institution</div>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</div>
-          <div class="col-sm-4 mb-3"><div class="small-label">Class of degree</div>{{ c.get_degree_class_display|default:"—" }}</div>
-          <div class="col-sm-4 mb-3"><div class="small-label">NYSC</div>{{ c.get_nysc_status_display|default:"—" }}</div>
-          <div class="col-sm-4 mb-3"><div class="small-label">Experience</div>{{ c.years_experience|floatformat:"-1" }} years</div>
-          <div class="col-sm-4 mb-3"><div class="small-label">Source</div>{{ c.get_source_display }}{% if c.referred_by %}<br><span class="text-muted">by {{ c.referred_by.display_name }}</span>{% endif %}</div>
-          {% if c.gender %}<div class="col-sm-4 mb-3"><div class="small-label">Gender</div>{{ c.get_gender_display }}</div>{% endif %}
-          {% if c.date_of_birth %}<div class="col-sm-4 mb-3"><div class="small-label">Date of birth</div>{{ c.date_of_birth|date:"d M Y" }}</div>{% endif %}
+{# ----------------------- Profile ----------------------- #}
+<div role="tabpanel" id="profile" aria-labelledby="t-profile" class="tab-body">
+  <div class="split">
+    <div class="stack-24">
+      <section class="sheet" aria-labelledby="pf-h">
+        <div class="sheet-h"><h2 class="title" id="pf-h">Profile</h2><span class="spacer"></span>
+          <span class="small muted">{% if c.parse_method %}Filled by {{ c.get_parse_method_display|lower }}{% if c.parsed_at %} {{ c.parsed_at|naturaltime }}{% endif %}{% endif %}</span></div>
+        <div class="sheet-b">
+          <dl class="facts facts-grid">
+            <div><dt>Highest qualification</dt><dd>{{ c.get_highest_qualification_display|default:"—" }}</dd></div>
+            <div><dt>Course</dt><dd>{{ c.course|default:"—" }}</dd></div>
+            <div><dt>Institution</dt><dd>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</dd></div>
+            <div><dt>Class of degree</dt><dd>{{ c.get_degree_class_display|default:"—" }}</dd></div>
+            <div><dt>NYSC</dt><dd>{{ c.get_nysc_status_display|default:"—" }}</dd></div>
+            <div><dt>Experience</dt><dd>{{ c.years_experience|floatformat:"-1" }} years</dd></div>
+            <div><dt>Source</dt><dd>{{ c.get_source_display }}</dd></div>
+            {% if c.gender %}<div><dt>Gender</dt><dd>{{ c.get_gender_display }}</dd></div>{% endif %}
+            {% if c.date_of_birth %}<div><dt>Date of birth</dt><dd>{{ c.date_of_birth|date:"j M Y" }}</dd></div>{% endif %}
+          </dl>
+          {% if c.summary %}<div class="eyebrow muted-eyebrow">Summary</div><p class="soft">{{ c.summary }}</p>{% endif %}
+          {% if c.referral_note %}<div class="eyebrow muted-eyebrow" style="margin-top:16px">Referral note</div><p class="soft">{{ c.referral_note }}</p>{% endif %}
         </div>
-        {% if c.summary %}<div class="small-label">Summary</div><p class="small">{{ c.summary }}</p>{% endif %}
-        {% if c.referral_note %}<div class="small-label">Referral note</div><p class="small">{{ c.referral_note }}</p>{% endif %}
-        <div class="small-label">Skills</div><div class="mb-2">{% for s in c.skills %}<span class="chip">{{ s }}</span>{% empty %}<span class="small text-muted">—</span>{% endfor %}</div>
-        <div class="small-label">Tools / software</div><div class="mb-2">{% for s in c.tools %}<span class="chip">{{ s }}</span>{% empty %}<span class="small text-muted">—</span>{% endfor %}</div>
-        <div class="small-label">Certifications</div><div>{% for s in c.certifications %}<span class="chip">{{ s }}</span>{% empty %}<span class="small text-muted">—</span>{% endfor %}</div>
-      </div>
-    </div>
+      </section>
 
-    {% if c.work_history %}
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-briefcase"></i> Work history</div><div class="card-body"><ul class="timeline">
-      {% for w in c.work_history %}<li><strong>{{ w.job_title|default:"Role" }}</strong>{% if w.company %} · {{ w.company }}{% endif %}<div class="when">{{ w.start }} – {{ w.end }}</div>{% if w.description %}<div class="small">{{ w.description }}</div>{% endif %}</li>{% endfor %}
-    </ul></div></div>
-    {% endif %}
-    {% if c.education_history %}
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-mortarboard"></i> Education</div><div class="card-body"><ul class="timeline">
-      {% for e in c.education_history %}<li><strong>{{ e.qualification }}</strong>{% if e.course %} · {{ e.course }}{% endif %}<div class="when">{{ e.institution }}{% if e.year %} · {{ e.year }}{% endif %}</div></li>{% endfor %}
-    </ul></div></div>
-    {% endif %}
-
-    <div class="card mb-3" id="documents">
-      <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-folder2-open"></i> Document folder</span>
-        {% if u.is_hr or u.is_onboarding %}<button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#uploadBox"><i class="bi bi-upload"></i> Upload</button>{% endif %}</div>
-      {% if u.is_hr or u.is_onboarding %}
-      <div class="collapse border-bottom" id="uploadBox"><div class="card-body">
-        <form method="post" enctype="multipart/form-data" action="{% url 'candidates:upload' c.pk %}" class="row g-2 align-items-end">{% csrf_token %}
-          <div class="col-md-4">{{ upload_form.doc_type }}</div><div class="col-md-5">{{ upload_form.file }}</div>
-          <div class="col-md-3"><button class="btn btn-primary w-100">Upload</button></div>
-          <div class="col-12"><div class="form-check small">{{ upload_form.read_cv }}<label class="form-check-label" for="{{ upload_form.read_cv.id_for_label }}">{{ upload_form.read_cv.label }} (scanned CVs supported)</label></div></div>
-        </form>
-      </div></div>
+      {% if c.work_history %}
+      <section class="sheet" aria-labelledby="wh-h">
+        <div class="sheet-h"><h2 class="title" id="wh-h">Work history</h2></div>
+        <div class="sheet-b"><ol class="history">
+          {% for w in c.work_history %}<li><span class="tile sm">{% icon "briefcase" "ico-16" %}</span><div><b>{{ w.job_title|default:"Role" }}</b>{% if w.company %} · {{ w.company }}{% endif %}
+            <div class="small muted">{{ w.start }} – {{ w.end }}</div>{% if w.description %}<p class="small soft">{{ w.description }}</p>{% endif %}</div></li>{% endfor %}
+        </ol></div>
+      </section>
       {% endif %}
-      <div class="list-group list-group-flush">
-        {% for d in documents %}
-        <div class="list-group-item d-flex align-items-center gap-3 flex-wrap">
-          <i class="bi {{ d.icon }} fs-4 text-brand"></i>
-          <div class="flex-grow-1"><a class="fw-semibold" href="{% url 'candidates:document' d.pk %}" target="_blank">{{ d.get_doc_type_display }}</a>
-            <div class="small text-muted">{{ d.original_name }} · {{ d.uploaded_at|date:"d M Y H:i" }}{% if d.uploaded_by %} · {{ d.uploaded_by.display_name }}{% else %} · by candidate{% endif %}</div>
-            {% if d.review_note %}<div class="small text-muted">Note: {{ d.review_note }}</div>{% endif %}</div>
-          <span class="badge text-bg-{% if d.status == 'verified' %}success{% elif d.status == 'rejected' %}danger{% else %}secondary{% endif %}">{{ d.get_status_display }}</span>
-          {% if u.is_hr %}
-          <div class="d-flex gap-1">
-            {% if d.doc_type == 'cv' %}<form method="post" action="{% url 'candidates:reparse' d.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light" title="Read this CV again and fill empty fields"><i class="bi bi-magic"></i></button></form>{% endif %}
-            {% if d.status != 'verified' %}<form method="post" action="{% url 'candidates:review_document' d.pk %}">{% csrf_token %}<input type="hidden" name="status" value="verified"><button class="btn btn-sm btn-outline-success" title="Verify"><i class="bi bi-check2"></i></button></form>{% endif %}
-            {% if d.status != 'rejected' %}<form method="post" action="{% url 'candidates:review_document' d.pk %}">{% csrf_token %}<input type="hidden" name="status" value="rejected"><button class="btn btn-sm btn-outline-danger" title="Reject"><i class="bi bi-x"></i></button></form>{% endif %}
-            <form method="post" action="{% url 'candidates:delete_document' d.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light" data-confirm="Delete this document permanently?" title="Delete"><i class="bi bi-trash"></i></button></form>
-          </div>
-          {% endif %}
+      {% if c.education_history %}
+      <section class="sheet" aria-labelledby="ed-h">
+        <div class="sheet-h"><h2 class="title" id="ed-h">Education</h2></div>
+        <div class="sheet-b"><ol class="history">
+          {% for e in c.education_history %}<li><span class="tile sm">{% icon "graduation-cap" "ico-16" %}</span><div><b>{{ e.qualification }}</b>{% if e.course %} · {{ e.course }}{% endif %}
+            <div class="small muted">{{ e.institution }}{% if e.year %} · {{ e.year }}{% endif %}</div></div></li>{% endfor %}
+        </ol></div>
+      </section>
+      {% endif %}
+    </div>
+    <aside class="stack-24">
+      <section class="sheet" aria-labelledby="sk-h">
+        <div class="sheet-h"><h2 class="title" id="sk-h">Skills, tools and certifications</h2></div>
+        <div class="sheet-b stack">
+          {% for g in term_groups %}<div class="term-group"><div class="eyebrow muted-eyebrow">{{ g.title }}</div>
+            <div class="tags">{% for t in g.items %}<span class="tag">{{ t.term }}</span>{% endfor %}</div></div>
+          {% empty %}<p class="small muted">No skills recorded yet.</p>{% endfor %}
         </div>
-        {% empty %}{% include "partials/_empty.html" with icon="bi-folder" text="No documents yet." %}{% endfor %}
-      </div>
-    </div>
+      </section>
+    </aside>
   </div>
+</div>
 
-  <div class="col-xl-4">
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-3"></i> Applications</div>
-      <div class="list-group list-group-flush">
-        {% for a in applications %}
-        <a class="list-group-item list-group-item-action" href="{{ a.get_absolute_url }}">
-          <div class="d-flex justify-content-between"><strong class="small">{{ a.requisition.title }}</strong>{% score_pill a.match_score a.match_grade %}</div>
-          <div class="small text-muted">{{ a.requisition.department }} · {{ a.reference }}</div>
-          <span class="stage-badge mt-1 d-inline-block"><i class="bi {{ a.stage_icon }}"></i> {{ a.get_stage_display }}</span>{% if a.status != 'active' %} <span class="badge text-bg-{{ a.status_color }}">{{ a.get_status_display }}</span>{% endif %}
-        </a>
-        {% empty %}{% include "partials/_empty.html" with icon="bi-diagram-3" text="Not linked to a vacancy yet." %}{% endfor %}
+{# ----------------------- CV & documents ----------------------- #}
+<div role="tabpanel" id="cv" aria-labelledby="t-cv" class="tab-body" hidden>
+  {% include "ds/_cv_viewer.html" %}
+
+  <section class="sheet" id="documents" aria-labelledby="df-h">
+    <div class="sheet-h"><h2 class="title" id="df-h">Document folder</h2><span class="count">{{ documents|length }}</span></div>
+    <div class="sheet-b stack">
+      {% if u.is_hr or u.is_onboarding %}
+      <form method="post" enctype="multipart/form-data" action="{% url 'candidates:upload' c.pk %}" class="upload-row">{% csrf_token %}
+        <label class="dropzone" tabindex="0" data-list="upload-list">
+          <span class="tile">{% icon "cloud-upload" %}</span>
+          <span class="title">Drop a document here or <u>browse</u></span>
+          <span class="help">PDF, Word or photos of paper documents · scanned CVs are read too</span>
+          {{ upload_form.file }}
+        </label>
+        <div class="stack-8 upload-side">
+          {% dsfield upload_form.doc_type %}
+          <label class="check">{{ upload_form.read_cv }} Read this CV and fill empty profile fields</label>
+          <div class="filelist" id="upload-list"></div>
+          <button class="btn btn-primary" type="submit">{% icon "upload" "ico-18" %} Upload</button>
+        </div>
+      </form>
+      {% endif %}
+      <div class="rows">
+        {% for d in documents %}
+        <div class="doc-row">
+          <span class="tile sm">{% icon "file-text" "ico-16" %}</span>
+          <div class="pr-t"><b><a href="{% url 'candidates:document' d.pk %}" target="_blank" rel="noopener">{{ d.get_doc_type_display }}</a></b>
+            <span>{{ d.original_name|truncatechars:40 }} · {{ d.uploaded_at|date:"j M Y, H:i" }} · {% if d.uploaded_by %}{{ d.uploaded_by.display_name }}{% else %}by the candidate{% endif %}{% if d.review_note %} · Note: {{ d.review_note }}{% endif %}</span></div>
+          <span class="chip {{ d.status|tone:'document' }}">{{ d.get_status_display }}</span>
+          {% if u.is_hr %}<div class="pr-a">
+            {% if d.doc_type == "cv" %}<form method="post" action="{% url 'candidates:reparse' d.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-icon btn-sm" type="submit" aria-label="Read this CV again" data-tip="Read again and fill empty fields">{% icon "wand-sparkles" "ico-16" %}</button></form>{% endif %}
+            {% if d.status != "verified" %}<form method="post" action="{% url 'candidates:review_document' d.pk %}">{% csrf_token %}<input type="hidden" name="status" value="verified"><button class="btn btn-ghost btn-icon btn-sm" type="submit" aria-label="Verify" data-tip="Verify">{% icon "check" "ico-16" %}</button></form>{% endif %}
+            {% if d.status != "rejected" %}<form method="post" action="{% url 'candidates:review_document' d.pk %}">{% csrf_token %}<input type="hidden" name="status" value="rejected"><button class="btn btn-ghost btn-icon btn-sm" type="submit" aria-label="Reject" data-tip="Reject">{% icon "x" "ico-16" %}</button></form>{% endif %}
+            <form method="post" action="{% url 'candidates:delete_document' d.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-icon btn-sm" type="submit" aria-label="Delete" data-tip="Delete" data-confirm="Delete this document permanently?" data-confirm-label="Delete">{% icon "trash-2" "ico-16" %}</button></form>
+          </div>{% endif %}
+        </div>
+        {% empty %}<p class="small muted">No documents yet.</p>{% endfor %}
       </div>
     </div>
-    <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Timeline</div><div class="card-body"><ul class="timeline">
-      {% for a in activity %}<li>{{ a.message }}{% if a.application %} <span class="text-muted">({{ a.application.requisition.title }})</span>{% endif %}<div class="when">{{ a.created_at|date:"d M Y H:i" }}{% if a.actor %} · {{ a.actor.display_name }}{% endif %}</div></li>{% empty %}<li class="text-muted">No activity.</li>{% endfor %}
-    </ul></div></div>
-  </div>
+  </section>
+</div>
+
+{# ----------------------- Applications ----------------------- #}
+<div role="tabpanel" id="applications" aria-labelledby="t-apps" class="tab-body" hidden>
+  <section class="sheet" aria-labelledby="ap-h">
+    <div class="sheet-h"><h2 class="title" id="ap-h">Applications</h2><span class="count">{{ applications|length }}</span><span class="spacer"></span>
+      {% if u.is_hr %}<button class="btn btn-tint btn-sm" type="button" data-open="add-modal">{% icon "plus" "ico-16" %} Consider for a vacancy</button>{% endif %}</div>
+    <div class="sheet-b stack-8">
+      {% for a in applications %}
+      <a class="card app-card" href="{{ a.get_absolute_url }}">
+        {% if a.match_grade == "A" %}{% score_ring a.match_score 48 True "" False %}{% else %}{% score_ring a.match_score 48 False "" False %}{% endif %}
+        <div class="pr-t"><b>{{ a.requisition.title }}</b><span>{{ a.requisition.department }} · {{ a.reference }} · applied {{ a.applied_at|date:"j M Y" }}</span></div>
+        {% status_chip a %}
+        {% icon "chevron-right" "ico-18" %}
+      </a>
+      {% empty %}
+      <div class="empty">{% ph3d "Brushed steel valve wheel" 200 150 %}<h3>Not linked to a vacancy yet</h3>
+        <p>Consider this person for an open role and they are scored straight away.</p>
+        {% if u.is_hr %}<button class="btn btn-primary" type="button" data-open="add-modal">{% icon "plus" "ico-18" %} Consider for a vacancy</button>{% endif %}</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+{# ----------------------- Timeline ----------------------- #}
+<div role="tabpanel" id="timeline" aria-labelledby="t-timeline" class="tab-body" hidden>
+  <section class="sheet" aria-labelledby="tl-h">
+    <div class="sheet-h"><h2 class="title" id="tl-h">Timeline</h2><span class="count">{{ activity|length }}</span></div>
+    <div class="sheet-b"><ul class="feed">
+      {% for a in activity %}
+      <li>{% if a.actor %}{% avatar a.actor "sm" %}{% else %}<span class="tile sm">{% icon "sparkles" "ico-16" %}</span>{% endif %}
+        <div class="feed-t"><span>{{ a.message }}</span><span class="muted">{% if a.application %}{{ a.application.requisition.title }} · {% endif %}{% if a.actor %}{{ a.actor.display_name }}{% else %}System or candidate{% endif %}</span></div>
+        <time datetime="{{ a.created_at|date:'c' }}">{{ a.created_at|date:"j M, H:i" }}</time></li>
+      {% empty %}<li class="small muted">No activity yet.</li>{% endfor %}
+    </ul></div>
+  </section>
 </div>
 
 {% if u.is_hr %}
-<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><form class="modal-content" method="post" action="{% url 'candidates:add_to_requisition' c.pk %}">{% csrf_token %}
-  <div class="modal-header"><h5 class="modal-title">Consider for a vacancy</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">{% include "partials/_form_fields.html" with form=add_form %}<p class="small text-muted mb-0">The candidate is scored against the vacancy immediately.</p></div>
-  <div class="modal-footer"><button class="btn btn-primary">Add &amp; score</button></div></form></div></div>
+<dialog class="modal" id="add-modal" aria-labelledby="add-h">
+  <form method="post" action="{% url 'candidates:add_to_requisition' c.pk %}">{% csrf_token %}
+    <div class="modal-h"><span class="tile">{% icon "clipboard-list" %}</span><h3 id="add-h">Consider {{ c.first_name|default:c.full_name }} for a vacancy</h3><span class="spacer"></span>
+      <button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack">{% dsfield add_form.requisition %}<p class="help">The candidate is scored against the vacancy straight away.</p></div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">{% icon "check" "ico-18" %} Add and score</button></div>
+  </form>
+</dialog>
 {% endif %}
 {% endwith %}
 {% endblock %}

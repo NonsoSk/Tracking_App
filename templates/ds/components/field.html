@@ -1,0 +1,9 @@
+{% load ds %}<div class="field{% if f.errors %} has-error{% endif %}{% if cls %} {{ cls }}{% endif %}" id="field-{{ f.html_name }}">
+  {% if is_check %}<label class="check">{{ f }} {{ f.label }}</label>
+  {% elif is_radio %}<span class="label">{{ f.label }}{% if f.field.required %}<span class="req" aria-hidden="true">*</span>{% endif %}</span>
+    <div class="row wrap" role="radiogroup" aria-label="{{ f.label }}">{% for radio in f %}<label class="check">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}</div>
+  {% else %}{% if f.label %}<label class="label" for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>{% endif %}
+    {{ f }}{% endif %}
+  {% if f.help_text %}<span class="help">{{ f.help_text|safe }}</span>{% endif %}
+  {% for error in f.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ error }}</span>{% endfor %}
+</div>

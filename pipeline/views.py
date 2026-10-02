@@ -93,6 +93,17 @@ def application_detail(request, pk):
         "can_manage": user.is_hr,
         "Stage": Stage,
     }
+    # Presentation only: the pinned next action and the CV viewer.
+    from . import presentation
+
+    context["can_decide"] = user.is_hr or (user.is_department_user and user.department_id == application.requisition.department_id)
+    context["next_action"] = presentation.next_action(
+        application, user, can_manage=context["can_manage"], can_decide=context["can_decide"],
+        active_offer=context["active_offer"], my_interviews=my_interviews, medicals=list(context["medicals"]),
+        onboarding=context["onboarding"])
+    context["cv_fields"] = presentation.cv_fields(application.candidate)
+    context["cv_terms"] = presentation.cv_terms(application.candidate)
+    context["term_groups"] = presentation.term_groups(application.candidate, application.match_breakdown)
     return render(request, "pipeline/application_detail.html", context)
 
 

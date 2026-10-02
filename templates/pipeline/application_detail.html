@@ -1,255 +1,464 @@
-{% extends "base.html" %}
-{% load portal humanize %}
+{% extends "ds/base.html" %}
+{% load ds portal humanize %}
 {% block title %}{{ c.full_name }} · {{ req.title }}{% endblock %}
-{% block breadcrumb %}<a href="{% url 'requisitions:list' %}">Requisitions</a> / <a href="{{ req.get_absolute_url }}">{{ req.reference }}</a> / {{ app.reference }}{% endblock %}
+{% block crumbs %}<a href="{% url 'requisitions:list' %}">Requisitions</a>{% icon "chevron-right" "ico-16" %}<a href="{{ req.get_absolute_url }}">{{ req.reference }} · {{ req.title }}</a>{% icon "chevron-right" "ico-16" %}<span aria-current="page">{{ c.full_name }}</span>{% endblock %}
+{% block primary_action %}
+  {% if summary %}<a class="btn btn-secondary btn-sm desktop-only" href="{% url 'pipeline:selection_report' app.pk %}" target="_blank" rel="noopener">{% icon "printer" "ico-16" %} Report</a>{% endif %}
+  {% if next_action %}
+    {% if next_action.post %}<form method="post" action="{{ next_action.post }}">{% csrf_token %}<button class="btn btn-primary btn-sm" type="submit">{% icon next_action.icon "ico-16" %} {{ next_action.label }}</button></form>
+    {% else %}<a class="btn btn-primary btn-sm" href="{{ next_action.href }}">{% icon next_action.icon "ico-16" %} {{ next_action.label }}</a>{% endif %}
+  {% endif %}
+{% endblock %}
 {% block content %}
 {% with u=request.user %}
-<div class="page-header">
-  <div class="d-flex align-items-center gap-3">
-    <span class="avatar avatar-lg">{{ c.initials }}</span>
-    <div>
-      <div class="d-flex align-items-center gap-2 flex-wrap"><h1>{{ c.full_name }}</h1>{% score_pill app.match_score app.match_grade %}{% if app.status != 'active' %}<span class="badge text-bg-{{ app.status_color }}">{{ app.get_status_display }}</span>{% endif %}</div>
-      <div class="subtitle">{{ app.reference }} · applied for <a href="{{ req.get_absolute_url }}">{{ req.title }}</a> ({{ req.department }}) · {{ app.applied_at|date:"d M Y" }} · {{ c.get_source_display }}</div>
+
+{# ======================= Header: who, what, where they are ======================= #}
+<section class="sheet profile-head" aria-labelledby="who">
+  <div class="ph-row">
+    {% avatar c "xl" %}
+    <div class="ph-id">
+      <div class="eyebrow">{{ app.reference }} · applied {{ app.applied_at|date:"j M Y" }}</div>
+      <h1 id="who">{{ c.full_name }}</h1>
+      <p class="ph-meta"><a href="{{ req.get_absolute_url }}">{{ req.title }}</a> · {{ req.department }}</p>
+      <div class="tags">
+        <span class="chip neutral no-dot" title="{{ c.get_source_display }}">{% icon c.source|source_icon %} {{ c.source_short }}</span>
+        {% status_chip app %}
+        {% if app.match_grade == "A" %}<span class="chip gold">Top match</span>{% endif %}
+        {% if active_offer.status == "review_requested" %}<span class="chip warning">Offer review requested</span>{% endif %}
+        {% if c.referred_by %}<span class="chip neutral no-dot">{% icon "user-plus" %} Referred by {{ c.referred_by.display_name }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="readouts">
+      <div class="card ro ro-match">
+        {% if app.match_grade == "A" %}{% score_ring app.match_score 64 True "match" %}{% else %}{% score_ring app.match_score 64 False "match" %}{% endif %}
+        <div><div class="ro-l">Match</div><div class="ro-v">Grade {{ app.match_grade|default:"–" }}</div><div class="ro-s">{{ breakdown.grade_label|default:"Not scored yet" }}</div></div>
+      </div>
+      <div class="card ro"><div class="ro-l">Panel</div>
+        {% if summary %}<div class="ro-v num">{{ summary.percentage|floatformat:"-1" }}<small>%</small></div><div class="ro-s">{{ summary.rating.label }}</div>
+        {% else %}<div class="ro-v">–</div><div class="ro-s">No scores yet</div>{% endif %}</div>
+      <div class="card ro"><div class="ro-l">Experience</div><div class="ro-v num">{{ c.years_experience|floatformat:"-1" }}<small> yrs</small></div><div class="ro-s">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}</div></div>
+      {% with o=active_offer|default:offers.first %}
+      {% if o %}<div class="card ro"><div class="ro-l">{% if o.counter_salary %}Asks{% else %}Offer{% endif %}</div>
+        <div class="ro-v num">{% if o.counter_salary %}{{ o.counter_salary|naira_short }}{% else %}{{ o.annual_salary|naira_short }}{% endif %}</div>
+        <div class="ro-s">{% if o.counter_salary %}offered {{ o.annual_salary|naira_short }}{% else %}{{ o.get_status_display }}{% endif %}</div></div>
+      {% else %}<div class="card ro"><div class="ro-l">In stage</div><div class="ro-v">{{ app.stage_changed_at|days_since }}</div><div class="ro-s">{{ app.get_stage_display }}</div></div>{% endif %}
+      {% endwith %}
     </div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-light" href="{{ c.get_absolute_url }}"><i class="bi bi-person-vcard"></i> Profile &amp; documents</a>
-    {% if summary %}<a class="btn btn-light" href="{% url 'pipeline:selection_report' app.pk %}" target="_blank"><i class="bi bi-printer"></i> Selection report</a>{% endif %}
+  <div class="tray ph-rail">{% stage_rail app %}</div>
+  <div class="ph-actions">
+    <a class="btn btn-ghost btn-sm" href="{{ c.get_absolute_url }}">{% icon "contact" "ico-16" %} Profile &amp; all documents</a>
     {% if can_manage %}
-    <div class="dropdown"><button class="btn btn-light dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-sliders"></i> Manage</button>
-      <div class="dropdown-menu dropdown-menu-end p-3" style="min-width:300px">
-        <form method="post" action="{% url 'pipeline:move' app.pk %}" class="mb-3">{% csrf_token %}<label class="small-label">Move to stage</label><div class="d-flex gap-2">{{ move_form.stage }}<button class="btn btn-sm btn-primary">Move</button></div></form>
-        <form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<label class="small-label">Status</label>{{ status_form.status }}<input class="form-control form-control-sm mt-2" name="reason" placeholder="Reason (optional)"><div class="form-check small mt-2">{{ status_form.email_candidate }}<label class="form-check-label" for="{{ status_form.email_candidate.id_for_label }}">Email regret letter if rejecting</label></div><button class="btn btn-sm btn-primary mt-2 w-100">Update status</button></form>
-      </div></div>
+    <div class="pop-wrap">
+      <button class="btn btn-secondary btn-sm" type="button" data-popover="manage-menu" aria-haspopup="true" aria-expanded="false">{% icon "sliders-horizontal" "ico-16" %} Manage</button>
+      <div class="popover manage-pop" id="manage-menu" hidden>
+        <form method="post" action="{% url 'pipeline:move' app.pk %}" class="stack-8">{% csrf_token %}
+          <label class="label" for="{{ move_form.stage.id_for_label }}">Move to stage</label>
+          <div class="row">{{ move_form.stage }}<button class="btn btn-primary btn-sm" type="submit">Move</button></div>
+        </form>
+        <hr>
+        <form method="post" action="{% url 'pipeline:status' app.pk %}" class="stack-8">{% csrf_token %}
+          <label class="label" for="{{ status_form.status.id_for_label }}">Status</label>{{ status_form.status }}
+          <input class="input" name="reason" placeholder="Reason (optional)" aria-label="Reason">
+          <label class="check">{{ status_form.email_candidate }} Email a regret letter if rejecting</label>
+          <button class="btn btn-primary btn-sm" type="submit">Update status</button>
+        </form>
+      </div>
+    </div>
     {% endif %}
   </div>
-</div>
+</section>
 
-<div class="card mb-3"><div class="card-body py-3"><div class="stepper">
-  {% for s in progress %}<div class="step {{ s.state }}"><div class="dot"><i class="bi {% if s.state == 'done' %}bi-check-lg{% else %}{{ s.icon }}{% endif %}"></i></div>{{ s.label }}</div>{% endfor %}
-</div></div></div>
-
-{% if app.status == 'rejected' or app.status == 'withdrawn' %}
-<div class="alert alert-secondary d-flex justify-content-between flex-wrap gap-2 align-items-center">
-  <div><i class="bi bi-x-octagon"></i> This application is <strong>{{ app.get_status_display|lower }}</strong>{% if app.status_reason %}: {{ app.status_reason }}{% endif %}.</div>
-  {% if can_manage %}<form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="active"><input type="hidden" name="reason" value="Re-activated"><button class="btn btn-sm btn-outline-primary">Re-activate</button></form>{% endif %}
+{# ======================= Status banners ======================= #}
+{% if app.status == "rejected" or app.status == "withdrawn" %}
+<div class="banner neutral-banner"><span class="tile">{% icon "circle-x" "ico-18" %}</span>
+  <div><b>This application is {{ app.get_status_display|lower }}</b><span class="small">{{ app.status_reason|default:"No reason recorded." }}</span></div>
+  {% if can_manage %}<form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="active"><input type="hidden" name="reason" value="Re-activated"><button class="btn btn-secondary btn-sm" type="submit">Re-activate</button></form>{% endif %}
 </div>
-{% elif app.status == 'on_hold' %}
-<div class="alert alert-warning d-flex justify-content-between flex-wrap gap-2 align-items-center">
-  <div><i class="bi bi-pause-circle"></i> On hold{% if app.status_reason %}: {{ app.status_reason }}{% endif %}. The candidate stays in reserve for this vacancy.</div>
-  {% if can_manage %}<form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="active"><input type="hidden" name="reason" value="Taken off hold"><button class="btn btn-sm btn-outline-dark">Take off hold</button></form>{% endif %}
+{% elif app.status == "on_hold" %}
+<div class="banner warning"><span class="tile">{% icon "hourglass" "ico-18" %}</span>
+  <div><b>On hold{% if app.status_reason %}: {{ app.status_reason }}{% endif %}</b><span class="small">The candidate stays in reserve for this vacancy.</span></div>
+  {% if can_manage %}<form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="active"><input type="hidden" name="reason" value="Taken off hold"><button class="btn btn-secondary btn-sm" type="submit">Take off hold</button></form>{% endif %}
 </div>
+{% elif app.stage == "hired" %}
+<div class="banner gold"><span class="tile">{% icon "trophy" "ico-18" %}</span><div><b>Hired{% if app.hired_at %} on {{ app.hired_at|date:"j M Y" }}{% endif %}</b><span class="small">Welcome aboard. The onboarding checklist is complete.</span></div></div>
 {% endif %}
 
 {% if next_candidates %}
-<div class="card mb-3 border-info"><div class="card-header"><i class="bi bi-arrow-right-circle text-info"></i> Next best candidates for {{ req.title }}</div>
-  <div class="list-group list-group-flush">{% for a in next_candidates %}<a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ a.get_absolute_url }}"><span><strong>{{ a.candidate.full_name }}</strong> <span class="small text-muted">· {{ a.get_stage_display }}{% if a.status == 'on_hold' %} · on hold{% endif %}</span></span>{% with s=a.evaluation_summary %}{% if s %}<span class="badge rating-{{ s.rating.code }}">Panel {{ s.percentage }}%</span>{% else %}{% score_pill a.match_score a.match_grade %}{% endif %}{% endwith %}</a>{% endfor %}</div></div>
+<section class="sheet next-best" aria-labelledby="nb-h">
+  <div class="sheet-h"><h2 class="title" id="nb-h">Next best candidates for {{ req.title }}</h2></div>
+  <div class="sheet-b rows">
+    {% for a in next_candidates %}
+    <a class="person-row" href="{{ a.get_absolute_url }}">{% avatar a.candidate "md" %}
+      <div class="pr-t"><b>{{ a.candidate.full_name }}</b><span>{{ a.get_stage_display }}{% if a.status == "on_hold" %} · on hold{% endif %}</span></div>
+      {% with s=a.evaluation_summary %}{% if s %}<span class="chip {{ s.rating.code|rating_tone }}">Panel {{ s.percentage }}%</span>{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}{% endwith %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
 {% endif %}
 
-<div class="row g-3">
-<div class="col-xl-8">
+{# ======================= Tabs ======================= #}
+<div class="tabs profile-tabs" role="tablist" aria-label="Candidate" data-hash>
+  <button role="tab" type="button" id="t-overview" aria-controls="overview" aria-selected="true">Overview</button>
+  <button role="tab" type="button" id="t-cv" aria-controls="cv" aria-selected="false" tabindex="-1">CV &amp; documents <span class="count-badge">{{ documents|length }}</span></button>
+  <button role="tab" type="button" id="t-scores" aria-controls="scores" aria-selected="false" tabindex="-1">Scores</button>
+  <button role="tab" type="button" id="t-interviews" aria-controls="interviews-tab" aria-selected="false" tabindex="-1">Interviews <span class="count-badge">{{ interviews|length }}</span></button>
+  {% if offers or medicals or onboarding %}<button role="tab" type="button" id="t-offer" aria-controls="offer-tab" aria-selected="false" tabindex="-1">Offer &amp; joining</button>{% endif %}
+  <button role="tab" type="button" id="t-timeline" aria-controls="timeline" aria-selected="false" tabindex="-1">Timeline</button>
+</div>
 
-  {# ---------------- NEXT STEP PANEL ---------------- #}
-  {% if app.is_open %}
-  <div class="card mb-3 border-primary">
-    <div class="card-header bg-primary-subtle"><i class="bi bi-signpost-2"></i> Next step — {{ app.get_stage_display }}</div>
-    <div class="card-body">
-    {% if app.stage == 'applied' %}
-      <p class="small text-muted">Review the match breakdown below. Shortlisted candidates can be invited to interview.</p>
-      {% if can_manage %}<div class="d-flex gap-2 flex-wrap">
-        <form method="post" action="{% url 'pipeline:shortlist' app.pk %}">{% csrf_token %}<button class="btn btn-success"><i class="bi bi-star"></i> Shortlist</button></form>
-        <form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="on_hold"><input type="hidden" name="reason" value="Kept in reserve"><button class="btn btn-outline-warning">Keep on hold</button></form>
-        <form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="rejected"><input type="hidden" name="reason" value="Not shortlisted"><input type="hidden" name="email_candidate" value="on"><button class="btn btn-outline-danger" data-confirm="Reject and send a regret email?">Reject</button></form>
-      </div>{% endif %}
-    {% elif app.stage == 'shortlisted' or app.stage == 'interview' %}
-      <p class="small text-muted mb-2">Interviews run in three phases: technical/practical, behavioural/general, and the HOD interview. Each invite includes a calendar file and a link for the candidate to confirm.</p>
-      {% if can_manage %}<a class="btn btn-primary" href="{% url 'pipeline:schedule_interview' app.pk %}"><i class="bi bi-calendar-plus"></i> Schedule {% if interviews %}next phase{% else %}interview{% endif %}</a>{% endif %}
-      {% for i in my_interviews %}{% if i.status != 'cancelled' %}<a class="btn btn-success ms-1" href="{% url 'pipeline:evaluate' app.pk %}?interview={{ i.pk }}"><i class="bi bi-clipboard-check"></i> Score {{ i.round_short }}</a>{% endif %}{% endfor %}
-      {% if can_manage and app.stage == 'interview' %}<form method="post" action="{% url 'pipeline:move' app.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="stage" value="decision"><button class="btn btn-outline-primary ms-1">Interviews done → decision</button></form>{% endif %}
-    {% elif app.stage == 'decision' %}
-      {% if summary %}<p class="mb-2">Panel average: <strong>{{ summary.total }} / {{ summary.max_total }}</strong> ({{ summary.percentage }}%) <span class="badge rating-{{ summary.rating.code }}">{{ summary.rating.label }}</span> from {{ summary.count }} selection report{{ summary.count|pluralize }}.
-        {% for rec, n in summary.recommendations.items %}<span class="chip soft">{{ rec|title }}: {{ n }}</span>{% endfor %}</p>{% else %}<p class="text-warning small">No selection reports submitted yet.</p>{% endif %}
-      {% if can_manage or u.is_department_user and u.department_id == req.department_id %}
-      <form method="post" action="{% url 'pipeline:decision' app.pk %}">{% csrf_token %}
-        <div class="d-flex gap-3 flex-wrap mb-2">{% for radio in decision_form.decision %}<div class="form-check">{{ radio.tag }}<label class="form-check-label fw-semibold" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label></div>{% endfor %}</div>
-        <textarea name="notes" class="form-control mb-2" rows="2" placeholder="Remarks"></textarea>
-        <div class="form-check small mb-2"><input class="form-check-input" type="checkbox" name="email_candidate" id="dec-email" checked><label class="form-check-label" for="dec-email">Email the candidate (document request if selected, regret letter if rejected)</label></div>
-        <button class="btn btn-primary">Record decision</button>
-      </form>
-      {% endif %}
-    {% elif app.stage == 'documents' %}
-      {% if checklist %}
-        <p class="small mb-2">{% if checklist.ready %}<span class="text-success fw-semibold"><i class="bi bi-check-circle"></i> All mandatory documents verified.</span>{% else %}{{ checklist.outstanding|length }} mandatory document{{ checklist.outstanding|length|pluralize }} outstanding · {{ checklist.pending_review|length }} awaiting your review.{% endif %}
-        Next: {% if app.is_trainee_track %}onboarding (trainee track){% else %}offer{% endif %}.</p>
-        {% if can_manage %}<div class="d-flex gap-2 flex-wrap">
-          <form method="post" action="{% url 'pipeline:request_documents' app.pk %}">{% csrf_token %}<button class="btn btn-outline-primary"><i class="bi bi-envelope"></i> Email document request</button></form>
-          <form method="post" action="{% url 'pipeline:clear_documents' app.pk %}">{% csrf_token %}<button class="btn btn-success" {% if not checklist.ready %}disabled{% endif %}><i class="bi bi-check2-all"></i> Documents cleared</button></form>
-          {% if not checklist.ready %}<form method="post" action="{% url 'pipeline:clear_documents' app.pk %}">{% csrf_token %}<input type="hidden" name="force" value="1"><button class="btn btn-link btn-sm text-muted" data-confirm="Proceed even though some documents are not verified?">Proceed anyway</button></form>{% endif %}
-        </div>{% endif %}
-      {% endif %}
-    {% elif app.stage == 'offer' %}
-      {% if active_offer %}
-        <div class="d-flex justify-content-between flex-wrap gap-2"><div>Offer v{{ active_offer.version }}: <strong>{{ active_offer.annual_salary|naira }}</strong> / year · <span class="badge text-bg-{{ active_offer.status_color }}">{{ active_offer.get_status_display }}</span>{% if active_offer.expires_on %} <span class="small text-muted">· respond by {{ active_offer.expires_on|date:"d M Y" }}</span>{% endif %}</div>
-        {% if can_manage and active_offer.status == 'draft' %}<form method="post" action="{% url 'pipeline:send_offer' active_offer.pk %}">{% csrf_token %}<button class="btn btn-success"><i class="bi bi-send"></i> Send to candidate</button></form>{% endif %}</div>
-        {% if active_offer.status == 'review_requested' %}<div class="alert alert-warning mt-2 mb-0 small">Candidate requested a review{% if active_offer.counter_salary %} (asks {{ active_offer.counter_salary|naira }}){% endif %}: “{{ active_offer.candidate_comment|default:'—' }}”. Management has been notified. <a href="{% url 'pipeline:offer_review' active_offer.pk %}">Open review</a></div>{% endif %}
-      {% else %}
-        {% with last=offers.first %}{% if last and last.status == 'declined' %}
-          <div class="alert alert-danger small">The candidate declined offer v{{ last.version }}: “{{ last.candidate_comment|default:'no reason given' }}”.</div>
-          {% if can_manage %}<form method="post" action="{% url 'pipeline:offer_close' last.pk %}" class="mb-3">{% csrf_token %}<button class="btn btn-outline-danger btn-sm" data-confirm="Close this application and move on to the next candidate?">Close &amp; move to next candidate</button></form>{% endif %}
-        {% endif %}{% endwith %}
-        {% if can_manage %}
-        <form method="post" action="{% url 'pipeline:create_offer' app.pk %}" enctype="multipart/form-data"><div class="row">{% csrf_token %}
-          {% field offer_form.job_title "col-md-6 mb-2" %}{% field offer_form.grade "col-md-3 mb-2" %}{% field offer_form.annual_salary "col-md-3 mb-2" %}
-          {% field offer_form.benefits "col-md-6 mb-2" %}{% field offer_form.negotiation_notes "col-md-6 mb-2" %}
-          {% field offer_form.start_date "col-md-4 mb-2" %}{% field offer_form.expires_on "col-md-4 mb-2" %}{% field offer_form.letter "col-md-4 mb-2" %}
-          <div class="col-12 d-flex gap-2"><button class="btn btn-outline-primary" name="draft" value="1">Save draft</button><button class="btn btn-success" name="send" value="1"><i class="bi bi-send"></i> Save &amp; send offer</button></div>
-        </div></form>
-        {% endif %}
-      {% endif %}
-    {% elif app.stage == 'medical' %}
-      {% with m=medicals.first %}
-      {% if m and m.result == 'scheduled' %}
-        <p class="mb-2">Medical scheduled for <strong>{{ m.scheduled_for|date:"D d M Y, H:i" }}</strong> at {{ m.facility }}.</p>
-        {% if can_manage %}<form method="post" action="{% url 'pipeline:medical_result' m.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}
-          <div class="col-md-4"><label class="small-label">Result</label>{{ medical_result_form.result }}</div><div class="col-md-4"><label class="small-label">Report (optional)</label>{{ medical_result_form.report }}</div>
-          <div class="col-md-4"><button class="btn btn-primary w-100">Record result</button></div><div class="col-12">{{ medical_result_form.notes }}</div></form>{% endif %}
-      {% elif can_manage %}
-        {% if m %}<p class="small">Last result: {{ m.get_result_display }}.</p>{% endif %}
-        <form method="post" action="{% url 'pipeline:schedule_medical' app.pk %}" class="row g-2 align-items-end">{% csrf_token %}
-          {% field medical_form.scheduled_for "col-md-4" %}{% field medical_form.facility "col-md-4" %}<div class="col-md-4"><button class="btn btn-primary w-100"><i class="bi bi-heart-pulse"></i> Schedule medicals</button></div>{% field medical_form.notes "col-12" %}</form>
-      {% endif %}
-      {% endwith %}
-    {% elif app.stage == 'onboarding' %}
-      {% if onboarding %}<p class="mb-2">Onboarding {{ onboarding.get_status_display|lower }} · {{ onboarding.progress }}% of tasks done{% if onboarding.start_date %} · joins {{ onboarding.start_date|date:"d M Y" }}{% endif %}.</p><div class="match-bar mb-2"><span style="width: {{ onboarding.progress }}%"></span></div>
-      {% if u.is_onboarding %}<a class="btn btn-primary" href="{% url 'pipeline:onboarding' onboarding.pk %}">Open onboarding checklist</a>{% endif %}{% endif %}
-    {% endif %}
-    </div>
-  </div>
-  {% elif app.stage == 'hired' %}
-  <div class="alert alert-success"><i class="bi bi-trophy"></i> Hired{% if app.hired_at %} on {{ app.hired_at|date:"d M Y" }}{% endif %}. Welcome aboard!</div>
-  {% endif %}
+{# ----------------------- Overview ----------------------- #}
+<div role="tabpanel" id="overview" aria-labelledby="t-overview" class="tab-body">
+  <div class="split">
+    <div class="stack-24">
+      {% if app.is_open %}
+      <section class="sheet next-step" id="next-step" aria-labelledby="ns-h">
+        <div class="sheet-h"><span class="tile sm">{% icon "arrow-right" "ico-16" %}</span><h2 class="title" id="ns-h">Next step · {{ app.get_stage_display }}</h2></div>
+        <div class="sheet-b stack">
+        {% if app.stage == "applied" %}
+          <p class="soft">Check the match on the Scores tab. Shortlisted candidates can be invited to interview.</p>
+          {% if can_manage %}<div class="row wrap">
+            <form method="post" action="{% url 'pipeline:shortlist' app.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">{% icon "star" "ico-18" %} Shortlist</button></form>
+            <form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="on_hold"><input type="hidden" name="reason" value="Kept in reserve"><button class="btn btn-secondary" type="submit">{% icon "hourglass" "ico-18" %} Keep on hold</button></form>
+            <form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="rejected"><input type="hidden" name="reason" value="Not shortlisted"><input type="hidden" name="email_candidate" value="on"><button class="btn btn-ghost" type="submit" data-confirm="Reject {{ c.full_name }} and send a kind regret email?" data-confirm-label="Reject">Reject</button></form>
+          </div>{% endif %}
 
-  {# ---------------- MATCH ---------------- #}
-  <div class="card mb-3" id="match">
-    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-bullseye"></i> Automatic match against the requirements</span>
-      {% if can_manage %}<div class="d-flex gap-1"><form method="post" action="{% url 'pipeline:rescore' app.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light" title="Re-score"><i class="bi bi-arrow-repeat"></i></button></form>
-      <form method="post" action="{% url 'pipeline:ai_summary' app.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light"><i class="bi bi-stars"></i> AI fit summary</button></form></div>{% endif %}</div>
-    <div class="card-body">
-      <div class="d-flex gap-4 flex-wrap align-items-center mb-3">
-        <div class="score-ring" style="--p: {{ app.match_score }}; --ring-color: {% if app.match_grade == 'A' %}#1b9e5a{% elif app.match_grade == 'B' %}#135a9e{% elif app.match_grade == 'C' %}#d69e2e{% else %}#c53030{% endif %}"><div>{{ app.match_score|floatformat:0 }}%</div></div>
-        <div><div class="fw-bold fs-5">Grade {{ app.match_grade }} — {{ breakdown.grade_label }}</div><div class="small text-muted">{{ breakdown.track|title }} hiring weights · scored {{ app.matched_at|naturaltime }}</div>
-          {% for f in breakdown.flags %}<div class="small text-danger"><i class="bi bi-flag"></i> {{ f }}</div>{% endfor %}</div>
-      </div>
-      {% for key, comp in breakdown.components.items %}
-      <div class="mb-3">
-        <div class="d-flex justify-content-between small"><strong>{{ comp.label }}</strong><span class="text-muted">{{ comp.detail }} · {{ comp.points }}/{{ comp.weight }} pts</span></div>
-        <div class="match-bar my-1"><span style="width: {{ comp.score|times100 }}%"></span></div>
-        {% if comp.matched or comp.missing %}<div>{% for m in comp.matched %}<span class="chip ok" title="{{ m.evidence }}"><i class="bi bi-check2"></i> {{ m.term }}{% if m.preferred %} <small>(nice)</small>{% endif %}</span>{% endfor %}{% for m in comp.missing %}<span class="chip miss"><i class="bi bi-x"></i> {{ m }}</span>{% endfor %}{% for m in comp.missing_preferred %}<span class="chip soft">{{ m }}</span>{% endfor %}</div>{% endif %}
-      </div>
-      {% endfor %}
-      {% if app.ai_summary %}<div class="p-3 rounded mt-2" style="background:#f6faf8;border:1px solid #d5ecdf"><div class="small-label mb-1"><i class="bi bi-stars"></i> AI fit summary</div><div class="small">{{ app.ai_summary|linebreaksbr }}</div></div>{% endif %}
-    </div>
-  </div>
-
-  {# ---------------- INTERVIEWS ---------------- #}
-  <div class="card mb-3" id="interviews">
-    <div class="card-header d-flex justify-content-between"><span><i class="bi bi-calendar-event"></i> Interviews</span>{% if can_manage and app.is_open %}<a class="btn btn-sm btn-primary" href="{% url 'pipeline:schedule_interview' app.pk %}"><i class="bi bi-plus"></i> Schedule</a>{% endif %}</div>
-    <div class="list-group list-group-flush">
-      {% for i in interviews %}
-      <div class="list-group-item">
-        <div class="d-flex justify-content-between flex-wrap gap-2">
-          <div><strong>{{ i.get_round_display }}</strong> <span class="badge text-bg-{{ i.status_color }}">{{ i.get_status_display }}</span>
-            {% if i.candidate_response == 'confirmed' %}<span class="badge text-bg-success">Candidate confirmed</span>{% elif i.candidate_response == 'reschedule' %}<span class="badge text-bg-warning" title="{{ i.candidate_note }}">Asked to reschedule</span>{% endif %}
-            <div class="small text-muted">{{ i.scheduled_at|date:"l d M Y, H:i" }} · {{ i.duration_minutes }} min · {{ i.get_mode_display }}{% if i.mode == 'video' %} · <a href="{{ i.meeting_link }}" target="_blank">join link</a>{% elif i.location %} · {{ i.location }}{% endif %}</div>
-            <div class="small">Panel: {% for p in i.panel.all %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
-            {% if i.candidate_note %}<div class="small text-muted">Candidate: “{{ i.candidate_note }}”</div>{% endif %}
+        {% elif app.stage == "shortlisted" or app.stage == "interview" %}
+          <p class="soft">Interviews run in three phases: technical/practical, behavioural/general and the HOD interview. Every invite carries a calendar file and a link for the candidate to confirm.</p>
+          <div class="row wrap">
+            {% if can_manage %}<a class="btn btn-primary" href="{% url 'pipeline:schedule_interview' app.pk %}">{% icon "calendar-plus" "ico-18" %} Schedule {% if interviews %}next phase{% else %}interview{% endif %}</a>{% endif %}
+            {% for i in my_interviews %}{% if i.status != "cancelled" %}<a class="btn btn-secondary" href="{% url 'pipeline:evaluate' app.pk %}?interview={{ i.pk }}">{% icon "clipboard-pen" "ico-18" %} Score {{ i.round_short }}</a>{% endif %}{% endfor %}
+            {% if can_manage and app.stage == "interview" %}<form method="post" action="{% url 'pipeline:move' app.pk %}">{% csrf_token %}<input type="hidden" name="stage" value="decision"><button class="btn btn-ghost" type="submit">Interviews done {% icon "arrow-right" "ico-16" %} decision</button></form>{% endif %}
           </div>
-          <div class="d-flex gap-1 align-items-start flex-wrap">
-            <a class="btn btn-sm btn-light" href="{% url 'pipeline:ics' i.pk %}" title="Add to calendar"><i class="bi bi-calendar-plus"></i></a>
-            {% if i.status == 'scheduled' %}
-              {% if can_manage %}<a class="btn btn-sm btn-light" href="{% url 'pipeline:edit_interview' i.pk %}" title="Reschedule"><i class="bi bi-pencil"></i></a>
-              <form method="post" action="{% url 'pipeline:cancel_interview' i.pk %}">{% csrf_token %}<button class="btn btn-sm btn-light" data-confirm="Cancel this interview and notify everyone?" title="Cancel"><i class="bi bi-x-lg"></i></button></form>{% endif %}
-              {% if can_manage or u in i.panel.all %}<form method="post" action="{% url 'pipeline:complete_interview' i.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-success">Mark done</button></form>
-              <form method="post" action="{% url 'pipeline:complete_interview' i.pk %}">{% csrf_token %}<input type="hidden" name="status" value="no_show"><button class="btn btn-sm btn-outline-secondary" data-confirm="Record that the candidate did not attend?">No-show</button></form>{% endif %}
+
+        {% elif app.stage == "decision" %}
+          {% if summary %}
+          <div class="decision-summary">
+            {% score_ring summary.percentage 56 False "panel" %}
+            <div><b>Panel average {{ summary.total }} / {{ summary.max_total }}</b>
+              <span class="soft small">{{ summary.count }} selection report{{ summary.count|pluralize }} · <span class="chip {{ summary.rating.code|rating_tone }}">{{ summary.rating.label }}</span></span>
+              <div class="tags">{% for rec, n in summary.recommendations.items %}<span class="tag">{{ rec|title }}: {{ n }}</span>{% endfor %}</div></div>
+          </div>
+          {% else %}<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>No selection reports yet</b><span class="small">Panel members score the candidate after each interview.</span></div></div>{% endif %}
+          {% if can_decide %}
+          <form method="post" action="{% url 'pipeline:decision' app.pk %}" id="decide" class="stack">{% csrf_token %}
+            <div class="choices" role="radiogroup" aria-label="Decision">
+              {% for radio in decision_form.decision reversed %}
+              <label class="choice {% if radio.data.value == 'reject' %}danger{% elif radio.data.value == 'on_hold' %}warning{% else %}success{% endif %}">
+                <input type="radio" name="{{ radio.data.name }}" value="{{ radio.data.value }}" required>
+                <span class="tile">{% if radio.data.value == 'reject' %}{% icon "user-x" %}{% elif radio.data.value == 'on_hold' %}{% icon "hourglass" %}{% else %}{% icon "user-check" %}{% endif %}</span>
+                <b>{{ radio.choice_label }}</b>
+                <span class="d">{% if radio.data.value == 'reject' %}Send a kind regret letter{% elif radio.data.value == 'on_hold' %}Keep in reserve for this role{% else %}Request documents next{% endif %}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="field"><label class="label" for="dec-notes">Remarks</label><textarea class="textarea" name="notes" id="dec-notes" rows="2" placeholder="Why this decision? This is kept on the record."></textarea></div>
+            <label class="check"><input type="checkbox" name="email_candidate" checked> Email the candidate (document request if selected, regret letter if rejected)</label>
+            <div><button class="btn btn-primary" type="submit">{% icon "check" "ico-18" %} Record decision</button></div>
+          </form>
+          {% endif %}
+
+        {% elif app.stage == "documents" %}
+          {% if checklist %}
+          <div class="doc-progress">
+            {% if checklist.ready %}<div class="banner success"><span class="tile">{% icon "circle-check" "ico-18" %}</span><div><b>All mandatory documents verified</b><span class="small">Next: {% if app.is_trainee_track %}onboarding (trainee track){% else %}the offer{% endif %}.</span></div></div>
+            {% else %}<p class="soft"><b>{{ checklist.outstanding|length }}</b> mandatory document{{ checklist.outstanding|length|pluralize }} outstanding · <b>{{ checklist.pending_review|length }}</b> waiting for your review. Next: {% if app.is_trainee_track %}onboarding (trainee track){% else %}the offer{% endif %}.</p>{% endif %}
+          </div>
+          {% if can_manage %}<div class="row wrap">
+            <form method="post" action="{% url 'pipeline:request_documents' app.pk %}">{% csrf_token %}<button class="btn btn-secondary" type="submit">{% icon "mail" "ico-18" %} Email document request</button></form>
+            <form method="post" action="{% url 'pipeline:clear_documents' app.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit" {% if not checklist.ready %}disabled{% endif %}>{% icon "check-check" "ico-18" %} Documents cleared</button></form>
+            {% if not checklist.ready %}<form method="post" action="{% url 'pipeline:clear_documents' app.pk %}">{% csrf_token %}<input type="hidden" name="force" value="1"><button class="btn btn-ghost" type="submit" data-confirm="Proceed even though some documents are not verified?" data-confirm-label="Proceed anyway">Proceed anyway</button></form>{% endif %}
+            <a class="btn btn-ghost" href="#documents">Review documents {% icon "arrow-right" "ico-16" %}</a>
+          </div>{% endif %}
+          {% endif %}
+
+        {% elif app.stage == "offer" %}
+          {% if active_offer %}
+          <div class="offer-line">
+            <div><span class="eyebrow">Offer v{{ active_offer.version }}</span><b class="num">{{ active_offer.annual_salary|naira }}</b><span class="soft small"> a year · {{ active_offer.monthly_salary|naira }} a month</span></div>
+            <span class="chip {{ active_offer.status|tone:'offer' }}">{{ active_offer.get_status_display }}</span>
+            {% if active_offer.expires_on %}<span class="small muted">Respond by {{ active_offer.expires_on|date:"j M Y" }}</span>{% endif %}
+            {% if can_manage and active_offer.status == "draft" %}<form method="post" action="{% url 'pipeline:send_offer' active_offer.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm" type="submit">{% icon "send" "ico-16" %} Send to candidate</button></form>{% endif %}
+          </div>
+          {% if active_offer.status == "review_requested" %}
+          <div class="banner warning"><span class="tile">{% icon "banknote" "ico-18" %}</span>
+            <div><b>The candidate asked for a review{% if active_offer.counter_salary %} · asks {{ active_offer.counter_salary|naira }}{% endif %}</b><span class="small">“{{ active_offer.candidate_comment|default:"No comment" }}” Management has been notified.</span></div>
+            <a class="btn btn-secondary btn-sm" href="{% url 'pipeline:offer_review' active_offer.pk %}">Open review</a></div>
+          {% endif %}
+          {% else %}
+            {% with last=offers.first %}{% if last and last.status == "declined" %}
+            <div class="banner danger"><span class="tile">{% icon "circle-x" "ico-18" %}</span>
+              <div><b>The candidate declined offer v{{ last.version }}</b><span class="small">“{{ last.candidate_comment|default:"No reason given" }}”</span></div>
+              {% if can_manage %}<form method="post" action="{% url 'pipeline:offer_close' last.pk %}">{% csrf_token %}<button class="btn btn-secondary btn-sm" type="submit" data-confirm="Close this application and move on to the next candidate?" data-confirm-label="Close and move on">Close &amp; move on</button></form>{% endif %}</div>
+            {% endif %}{% endwith %}
+            {% if can_manage %}
+            <form method="post" action="{% url 'pipeline:create_offer' app.pk %}" enctype="multipart/form-data" id="prepare-offer" class="form-grid">{% csrf_token %}
+              {% dsfield offer_form.job_title "span-2" %}{% dsfield offer_form.grade %}{% dsfield offer_form.annual_salary %}
+              {% dsfield offer_form.benefits "span-2" %}{% dsfield offer_form.negotiation_notes "span-2" %}
+              {% dsfield offer_form.start_date %}{% dsfield offer_form.expires_on %}{% dsfield offer_form.letter "span-2" %}
+              <div class="row wrap span-4"><button class="btn btn-secondary" type="submit" name="draft" value="1">Save draft</button><button class="btn btn-primary" type="submit" name="send" value="1">{% icon "send" "ico-18" %} Save &amp; send offer</button></div>
+            </form>
             {% endif %}
-            {% if u in i.panel.all and i.status != 'cancelled' %}<a class="btn btn-sm btn-success" href="{% url 'pipeline:evaluate' app.pk %}?interview={{ i.pk }}"><i class="bi bi-clipboard-check"></i> Score</a>{% endif %}
-          </div>
+          {% endif %}
+
+        {% elif app.stage == "medical" %}
+          {% with m=medicals.first %}
+          {% if m and m.result == "scheduled" %}
+            <p class="soft">Medicals booked for <b>{{ m.scheduled_for|date:"l j M Y, H:i" }}</b> at {{ m.facility }}.</p>
+            {% if can_manage %}<form method="post" action="{% url 'pipeline:medical_result' m.pk %}" enctype="multipart/form-data" class="form-grid">{% csrf_token %}
+              {% dsfield medical_result_form.result "span-2" %}{% dsfield medical_result_form.report "span-2" %}{% dsfield medical_result_form.notes "span-4" %}
+              <div class="span-4"><button class="btn btn-primary" type="submit">{% icon "stethoscope" "ico-18" %} Record result</button></div></form>{% endif %}
+          {% elif can_manage %}
+            {% if m %}<p class="soft">Last result: <span class="chip {{ m.result|tone:'medical' }}">{{ m.get_result_display }}</span></p>{% endif %}
+            <form method="post" action="{% url 'pipeline:schedule_medical' app.pk %}" class="form-grid">{% csrf_token %}
+              {% dsfield medical_form.scheduled_for "span-2" %}{% dsfield medical_form.facility "span-2" %}{% dsfield medical_form.notes "span-4" %}
+              <div class="span-4"><button class="btn btn-primary" type="submit">{% icon "stethoscope" "ico-18" %} Schedule medicals</button></div></form>
+          {% endif %}
+          {% endwith %}
+
+        {% elif app.stage == "onboarding" %}
+          {% if onboarding %}
+          <div class="decision-summary">{% score_ring onboarding.progress 56 False "done" %}
+            <div><b>Onboarding {{ onboarding.get_status_display|lower }}</b><span class="soft small">{{ onboarding.progress }}% of tasks done{% if onboarding.start_date %} · joins {{ onboarding.start_date|date:"j M Y" }}{% endif %}</span></div></div>
+          {% if u.is_onboarding %}<div><a class="btn btn-primary" href="{% url 'pipeline:onboarding' onboarding.pk %}">{% icon "list-checks" "ico-18" %} Open onboarding checklist</a></div>{% endif %}
+          {% endif %}
+        {% endif %}
         </div>
-      </div>
-      {% empty %}{% include "partials/_empty.html" with icon="bi-calendar" text="No interviews yet." %}{% endfor %}
+      </section>
+      {% endif %}
+
+      <section class="sheet" aria-labelledby="skills-h">
+        <div class="sheet-h"><h2 class="title" id="skills-h">Skills, tools and certifications</h2></div>
+        <div class="sheet-b stack">
+          {% for g in term_groups %}
+          <div class="term-group"><div class="eyebrow muted-eyebrow">{{ g.title }}</div>
+            <div class="tags">{% for t in g.items %}
+              {% if t.state == "met" %}<span class="tag on" title="Matches the role">{% icon "check" "ico-14" %} {{ t.term }}</span>
+              {% elif t.state == "missing" %}<span class="chip danger no-dot" title="Required, not found">{% icon "x" %} {{ t.term }}</span>
+              {% elif t.state == "nice" %}<span class="tag dashed" title="Nice to have, not found">{{ t.term }}</span>
+              {% else %}<span class="tag">{{ t.term }}</span>{% endif %}
+            {% endfor %}</div></div>
+          {% empty %}<p class="small muted">No skills recorded yet.</p>{% endfor %}
+          <p class="help">{% icon "check" "ico-14" %} matches the role · <span class="legend-x">red</span> required but not found · dashed: nice to have, not found</p>
+        </div>
+      </section>
     </div>
-  </div>
 
-  {# ---------------- SELECTION REPORTS ---------------- #}
-  <div class="card mb-3" id="evaluations">
-    <div class="card-header d-flex justify-content-between"><span><i class="bi bi-clipboard-check"></i> Selection reports</span>{% if summary %}<a class="small" href="{% url 'pipeline:selection_report' app.pk %}" target="_blank">Print form</a>{% endif %}</div>
-    {% if summary %}
-    <div class="table-responsive"><table class="table table-sm align-middle">
-      <thead><tr><th>Criterion</th>{% for e in summary.evaluations %}<th class="text-center" title="{{ e.interview.get_round_display|default:'' }}">{{ e.evaluator.display_name|truncatechars:14 }}{% if e.interview %}<div class="fw-normal text-muted" style="text-transform:none">{{ e.interview.round_short }}</div>{% endif %}</th>{% endfor %}<th class="text-center">Average</th><th class="text-center">Max</th><th class="text-center">Rating</th></tr></thead>
-      <tbody>
-        {% for row in summary.rows %}<tr><td class="small">{{ row.criterion.name }}</td>
-          {% for e in summary.evaluations %}<td class="text-center small">{% for s in e.scores.all %}{% if s.criterion_id == row.criterion.id %}{{ s.marks|floatformat:"-1" }}{% endif %}{% endfor %}</td>{% endfor %}
-          <td class="text-center fw-semibold">{{ row.average|floatformat:"-1" }}</td><td class="text-center text-muted">{{ row.criterion.max_marks }}</td><td class="text-center"><span class="badge rating-{{ row.rating.code }}">{{ row.rating.code }}</span></td></tr>{% endfor %}
-        <tr class="fw-bold"><td>Total</td>{% for e in summary.evaluations %}<td class="text-center">{{ e.total|floatformat:"-1" }}</td>{% endfor %}<td class="text-center">{{ summary.total }}</td><td class="text-center">{{ summary.max_total }}</td><td class="text-center"><span class="badge rating-{{ summary.rating.code }}">{{ summary.rating.code }}</span></td></tr>
-        <tr><td class="small">Recommendation</td>{% for e in summary.evaluations %}<td class="text-center small">{{ e.get_recommendation_display }}</td>{% endfor %}<td colspan="3"></td></tr>
-      </tbody></table></div>
-    <div class="card-body pt-2">{% for e in summary.evaluations %}{% if e.remarks %}<div class="small mb-1"><strong>{{ e.evaluator.display_name }}{% if e.interview %} ({{ e.interview.round_short }}){% endif %}:</strong> {{ e.remarks }}</div>{% endif %}{% endfor %}
-      <div class="small text-muted">Legend: P – Poor 0–30% · S – Satisfactory 31–50% · G – Good 51–70% · VG – Very Good 71–90% · E – Excellent 91%+</div></div>
-    {% else %}{% include "partials/_empty.html" with icon="bi-clipboard" text="Panel members score candidates here after each interview." %}{% endif %}
+    <aside class="stack-24">
+      <section class="sheet" aria-labelledby="snap-h">
+        <div class="sheet-h"><h2 class="title" id="snap-h">Snapshot</h2></div>
+        <div class="sheet-b">
+          <dl class="facts">
+            <div><dt>Qualification</dt><dd>{{ c.get_highest_qualification_display|default:"—" }}{% if c.course %} · {{ c.course }}{% endif %}{% if c.degree_class %} · {{ c.get_degree_class_display }}{% endif %}</dd></div>
+            <div><dt>Institution</dt><dd>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</dd></div>
+            <div><dt>Experience</dt><dd>{{ c.years_experience|floatformat:"-1" }} years{% if c.current_job_title %} · {{ c.current_job_title }}{% endif %}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}</dd></div>
+            <div><dt>Contact</dt><dd>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% else %}—{% endif %}{% if c.phone %}<br><a href="tel:{{ c.phone }}">{{ c.phone }}</a>{% endif %}</dd></div>
+            {% if c.referred_by %}<div><dt>Referred by</dt><dd>{{ c.referred_by.display_name }}</dd></div>{% endif %}
+          </dl>
+          {% with cv=c.latest_cv %}{% if cv %}<a class="btn btn-secondary btn-sm" href="{% url 'candidates:document' cv.pk %}" target="_blank" rel="noopener">{% icon "file-text" "ico-16" %} Open original CV</a>{% endif %}{% endwith %}
+        </div>
+      </section>
+      {% if can_manage %}
+      <section class="sheet" aria-labelledby="link-h">
+        <div class="sheet-h"><h2 class="title" id="link-h">Candidate's tracking link</h2></div>
+        <div class="sheet-b stack-8">
+          <div class="copy-field"><input class="input" readonly value="{{ app.get_portal_url }}" aria-label="Candidate's tracking link" onclick="this.select()">
+            <button class="btn btn-secondary btn-icon" type="button" data-copy="{{ app.get_portal_url }}" aria-label="Copy link" data-tip="Copy">{% icon "copy" "ico-18" %}</button></div>
+          <p class="help">Sent in every email. The candidate uses it to confirm interviews, upload documents and respond to offers.</p>
+        </div>
+      </section>
+      {% endif %}
+    </aside>
   </div>
+</div>
 
-  {# ---------------- DOCUMENTS ---------------- #}
-  {% if checklist %}
-  <div class="card mb-3" id="documents">
-    <div class="card-header"><i class="bi bi-folder-check"></i> Document checklist</div>
-    <div class="list-group list-group-flush">
-      {% for row in checklist.rows %}
-      <div class="list-group-item d-flex align-items-center gap-2 flex-wrap">
-        <div class="flex-grow-1"><strong class="small">{{ row.requirement.get_doc_type_display }}</strong>{% if not row.requirement.is_mandatory %} <span class="badge text-bg-light">optional</span>{% endif %}{% if row.requirement.note %}<div class="small text-muted">{{ row.requirement.note }}</div>{% endif %}</div>
-        {% if row.document %}
-          <a class="small" href="{% url 'candidates:document' row.document.pk %}" target="_blank"><i class="bi {{ row.document.icon }}"></i> {{ row.document.original_name|truncatechars:30 }}</a>
-          <span class="badge text-bg-{% if row.document.status == 'verified' %}success{% elif row.document.status == 'rejected' %}danger{% else %}secondary{% endif %}">{{ row.document.get_status_display }}</span>
-          {% if can_manage and row.document.status != 'verified' %}<form method="post" action="{% url 'candidates:review_document' row.document.pk %}">{% csrf_token %}<input type="hidden" name="status" value="verified"><input type="hidden" name="next" value="{{ request.path }}#documents"><button class="btn btn-sm btn-outline-success">Verify</button></form>{% endif %}
-          {% if can_manage and row.document.status != 'rejected' %}<form method="post" action="{% url 'candidates:review_document' row.document.pk %}" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="status" value="rejected"><input type="hidden" name="next" value="{{ request.path }}#documents"><input name="note" class="form-control form-control-sm" placeholder="Reason" style="width:120px"><button class="btn btn-sm btn-outline-danger">Reject</button></form>{% endif %}
-        {% else %}<span class="badge text-bg-warning">Not uploaded</span>{% endif %}
+{# ----------------------- CV & documents ----------------------- #}
+<div role="tabpanel" id="cv" aria-labelledby="t-cv" class="tab-body" hidden>
+  {% include "ds/_cv_viewer.html" %}
+
+  <section class="sheet" id="documents" aria-labelledby="docs-h">
+    <div class="sheet-h"><h2 class="title" id="docs-h">{% if checklist %}Document checklist{% else %}Documents{% endif %}</h2>
+      {% if checklist %}<span class="count">{{ checklist.rows|length }}</span>{% else %}<span class="count">{{ documents|length }}</span>{% endif %}
+      <span class="spacer"></span><a class="btn btn-ghost btn-sm" href="{{ c.get_absolute_url }}#documents">Upload or manage {% icon "arrow-right" "ico-16" %}</a></div>
+    <div class="sheet-b rows">
+      {% if checklist %}
+        {% for row in checklist.rows %}
+        <div class="doc-row">
+          <span class="tile sm{% if row.document.status == 'verified' %} green{% elif not row.document %} amber{% endif %}">{% if row.document.status == "verified" %}{% icon "check" "ico-16" %}{% elif row.document %}{% icon "file-text" "ico-16" %}{% else %}{% icon "file-up" "ico-16" %}{% endif %}</span>
+          <div class="pr-t"><b>{{ row.requirement.get_doc_type_display }}{% if not row.requirement.is_mandatory %} <span class="tag">optional</span>{% endif %}</b>
+            <span>{% if row.document %}<a href="{% url 'candidates:document' row.document.pk %}" target="_blank" rel="noopener">{{ row.document.original_name|truncatechars:34 }}</a>{% else %}{{ row.requirement.note|default:"Not uploaded yet" }}{% endif %}</span></div>
+          {% if row.document %}<span class="chip {{ row.document.status|tone:'document' }}">{{ row.document.get_status_display }}</span>{% else %}<span class="chip warning">Not uploaded</span>{% endif %}
+          {% if can_manage and row.document %}<div class="pr-a">
+            {% if row.document.status != "verified" %}<form method="post" action="{% url 'candidates:review_document' row.document.pk %}">{% csrf_token %}<input type="hidden" name="status" value="verified"><input type="hidden" name="next" value="{{ request.path }}#documents"><button class="btn btn-secondary btn-sm" type="submit">{% icon "check" "ico-16" %} Verify</button></form>{% endif %}
+            {% if row.document.status != "rejected" %}<details class="reject-inline"><summary class="btn btn-ghost btn-sm">Reject…</summary>
+              <form method="post" action="{% url 'candidates:review_document' row.document.pk %}" class="popover">{% csrf_token %}<input type="hidden" name="status" value="rejected"><input type="hidden" name="next" value="{{ request.path }}#documents">
+                <label class="label" for="rj-{{ row.document.pk }}">Why is it rejected?</label><input class="input" id="rj-{{ row.document.pk }}" name="note" placeholder="e.g. Photo is blurred">
+                <button class="btn btn-danger btn-sm" type="submit">Reject document</button></form></details>{% endif %}
+          </div>{% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        {% for d in documents %}
+        <div class="doc-row">
+          <span class="tile sm">{% icon "file-text" "ico-16" %}</span>
+          <div class="pr-t"><b><a href="{% url 'candidates:document' d.pk %}" target="_blank" rel="noopener">{{ d.get_doc_type_display }}</a></b><span>{{ d.original_name|truncatechars:40 }} · {{ d.uploaded_at|date:"j M Y" }}</span></div>
+          <span class="chip {{ d.status|tone:'document' }}">{{ d.get_status_display }}</span>
+        </div>
+        {% empty %}<p class="small muted">No documents yet.</p>{% endfor %}
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+{# ----------------------- Scores ----------------------- #}
+<div role="tabpanel" id="scores" aria-labelledby="t-scores" class="tab-body" hidden>
+  <div class="stack-24">
+    <section class="sheet" id="match" aria-labelledby="why-h">
+      <div class="sheet-h">
+        <h2 class="title" id="why-h">Why {{ app.match_score|floatformat:"-1" }}</h2><span class="count">Grade {{ app.match_grade|default:"–" }}</span>
+        <span class="spacer"></span>
+        {% if can_manage %}
+        <form method="post" action="{% url 'pipeline:rescore' app.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit" data-tip="Score again against the current requirements">{% icon "refresh-cw" "ico-16" %} Re-score</button></form>
+        <form method="post" action="{% url 'pipeline:ai_summary' app.pk %}">{% csrf_token %}<button class="btn btn-tint btn-sm" type="submit">{% icon "sparkles" "ico-16" %} AI fit summary</button></form>
+        {% endif %}
       </div>
+      <div class="sheet-b">
+        <p class="small muted">{{ breakdown.track|default:"standard"|title }} hiring weights{% if app.matched_at %} · scored {{ app.matched_at|naturaltime }}{% endif %}</p>
+        {% for f in breakdown.flags %}<div class="banner warning flag"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>{{ f }}</b></div></div>{% endfor %}
+        <div class="crit-grid">
+        {% for key, comp in breakdown.components.items %}
+        <div class="crit">
+          <div class="top">{{ comp.label }}<span>{{ comp.points|floatformat:"-1" }} / {{ comp.weight|floatformat:"-1" }}</span></div>
+          <div class="cbar" role="img" aria-label="{{ comp.label }}: {{ comp.points|floatformat:'-1' }} of {{ comp.weight|floatformat:'-1' }} points"><i class="met" style="width:{{ comp.score|times100 }}%"></i></div>
+          <p>{{ comp.detail }}</p>
+          {% if comp.matched or comp.missing or comp.missing_preferred %}<div class="tags">
+            {% for m in comp.matched %}<span class="tag on" title="Evidence: {{ m.evidence }}">{% icon "check" "ico-14" %} {{ m.term }}{% if m.preferred %} · nice to have{% endif %}</span>{% endfor %}
+            {% for m in comp.missing %}<span class="chip danger no-dot">{% icon "x" %} {{ m }}</span>{% endfor %}
+            {% for m in comp.missing_preferred %}<span class="tag" title="Nice to have, not found">{{ m }}</span>{% endfor %}
+          </div>{% endif %}
+        </div>
+        {% empty %}<p class="small muted">This application has not been scored yet.</p>{% endfor %}
+        </div>
+        {% if app.ai_summary %}<div class="ai-box"><div class="eyebrow">{% icon "sparkles" "ico-14" %} AI fit summary</div><p class="small">{{ app.ai_summary|linebreaksbr }}</p></div>{% endif %}
+      </div>
+    </section>
+
+    <section class="sheet" id="evaluations" aria-labelledby="ev-h">
+      <div class="sheet-h"><h2 class="title" id="ev-h">Selection reports</h2>{% if summary %}<span class="count">{{ summary.count }}</span><span class="spacer"></span>
+        <a class="btn btn-ghost btn-sm" href="{% url 'pipeline:selection_report' app.pk %}" target="_blank" rel="noopener">{% icon "printer" "ico-16" %} Print form</a>{% endif %}</div>
+      {% if summary %}
+      <div class="sheet-b">
+        <div class="decision-summary">{% score_ring summary.percentage 64 False "panel" %}
+          <div><b>{{ summary.total }} / {{ summary.max_total }}</b><span class="soft small">Panel average · <span class="chip {{ summary.rating.code|rating_tone }}">{{ summary.rating.label }}</span></span></div></div>
+        <div class="table-wrap eval-table"><table class="table">
+          <thead><tr><th>Criterion</th>{% for e in summary.evaluations %}<th class="num" title="{{ e.interview.get_round_display|default:'' }}">{{ e.evaluator.display_name|truncatechars:12 }}{% if e.interview %}<div class="th-sub">{{ e.interview.round_short }}</div>{% endif %}</th>{% endfor %}<th class="num">Avg</th><th class="num">Max</th><th>Rating</th></tr></thead>
+          <tbody>
+            {% for row in summary.rows %}<tr><td>{{ row.criterion.name }}</td>
+              {% for e in summary.evaluations %}<td class="num">{% for s in e.scores.all %}{% if s.criterion_id == row.criterion.id %}{{ s.marks|floatformat:"-1" }}{% endif %}{% endfor %}</td>{% endfor %}
+              <td class="num strong">{{ row.average|floatformat:"-1" }}</td><td class="num muted">{{ row.criterion.max_marks }}</td><td><span class="chip {{ row.rating.code|rating_tone }}">{{ row.rating.code }}</span></td></tr>{% endfor %}
+            <tr class="total"><td>Total</td>{% for e in summary.evaluations %}<td class="num">{{ e.total|floatformat:"-1" }}</td>{% endfor %}<td class="num">{{ summary.total }}</td><td class="num">{{ summary.max_total }}</td><td><span class="chip {{ summary.rating.code|rating_tone }}">{{ summary.rating.code }}</span></td></tr>
+            <tr><td>Recommendation</td>{% for e in summary.evaluations %}<td class="num small">{{ e.get_recommendation_display }}</td>{% endfor %}<td colspan="3"></td></tr>
+          </tbody></table></div>
+        {% for e in summary.evaluations %}{% if e.remarks %}<div class="remark">{% avatar e.evaluator "sm" %}<p class="small"><b>{{ e.evaluator.display_name }}{% if e.interview %} · {{ e.interview.round_short }}{% endif %}</b> {{ e.remarks }}</p></div>{% endif %}{% endfor %}
+        <p class="help">P Poor 0–30% · S Satisfactory 31–50% · G Good 51–70% · VG Very good 71–90% · E Excellent 91%+</p>
+      </div>
+      {% else %}<div class="sheet-b"><p class="small muted">Panel members score the candidate here after each interview.</p></div>{% endif %}
+    </section>
+  </div>
+</div>
+
+{# ----------------------- Interviews ----------------------- #}
+<div role="tabpanel" id="interviews-tab" aria-labelledby="t-interviews" class="tab-body" hidden>
+  <section class="sheet" id="interviews" aria-labelledby="iv-h">
+    <div class="sheet-h"><h2 class="title" id="iv-h">Interviews</h2><span class="count">{{ interviews|length }}</span><span class="spacer"></span>
+      {% if can_manage and app.is_open %}<a class="btn btn-primary btn-sm" href="{% url 'pipeline:schedule_interview' app.pk %}">{% icon "calendar-plus" "ico-16" %} Schedule</a>{% endif %}</div>
+    <div class="sheet-b stack">
+      {% for i in interviews %}
+      <article class="card iv-card phase-{{ i.round }}">
+        <div class="iv-when"><span class="iv-d">{{ i.scheduled_at|date:"j" }}</span><span class="iv-m">{{ i.scheduled_at|date:"M" }}</span><span class="iv-t num">{{ i.scheduled_at|time:"H:i" }}</span></div>
+        <div class="iv-body">
+          <div class="row wrap"><b>{{ i.get_round_display }}</b><span class="chip {{ i.status|tone:'interview' }}">{{ i.get_status_display }}</span>
+            {% if i.candidate_response == "confirmed" %}<span class="chip success">Candidate confirmed</span>{% elif i.candidate_response == "reschedule" %}<span class="chip warning" title="{{ i.candidate_note }}">Asked to reschedule</span>{% endif %}</div>
+          <p class="small soft">{{ i.scheduled_at|date:"l j F Y" }} · {{ i.duration_minutes }} min · {{ i.get_mode_display }}{% if i.mode == "video" and i.meeting_link %} · <a href="{{ i.meeting_link }}" target="_blank" rel="noopener">Join link</a>{% elif i.location %} · {{ i.location }}{% endif %}</p>
+          <div class="row">{% with panel=i.panel.all %}{% if panel %}{% avatar_stack panel 4 "sm" %}<span class="small muted">{% for p in panel %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% else %}<span class="small muted">No panel yet</span>{% endif %}{% endwith %}</div>
+          {% if i.candidate_note %}<p class="small muted">Candidate: “{{ i.candidate_note }}”</p>{% endif %}
+        </div>
+        <div class="iv-actions">
+          <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'pipeline:ics' i.pk %}" aria-label="Add to calendar" data-tip="Add to calendar">{% icon "calendar-plus" "ico-16" %}</a>
+          {% if i.status == "scheduled" %}
+            {% if can_manage %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'pipeline:edit_interview' i.pk %}" aria-label="Reschedule" data-tip="Reschedule">{% icon "pencil" "ico-16" %}</a>
+            <form method="post" action="{% url 'pipeline:cancel_interview' i.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-icon btn-sm" type="submit" aria-label="Cancel interview" data-tip="Cancel" data-confirm="Cancel this interview and let everyone know?" data-confirm-label="Cancel interview">{% icon "x" "ico-16" %}</button></form>{% endif %}
+            {% if can_manage or u in i.panel.all %}<form method="post" action="{% url 'pipeline:complete_interview' i.pk %}">{% csrf_token %}<button class="btn btn-secondary btn-sm" type="submit">{% icon "check" "ico-16" %} Mark done</button></form>
+            <form method="post" action="{% url 'pipeline:complete_interview' i.pk %}">{% csrf_token %}<input type="hidden" name="status" value="no_show"><button class="btn btn-ghost btn-sm" type="submit" data-confirm="Record that the candidate did not attend?" data-confirm-label="Record no-show">No-show</button></form>{% endif %}
+          {% endif %}
+          {% if u in i.panel.all and i.status != "cancelled" %}<a class="btn btn-primary btn-sm" href="{% url 'pipeline:evaluate' app.pk %}?interview={{ i.pk }}">{% icon "clipboard-pen" "ico-16" %} Score</a>{% endif %}
+        </div>
+      </article>
+      {% empty %}
+      {% empty_state "No interviews yet" "Schedule the first phase when the candidate is shortlisted. Invites and reminders go out on their own." object_name="Tablet with an interview calendar" %}
       {% endfor %}
     </div>
-  </div>
-  {% endif %}
+  </section>
+</div>
 
-  {# ---------------- OFFERS ---------------- #}
+{# ----------------------- Offer & joining ----------------------- #}
+{% if offers or medicals or onboarding %}
+<div role="tabpanel" id="offer-tab" aria-labelledby="t-offer" class="tab-body" hidden>
   {% if offers %}
-  <div class="card mb-3" id="offer"><div class="card-header"><i class="bi bi-envelope-paper"></i> Offers &amp; negotiation</div>
-    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Version</th><th>Salary (annual)</th><th>Join date</th><th>Status</th><th>Candidate</th><th>Management</th></tr></thead><tbody>
-      {% for o in offers %}<tr><td>v{{ o.version }}{% if o.letter %} <a href="{% url 'pipeline:offer_letter' o.pk %}"><i class="bi bi-paperclip"></i></a>{% endif %}</td><td class="fw-semibold">{{ o.annual_salary|naira }}<div class="small text-muted">{{ o.monthly_salary|naira }}/month</div></td><td class="small">{{ o.start_date|date:"d M Y"|default:"—" }}</td><td><span class="badge text-bg-{{ o.status_color }}">{{ o.get_status_display }}</span></td>
-        <td class="small">{% if o.candidate_comment %}“{{ o.candidate_comment|truncatechars:60 }}”{% endif %}{% if o.counter_salary %}<div>Asks {{ o.counter_salary|naira }}</div>{% endif %}</td>
-        <td class="small">{% if o.management_decision %}{{ o.get_management_decision_display }}{% if o.management_by %} · {{ o.management_by.display_name }}{% endif %}{% endif %}</td></tr>
-        {% if o.negotiation_notes %}<tr><td></td><td colspan="5" class="small text-muted">Negotiation notes: {{ o.negotiation_notes }}</td></tr>{% endif %}{% endfor %}
-    </tbody></table></div></div>
+  <section class="sheet" id="offer" aria-labelledby="of-h">
+    <div class="sheet-h"><h2 class="title" id="of-h">Offers and negotiation</h2><span class="count">{{ offers|length }}</span></div>
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>Version</th><th class="num">Annual salary</th><th>Joins</th><th>Status</th><th>Candidate</th><th>Management</th></tr></thead>
+      <tbody>
+        {% for o in offers %}
+        <tr><td><b>v{{ o.version }}</b>{% if o.letter %} <a href="{% url 'pipeline:offer_letter' o.pk %}" aria-label="Offer letter">{% icon "paperclip" "ico-16" %}</a>{% endif %}</td>
+          <td class="num"><b>{{ o.annual_salary|naira }}</b><div class="small muted">{{ o.monthly_salary|naira }} a month</div></td>
+          <td>{{ o.start_date|date:"j M Y"|default:"—" }}</td>
+          <td><span class="chip {{ o.status|tone:'offer' }}">{{ o.get_status_display }}</span></td>
+          <td class="small">{% if o.candidate_comment %}“{{ o.candidate_comment|truncatechars:60 }}”{% endif %}{% if o.counter_salary %}<div>Asks {{ o.counter_salary|naira }}</div>{% endif %}</td>
+          <td class="small">{% if o.management_decision %}{{ o.get_management_decision_display }}{% if o.management_by %} · {{ o.management_by.display_name }}{% endif %}{% endif %}</td></tr>
+        {% if o.negotiation_notes %}<tr><td></td><td colspan="5" class="small muted">Negotiation notes: {{ o.negotiation_notes }}</td></tr>{% endif %}
+        {% endfor %}
+      </tbody></table></div>
+  </section>
   {% endif %}
-
   {% if medicals %}
-  <div class="card mb-3" id="medical"><div class="card-header"><i class="bi bi-heart-pulse"></i> Medicals</div><div class="list-group list-group-flush">
-    {% for m in medicals %}<div class="list-group-item small d-flex justify-content-between"><span>{{ m.scheduled_for|date:"d M Y H:i" }} · {{ m.facility }}{% if m.notes %} · {{ m.notes }}{% endif %}</span><span><span class="badge text-bg-{% if m.result == 'fit' %}success{% elif m.result == 'unfit' %}danger{% elif m.result == 'conditional' %}warning{% else %}secondary{% endif %}">{{ m.get_result_display }}</span>{% if m.report %} <a href="{% url 'pipeline:medical_report' m.pk %}"><i class="bi bi-paperclip"></i></a>{% endif %}</span></div>{% endfor %}
-  </div></div>
+  <section class="sheet" id="medical" aria-labelledby="md-h">
+    <div class="sheet-h"><h2 class="title" id="md-h">Medicals</h2></div>
+    <div class="sheet-b rows">
+      {% for m in medicals %}<div class="doc-row"><span class="tile sm">{% icon "stethoscope" "ico-16" %}</span>
+        <div class="pr-t"><b>{{ m.scheduled_for|date:"j M Y, H:i" }} · {{ m.facility }}</b><span>{{ m.notes|default:"" }}</span></div>
+        <span class="chip {{ m.result|tone:'medical' }}">{{ m.get_result_display }}</span>
+        {% if m.report %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'pipeline:medical_report' m.pk %}" aria-label="Medical report">{% icon "paperclip" "ico-16" %}</a>{% endif %}</div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% if onboarding %}
+  <section class="sheet" aria-labelledby="ob-h">
+    <div class="sheet-h"><h2 class="title" id="ob-h">Onboarding</h2></div>
+    <div class="sheet-b"><div class="decision-summary">{% score_ring onboarding.progress 56 False "done" %}
+      <div><b>{{ onboarding.get_status_display }}</b><span class="soft small">{{ onboarding.progress }}% of tasks done{% if onboarding.start_date %} · joins {{ onboarding.start_date|date:"j M Y" }}{% endif %}</span></div>
+      {% if u.is_onboarding %}<a class="btn btn-secondary btn-sm" href="{% url 'pipeline:onboarding' onboarding.pk %}">Open checklist</a>{% endif %}</div></div>
+  </section>
   {% endif %}
 </div>
+{% endif %}
 
-<div class="col-xl-4">
-  <div class="card mb-3"><div class="card-header"><i class="bi bi-person"></i> Candidate snapshot</div><div class="card-body small">
-    <div class="mb-2"><div class="small-label">Qualification</div>{{ c.get_highest_qualification_display|default:"—" }} {% if c.course %}· {{ c.course }}{% endif %}{% if c.degree_class %} · {{ c.get_degree_class_display }}{% endif %}</div>
-    <div class="mb-2"><div class="small-label">Institution</div>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</div>
-    <div class="mb-2"><div class="small-label">Experience</div>{{ c.years_experience|floatformat:"-1" }} years{% if c.current_job_title %} · {{ c.current_job_title }}{% endif %}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}</div>
-    <div class="mb-2"><div class="small-label">Contact</div>{{ c.email|default:"—" }}<br>{{ c.phone }}</div>
-    {% if c.referred_by %}<div class="mb-2"><div class="small-label">Referred by</div>{{ c.referred_by.display_name }}</div>{% endif %}
-    {% with cv=c.latest_cv %}{% if cv %}<a class="btn btn-sm btn-outline-primary w-100" href="{% url 'candidates:document' cv.pk %}" target="_blank"><i class="bi bi-file-earmark-person"></i> Open CV</a>{% endif %}{% endwith %}
-  </div></div>
-  {% if can_manage %}<div class="card mb-3"><div class="card-body small"><div class="small-label mb-1">Candidate's tracking link</div><input class="form-control form-control-sm" readonly value="{{ app.get_portal_url }}" onclick="this.select()"><div class="text-muted mt-1">Sent automatically in every email. The candidate uses it to confirm interviews, upload documents and respond to offers.</div></div></div>{% endif %}
-  <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Timeline</div><div class="card-body"><ul class="timeline">
-    {% for a in activity %}<li>{{ a.message }}<div class="when">{{ a.created_at|date:"d M Y H:i" }}{% if a.actor %} · {{ a.actor.display_name }}{% else %} · system / candidate{% endif %}</div></li>{% empty %}<li class="text-muted">No activity.</li>{% endfor %}
-  </ul></div></div>
-</div>
+{# ----------------------- Timeline ----------------------- #}
+<div role="tabpanel" id="timeline" aria-labelledby="t-timeline" class="tab-body" hidden>
+  <section class="sheet" aria-labelledby="tl-h">
+    <div class="sheet-h"><h2 class="title" id="tl-h">Timeline</h2><span class="count">{{ activity|length }}</span></div>
+    <div class="sheet-b">
+      <ul class="feed">
+        {% for a in activity %}
+        <li>{% if a.actor %}{% avatar a.actor "sm" %}{% else %}<span class="tile sm">{% icon "sparkles" "ico-16" %}</span>{% endif %}
+          <div class="feed-t"><span>{{ a.message }}</span><span class="muted">{% if a.actor %}{{ a.actor.display_name }}{% else %}System or candidate{% endif %}</span></div>
+          <time datetime="{{ a.created_at|date:'c' }}">{{ a.created_at|date:"j M, H:i" }}</time></li>
+        {% empty %}<li class="small muted">No activity yet.</li>{% endfor %}
+      </ul>
+    </div>
+  </section>
 </div>
 {% endwith %}
 {% endblock %}

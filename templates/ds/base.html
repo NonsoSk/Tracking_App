@@ -32,8 +32,8 @@
       {% block toolbar_start %}<a href="{% url 'core:dashboard' %}" aria-label="My tasks">{% logo %}</a>{% endblock %}
       <nav class="crumbs" aria-label="Breadcrumb">{% block crumbs %}{% endblock %}</nav>
       <span class="spacer"></span>
-      <button class="search-trigger desktop-only" type="button" data-open="palette" aria-label="Search or jump to (Ctrl K)">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
-      <button class="icon-btn mobile-only" type="button" data-open="palette" aria-label="Search">{% icon "search" %}</button>
+      <button class="search-trigger wide-only" type="button" data-open="palette" aria-label="Search or jump to (Ctrl K)">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
+      <button class="icon-btn compact-only" type="button" data-open="palette" aria-label="Search (Ctrl K)">{% icon "search" %}</button>
       <div class="pop-wrap desktop-only">
         <button class="icon-btn" type="button" data-popover="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Theme">
           <span data-theme-icon="light" hidden>{% icon "sun" %}</span><span data-theme-icon="dark" hidden>{% icon "moon" %}</span><span data-theme-icon="auto">{% icon "sun-moon" %}</span>
@@ -83,6 +83,11 @@
 </div>
 
 {% include "ds/_palette.html" %}
+<dialog class="modal" id="ds-confirm" aria-labelledby="ds-confirm-h">
+  <div class="modal-h"><span class="tile amber">{% icon "triangle-alert" %}</span><h3 id="ds-confirm-h">Are you sure?</h3></div>
+  <div class="modal-b"><p class="msg soft"></p></div>
+  <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-danger" type="button" data-confirm-ok>Continue</button></div>
+</dialog>
 {% endwith %}
 
 <template id="ds-toast-icon-success">{% icon "circle-check" "ico-18" %}</template>

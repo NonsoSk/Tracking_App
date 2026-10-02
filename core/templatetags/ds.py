@@ -356,3 +356,96 @@ def donut(rows, size=148, value_key="n", label_key="label"):
         f'<span class="donut-total"><b class="num">{total}</b><span>total</span></span></div>'
         f'<ul class="donut-legend">{"".join(str(x) for x in legend)}</ul></div>'
     )
+
+
+# ------------------------------------------------------------------- forms
+@register.inclusion_tag("ds/components/field.html")
+def dsfield(bound_field, cls=""):
+    """A form field in the design-system style: label above, help below, errors in danger with an icon."""
+    widget = bound_field.field.widget
+    kind = getattr(widget, "input_type", "")
+    return {"f": bound_field, "cls": cls, "is_check": kind == "checkbox", "is_radio": kind == "radio"}
+
+
+# -------------------------------------------------------------- CV viewer
+@register.simple_tag
+def cv_highlight(text, terms):
+    """CV text, escaped, with each known value wrapped in <mark data-k="field"> so hovering a field lights its source."""
+    if not text:
+        return ""
+    text = escape(re.sub(r"\r\n?", "\n", text).strip())
+    spans = []
+    for key, value in (terms or {}).items():
+        for needle in ([value] if isinstance(value, str) else value):
+            needle = (needle or "").strip()
+            if len(needle) < 3:
+                continue
+            for match in re.finditer(re.escape(escape(needle)), text, flags=re.IGNORECASE):
+                if match.start() and text[match.start() - 1] in "&#":
+                    continue  # never split an HTML entity
+                spans.append((match.start(), match.end(), key))
+    spans.sort(key=lambda s: (s[0], -(s[1] - s[0])))
+    out, cursor = [], 0
+    for start, end, key in spans:
+        if start < cursor:
+            continue
+        out.append(text[cursor:start])
+        out.append(f'<mark class="cv-hl" data-k="{key}">{text[start:end]}</mark>')
+        cursor = end
+    out.append(text[cursor:])
+    return mark_safe("".join(out))
+
+
+RATING_TONES = {"E": "success", "VG": "brand", "G": "", "S": "warning", "P": "danger"}
+
+
+@register.filter
+def rating_tone(code):
+    """Chip tone for the selection-report legend: E, VG, G, S, P."""
+    return RATING_TONES.get(code or "", "neutral")
+
+
+SOURCE_ICONS = {"portal": "globe", "referral": "user-plus", "email": "mail", "hard_copy": "scan-text",
+                "agency": "briefcase-business", "internal": "building-2", "import": "file-spreadsheet"}
+
+
+@register.filter
+def source_icon(source):
+    return SOURCE_ICONS.get(source, "inbox")
+
+
+@register.filter
+def naira_short(value):
+    """₦16.8m, ₦750k — for compact readouts. Full amounts stay in tables and letters."""
+    number = _number(value)
+    if number is None:
+        return ""
+    if number >= 1_000_000:
+        return f"₦{number / 1_000_000:.1f}m".replace(".0m", "m")
+    if number >= 1_000:
+        return f"₦{number / 1_000:.0f}k"
+    return f"₦{number:,.0f}"
+
+
+STATUS_TONES = {
+    "offer": {"draft": "neutral", "sent": "", "accepted": "gold", "declined": "danger", "review_requested": "warning",
+              "superseded": "neutral", "withdrawn": "neutral"},
+    "interview": {"scheduled": "", "completed": "success", "cancelled": "neutral", "no_show": "warning"},
+    "medical": {"scheduled": "", "fit": "success", "conditional": "warning", "unfit": "danger"},
+    "document": {"pending": "neutral", "verified": "success", "rejected": "danger"},
+}
+
+
+@register.filter
+def tone(value, kind):
+    """Chip tone for a status value: {{ offer.status|tone:"offer" }}."""
+    return STATUS_TONES.get(kind, {}).get(value, "neutral")
+
+
+@register.filter
+def days_since(moment):
+    """Today, 1 day, 12 days."""
+    if not moment:
+        return ""
+    days = max(0, (timezone.now() - moment).days)
+    return "Today" if days == 0 else ("1 day" if days == 1 else f"{days} days")
