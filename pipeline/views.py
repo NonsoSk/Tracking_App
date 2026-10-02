@@ -52,10 +52,20 @@ def application_list(request):
         qs = qs.filter(match_grade=filters["grade"])
     from core.permissions import requisitions_for
 
+    from . import presentation
+
+    applications = presentation.decorate_cards(list(qs.order_by("requisition_id", "-match_score")[:400]))
+    view = "list" if request.GET.get("view") == "list" else "board"
+    query = request.GET.copy()
+    query.pop("view", None)
     return render(request, "pipeline/application_list.html", {
-        "applications": qs.order_by("requisition_id", "-match_score")[:400], "filters": filters,
+        "applications": applications, "filters": filters,
         "stages": Stage.choices, "statuses": Application.Status.choices,
         "requisitions": requisitions_for(request.user).exclude(status__in=["draft", "cancelled"]),
+        "view": view, "query": query.urlencode(),
+        "columns": presentation.board_columns(applications, Stage.choices,
+                                              show_hired=filters["status"] == "hired" or filters["stage"] == "hired"),
+        "filtered": any(filters.values()),
     })
 
 

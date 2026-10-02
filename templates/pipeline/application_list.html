@@ -1,30 +1,87 @@
-{% extends "base.html" %}
-{% load portal %}
-{% block title %}Candidate tracker{% endblock %}
-{% block content %}
-<div class="page-header"><div><h1>Candidate tracker</h1><div class="subtitle">{% if request.user.is_department_user %}Every candidate for your department's vacancies, live.{% else %}Every active candidate across vacancies.{% endif %}</div></div></div>
-<div class="card mb-3"><div class="card-body py-2">
-  <form class="row g-2" method="get">
-    <div class="col-md-3"><input class="form-control form-control-sm" name="q" value="{{ filters.q }}" placeholder="Name, email or reference"></div>
-    <div class="col-md-3"><select name="requisition" class="form-select form-select-sm"><option value="">All vacancies</option>{% for r in requisitions %}<option value="{{ r.pk }}" {% if filters.requisition == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.reference }} · {{ r.title }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><select name="stage" class="form-select form-select-sm"><option value="">All stages</option>{% for v, l in stages %}<option value="{{ v }}" {% if filters.stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><select name="status" class="form-select form-select-sm"><option value="">Active &amp; on hold</option>{% for v, l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-    <div class="col-md-1"><select name="grade" class="form-select form-select-sm"><option value="">Grade</option>{% for g in "ABCD" %}<option value="{{ g }}" {% if filters.grade == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></div>
-    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Filter</button></div>
-  </form>
-</div></div>
-<div class="card"><div class="table-responsive"><table class="table table-hover align-middle">
-  <thead><tr><th>Candidate</th><th>Vacancy</th><th>Match</th><th>Stage</th><th>Panel score</th><th>Updated</th></tr></thead>
-  <tbody>
-  {% for a in applications %}
-    <tr class="cursor-pointer" onclick="location='{{ a.get_absolute_url }}'">
-      <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ a.candidate.initials }}</span><div><a class="fw-semibold" href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a><div class="small text-muted">{{ a.reference }}</div></div></div></td>
-      <td>{{ a.requisition.title }}<div class="small text-muted">{{ a.requisition.department }}</div></td>
-      <td>{% score_pill a.match_score a.match_grade %}</td>
-      <td><span class="stage-badge"><i class="bi {{ a.stage_icon }}"></i> {{ a.get_stage_display }}</span>{% if a.status != 'active' %} <span class="badge text-bg-{{ a.status_color }}">{{ a.get_status_display }}</span>{% endif %}</td>
-      <td>{% with s=a.evaluation_summary %}{% if s %}<span class="badge rating-{{ s.rating.code }}">{{ s.percentage }}%</span>{% else %}<span class="text-muted small">—</span>{% endif %}{% endwith %}</td>
-      <td class="small text-muted">{{ a.updated_at|timesince }} ago</td>
-    </tr>
-  {% empty %}<tr><td colspan="6">{% include "partials/_empty.html" with icon="bi-kanban" text="No candidates match these filters." %}</td></tr>{% endfor %}
-  </tbody></table></div></div>
+{% extends "ds/base.html" %}
+{% load static ds portal %}
+{% block title %}Candidate pipeline{% endblock %}
+{% block crumbs %}<span aria-current="page">Candidate pipeline</span>{% endblock %}
+{% block primary_action %}
+  {% if request.user.is_hr %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-16" %} Upload CVs</a>{% endif %}
 {% endblock %}
+{% block content %}
+{% with u=request.user %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Pipeline</div>
+    <h1>Candidate pipeline</h1>
+    <p class="lede">{% if u.is_department_user %}Every candidate for your department's vacancies, live.{% else %}Every active candidate across vacancies, by stage.{% endif %}</p>
+    <p class="calm">{% calm_note %}</p>
+  </div>
+  <div class="actions">
+    <div class="seg" role="group" aria-label="View">
+      <a href="?{{ query }}{% if query %}&amp;{% endif %}view=board" {% if view == "board" %}aria-pressed="true" class="is-on"{% else %}aria-pressed="false"{% endif %}>{% icon "columns-3" "ico-16" %} Board</a>
+      <a href="?{{ query }}{% if query %}&amp;{% endif %}view=list" {% if view == "list" %}aria-pressed="true" class="is-on"{% else %}aria-pressed="false"{% endif %}>{% icon "layout-list" "ico-16" %} List</a>
+    </div>
+  </div>
+</header>
+
+<form class="sheet filters" method="get" role="search" aria-label="Filter candidates">
+  <input type="hidden" name="view" value="{{ view }}">
+  <div class="input-icon f-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ filters.q }}" placeholder="Name, email or reference" aria-label="Search by name, email or reference"></div>
+  <select name="requisition" class="select" aria-label="Vacancy"><option value="">All vacancies</option>{% for r in requisitions %}<option value="{{ r.pk }}" {% if filters.requisition == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.reference }} · {{ r.title }}</option>{% endfor %}</select>
+  <select name="stage" class="select" aria-label="Stage"><option value="">All stages</option>{% for v, l in stages %}<option value="{{ v }}" {% if filters.stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="status" class="select" aria-label="Status"><option value="">Active &amp; on hold</option>{% for v, l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="grade" class="select" aria-label="Grade"><option value="">Any grade</option>{% for g in "ABCD" %}<option value="{{ g }}" {% if filters.grade == g %}selected{% endif %}>Grade {{ g }}</option>{% endfor %}</select>
+  <div class="row"><button class="btn btn-primary" type="submit">{% icon "filter" "ico-18" %} Filter</button>{% if filtered %}<a class="btn btn-ghost" href="?view={{ view }}">Clear</a>{% endif %}</div>
+</form>
+
+{% if view == "board" %}
+<p class="board-hint">{% if u.is_hr %}{% icon "grip-vertical" "ico-16" %} Drag a card to move someone to another stage. Emails and notifications go out on their own where needed.{% else %}{% icon "eye" "ico-16" %} A live view of where each candidate is.{% endif %}</p>
+<div class="board pipeline-board" data-board{% if not u.is_hr %} data-readonly{% endif %}>
+  {% for col in columns %}
+  <section class="kcol" aria-labelledby="col-{{ col.stage }}">
+    <div class="kcol-h"><span id="col-{{ col.stage }}">{{ col.label }}</span><span class="count-badge" data-count>{{ col.cards|length }}</span></div>
+    <div class="kcol-list" data-stage="{{ col.stage }}" data-label="{{ col.label }}">
+      {% for a in col.cards %}
+      <a class="card kcard" href="{{ a.get_absolute_url }}" data-move-url="{% url 'pipeline:move' a.pk %}" data-name="{{ a.candidate.full_name }}">
+        <div class="nm">{% avatar a.candidate "sm" %}<span>{{ a.candidate.full_name }}</span></div>
+        {% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}
+        <div class="kc-role">{{ a.requisition.title }}</div>
+        <div class="ft">
+          {% for t in a.key_tags %}<span class="tag">{{ t }}</span>{% endfor %}
+          {% if a.status == "on_hold" %}<span class="chip warning">On hold</span>{% endif %}
+          {% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}" title="Panel score">{{ a.panel.percentage|floatformat:"0" }}%</span>{% endif %}
+          <span class="age {{ a.days_tone }}" title="{{ a.days_in_stage }} day{{ a.days_in_stage|pluralize }} in this stage">{{ a.days_in_stage }}d</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    <p class="kcol-empty">{% if u.is_hr %}Drop here{% else %}No one here{% endif %}</p>
+  </section>
+  {% endfor %}
+</div>
+{% if not applications %}<div class="sheet">{% empty_state "No candidates match these filters" "Try a different stage or vacancy, or clear the filters." object_name="Lab beaker of polymer pellets" %}</div>{% endif %}
+
+{% else %}
+<section class="sheet" aria-labelledby="list-h">
+  <div class="sheet-h"><h2 class="title" id="list-h">Candidates</h2><span class="count">{{ applications|length }}</span><span class="spacer"></span>
+    <div class="seg" data-seg role="group" aria-label="Row density"><button type="button" aria-pressed="true" data-set-density="comfortable" data-target="pipe-table">{% icon "rows-2" "ico-16" %}<span class="sr-only">Comfortable</span></button><button type="button" aria-pressed="false" data-set-density="compact" data-target="pipe-table">{% icon "rows-3" "ico-16" %}<span class="sr-only">Compact</span></button></div></div>
+  {% if applications %}
+  <div class="table-wrap pipe-table" id="pipe-table" data-density="comfortable"><table class="table">
+    <thead><tr><th>Candidate</th><th>Vacancy</th><th>Match</th><th>Stage</th><th>Panel</th><th class="num">In stage</th><th class="num">Updated</th></tr></thead>
+    <tbody>
+      {% for a in applications %}
+      <tr>
+        <td><div class="who">{% avatar a.candidate "sm" %}<div><b><a href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a></b><span>{{ a.reference }}</span></div></div></td>
+        <td>{{ a.requisition.title }}<div class="small muted">{{ a.requisition.department }}</div></td>
+        <td><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}</span></div></td>
+        <td>{% status_chip a %}</td>
+        <td>{% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}">{{ a.panel.percentage|floatformat:"0" }}%</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num"><span class="age {{ a.days_tone }}">{{ a.days_in_stage }}d</span></td>
+        <td class="num small muted" title="{{ a.updated_at|date:'j M Y, H:i' }}">{{ a.updated_at|short_since }}</td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
+  {% else %}{% empty_state "No candidates match these filters" "Try a different stage or vacancy, or clear the filters." object_name="Lab beaker of polymer pellets" %}{% endif %}
+</section>
+{% endif %}
+{% endwith %}
+{% endblock %}
+{% block scripts %}{% if view == "board" and request.user.is_hr %}<script src="{% static 'vendor/sortable/Sortable.min.js' %}" defer></script>{% endif %}{% endblock %}

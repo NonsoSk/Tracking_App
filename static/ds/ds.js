@@ -428,6 +428,58 @@
     });
   }
 
+  /* ---------- Pipeline board: drag a card to another stage (HR only; uses the same move action as Manage) ---------- */
+  function csrfToken() {
+    var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+  function refreshCounts(board) {
+    $$(".kcol", board).forEach(function (col) {
+      var n = $$(".kcard", col).length;
+      var badge = $("[data-count]", col);
+      if (badge) badge.textContent = n;
+    });
+  }
+  function initBoards() {
+    if (!window.Sortable) return;
+    $$("[data-board]:not([data-readonly])").forEach(function (board) {
+      var clearTargets = function () { $$(".kcol.is-target", board).forEach(function (c) { c.classList.remove("is-target"); }); };
+      /* Cards are links; stop the browser's own link-dragging so the board can move them */
+      $$(".kcard, .kcard *", board).forEach(function (el) { el.setAttribute("draggable", "false"); });
+      board.addEventListener("dragstart", function (e) { e.preventDefault(); });
+      $$(".kcol-list[data-stage]", board).forEach(function (list) {
+        new window.Sortable(list, {
+          group: "pipeline", animation: reduceMotion.matches ? 0 : 180, easing: "cubic-bezier(.2,.8,.2,1)",
+          forceFallback: true, fallbackOnBody: true, fallbackClass: "is-dragging", ghostClass: "is-ghost", chosenClass: "is-chosen",
+          delay: 200, delayOnTouchOnly: true, touchStartThreshold: 6,
+          onMove: function (evt) { clearTargets(); var col = evt.to.closest(".kcol"); if (col) col.classList.add("is-target"); },
+          onEnd: function (evt) {
+            clearTargets();
+            if (evt.from === evt.to) return;
+            var card = evt.item, to = evt.to;
+            if (!reduceMotion.matches) { card.classList.add("is-settling"); setTimeout(function () { card.classList.remove("is-settling"); }, 400); }
+            refreshCounts(board);
+            fetch(card.dataset.moveUrl, {
+              method: "POST", credentials: "same-origin", body: new URLSearchParams({ stage: to.dataset.stage }),
+              headers: { "X-CSRFToken": csrfToken(), "X-Requested-With": "XMLHttpRequest" }
+            })
+              .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+              .then(function (res) {
+                if (!res.ok || !res.d.ok) throw new Error(res.d.error || "This move is not allowed.");
+                toast({ title: card.dataset.name + " moved to " + to.dataset.label, tone: "success", timeout: 3500 });
+              })
+              .catch(function (err) {
+                evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+                refreshCounts(board);
+                toast({ title: "Could not move " + card.dataset.name, body: err.message, tone: "danger", timeout: 0 });
+              });
+          }
+        });
+      });
+    });
+  }
+  if (document.readyState === "complete") setTimeout(initBoards, 0); else document.addEventListener("DOMContentLoaded", initBoards);
+
   function init() {
     initCvLinks();
     applyTheme(storedTheme());

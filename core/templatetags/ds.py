@@ -77,7 +77,7 @@ def score_ring(value, size=72, gold=False, label="", animate=True):
     gid = f"rg{uuid.uuid4().hex[:8]}"
     stops = ('<stop offset="0" class="ring-g1"/><stop offset="1" class="ring-g2"/>' if gold
              else '<stop offset="0" class="ring-a"/><stop offset="1" class="ring-b"/>')
-    shown = _fmt(number) if number is not None else "–"
+    shown = (_fmt(round(number)) if size < 48 else _fmt(number)) if number is not None else "–"
     font = max(11, round(size * (0.28 if size >= 64 else 0.3)))
     count = f' data-count-to="{shown}"' if animate and number is not None else ""
     caption = f"<span>{escape(label)}</span>" if label and size >= 72 else ""

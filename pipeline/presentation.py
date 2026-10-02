@@ -86,3 +86,37 @@ def term_groups(c, breakdown):
         if items:
             groups.append({"title": title, "items": items})
     return groups
+
+
+PANEL_STAGES = {"decision", "documents", "offer", "medical", "onboarding", "hired"}
+
+
+def decorate_cards(applications):
+    """Per-card display data for the pipeline: days in stage, two key skills and the panel score where one exists."""
+    from django.utils import timezone
+
+    now = timezone.now()
+    for a in applications:
+        days = max(0, (now - a.stage_changed_at).days) if a.stage_changed_at else 0
+        a.days_in_stage = days
+        a.days_tone = "red" if days >= 10 else "amber" if days >= 5 else ""
+        terms = []
+        for key in ("skills", "tools", "certifications"):
+            for m in ((a.match_breakdown or {}).get("components", {}).get(key, {}).get("matched", [])):
+                if m.get("term") and len(terms) < 2:
+                    terms.append(m["term"])
+        a.key_tags = terms
+        summary = a.evaluation_summary() if a.stage in PANEL_STAGES else None
+        a.panel = summary
+    return applications
+
+
+def board_columns(applications, stage_choices, *, show_hired=False):
+    """Stage columns in pipeline order, each with its cards (best match first)."""
+    columns = []
+    for value, label in stage_choices:
+        if value == "hired" and not show_hired:
+            continue
+        cards = sorted((a for a in applications if a.stage == value), key=lambda a: -(a.match_score or 0))
+        columns.append({"stage": value, "label": label, "cards": cards})
+    return columns
