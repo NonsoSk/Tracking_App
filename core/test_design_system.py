@@ -38,8 +38,8 @@ class AssetTests(TestCase):
     def test_every_icon_referenced_is_vendored(self):
         names = set()
         for path in (BASE / "templates").rglob("*.html"):
-            names |= set(self.ICON_TAG.findall(path.read_text()))
-        names |= set(re.findall(r'"icon": "([\w-]+)"', (BASE / "core" / "templatetags" / "ds.py").read_text()))
+            names |= set(self.ICON_TAG.findall(path.read_text(encoding="utf-8")))
+        names |= set(re.findall(r'"icon": "([\w-]+)"', (BASE / "core" / "templatetags" / "ds.py").read_text(encoding="utf-8")))
         missing = sorted(n for n in names if not (ds.ICON_DIR / f"{n}.svg").is_file())
         self.assertTrue(names)
         self.assertEqual(missing, [])
@@ -48,7 +48,7 @@ class AssetTests(TestCase):
         files = [*(BASE / "static" / "ds").glob("*.*"), *(BASE / "templates" / "ds").rglob("*.html")]
         offenders = []
         for path in files:
-            for url in re.findall(r"https?://[^\s\"')]+", path.read_text()):
+            for url in re.findall(r"https?://[^\s\"')]+", path.read_text(encoding="utf-8")):
                 if not url.startswith("http://www.w3.org/"):
                     offenders.append(f"{path.name}: {url}")
         self.assertEqual(offenders, [])
@@ -58,7 +58,7 @@ class AssetTests(TestCase):
         self.assertTrue((BASE / "static/img/brand/indorama-logo.jpg").is_file())
 
     def test_theme_is_applied_before_the_stylesheet_loads(self):
-        base = (BASE / "templates" / "ds" / "base.html").read_text()
+        base = (BASE / "templates" / "ds" / "base.html").read_text(encoding="utf-8")
         self.assertLess(base.index("iefcl-theme"), base.index("ds/ds.css"))
 
 

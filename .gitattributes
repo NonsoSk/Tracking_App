@@ -1,1 +1,2 @@
-*.bat text eol=crlf
+# Keep Windows line endings in the file itself, so ZIP downloads get them too
+*.bat -text

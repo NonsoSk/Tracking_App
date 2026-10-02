@@ -113,7 +113,7 @@ def _parse_vars(block: str) -> dict[str, str]:
 
 @lru_cache(maxsize=1)
 def themes() -> dict[str, dict[str, str]]:
-    css = CSS_PATH.read_text()
+    css = CSS_PATH.read_text(encoding="utf-8")
     light = _parse_vars(_block(css, "/* @tokens light */"))
     dark = {**light, **_parse_vars(_block(css, "/* @tokens dark */"))}
     return {"light": light, "dark": dark}

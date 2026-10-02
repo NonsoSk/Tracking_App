@@ -29,7 +29,7 @@ SVG_BODY = re.compile(r"<svg[^>]*>(.*)</svg>", re.S)
 def icon_body(name: str) -> str:
     """Inner markup of a vendored Lucide icon (raises FileNotFoundError if missing)."""
     path = ICON_DIR / f"{name}.svg"
-    match = SVG_BODY.search(path.read_text())
+    match = SVG_BODY.search(path.read_text(encoding="utf-8"))
     return re.sub(r"\s+", " ", match.group(1)).strip()
 
 
