@@ -28,13 +28,13 @@
 
 <div class="app">
   <div class="app-main">
-    <header class="toolbar">
+    <header class="toolbar{% block toolbar_class %}{% endblock %}">
       {% block toolbar_start %}<a href="{% url 'core:dashboard' %}" aria-label="My tasks">{% logo %}</a>{% endblock %}
       <nav class="crumbs" aria-label="Breadcrumb">{% block crumbs %}{% endblock %}</nav>
       <span class="spacer"></span>
       <button class="search-trigger desktop-only" type="button" data-open="palette" aria-label="Search or jump to (Ctrl K)">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
       <button class="icon-btn mobile-only" type="button" data-open="palette" aria-label="Search">{% icon "search" %}</button>
-      <div class="pop-wrap">
+      <div class="pop-wrap desktop-only">
         <button class="icon-btn" type="button" data-popover="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Theme">
           <span data-theme-icon="light" hidden>{% icon "sun" %}</span><span data-theme-icon="dark" hidden>{% icon "moon" %}</span><span data-theme-icon="auto">{% icon "sun-moon" %}</span>
         </button>

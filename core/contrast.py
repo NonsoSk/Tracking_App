@@ -56,6 +56,7 @@ TEXT_PAIRS = [
     ("on-danger", "danger-ink", 4.5, "Destructive button label"),
     ("on-hero", "hero-base", 4.5, "Text on the hero band"),
     ("on-avatar", "mix(avatar-a,avatar-b,.75)", 4.5, "Avatar initials (lightest point under the letters)"),
+    ("text-2", "mix(glass-tint,hero-base,.7)", 4.5, "Icons and labels on the glass bar over the hero"),
 ]
 
 # Borders, focus rings and state markers must reach 3:1 against what they sit on (WCAG 1.4.11).

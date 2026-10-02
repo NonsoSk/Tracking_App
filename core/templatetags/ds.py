@@ -313,3 +313,46 @@ def nav_items(context):
         hit = path == url if item.get("exact") else path.startswith(url)
         item["current"] = hit and not any(path.startswith(x) for x in item.get("exclude", []))
     return items
+
+
+# ------------------------------------------------------------- small formats
+@register.filter
+def short_since(moment):
+    """Compact age for feeds: now, 5m, 2h, 3d, 2w, 4mo."""
+    if not moment:
+        return ""
+    seconds = max(0, (timezone.now() - moment).total_seconds())
+    for size, unit in ((31536000, "y"), (2592000, "mo"), (604800, "w"), (86400, "d"), (3600, "h"), (60, "m")):
+        if seconds >= size:
+            return f"{int(seconds // size)}{unit}"
+    return "now"
+
+
+@register.simple_tag
+def donut(rows, size=148, value_key="n", label_key="label"):
+    """SVG donut with a legend. Chart colours come from the --chart-* tokens (blue first, gold second)."""
+    rows = [r for r in (rows or []) if (r.get(value_key) or 0) > 0]
+    total = sum(r[value_key] for r in rows)
+    if not total:
+        return ""
+    stroke = 18
+    radius = (size - stroke) / 2
+    circumference = 2 * math.pi * radius
+    gap = 2 if len(rows) > 1 else 0
+    offset = 0.0
+    arcs, legend = [], []
+    for i, row in enumerate(rows[:6]):
+        share = row[value_key] / total
+        length = max(share * circumference - gap, 0.5)
+        arcs.append(f'<circle class="c{i + 1}" cx="{size / 2}" cy="{size / 2}" r="{radius:.2f}" fill="none" stroke-width="{stroke}" '
+                    f'stroke-dasharray="{length:.2f} {circumference:.2f}" stroke-dashoffset="{-offset:.2f}"/>')
+        offset += share * circumference
+        legend.append(format_html('<li><i class="c{}"></i><span>{}</span><b class="num">{}</b></li>', i + 1, row[label_key], row[value_key]))
+    label = ", ".join(f"{r[label_key]} {r[value_key]}" for r in rows)
+    return mark_safe(
+        f'<div class="donut"><div class="donut-ring" style="width:{size}px;height:{size}px">'
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" role="img" aria-label="{escape(label)}">'
+        f'<g transform="rotate(-90 {size / 2} {size / 2})">{"".join(arcs)}</g></svg>'
+        f'<span class="donut-total"><b class="num">{total}</b><span>total</span></span></div>'
+        f'<ul class="donut-legend">{"".join(str(x) for x in legend)}</ul></div>'
+    )

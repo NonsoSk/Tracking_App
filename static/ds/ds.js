@@ -319,6 +319,11 @@
     var pick = e.target.closest(".pick, .seg[data-seg] > button");
     if (pick) {
       if (pick.closest(".seg")) $$("button", pick.parentNode).forEach(function (b) { b.setAttribute("aria-pressed", String(b === pick)); });
+      var filterOf = pick.parentNode.dataset && pick.parentNode.dataset.filter;
+      if (filterOf) {
+        var kind = pick.dataset.kind;
+        $$("#" + filterOf + " > [data-kind]").forEach(function (el) { el.hidden = kind !== "all" && el.dataset.kind !== kind; });
+      }
       else pick.setAttribute("aria-pressed", String(pick.getAttribute("aria-pressed") !== "true"));
     }
 

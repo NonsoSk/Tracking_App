@@ -4,5 +4,10 @@
   <a class="menu-item" href="{% url 'accounts:password_change' %}">{% icon "key-round" "ico-18" %} Change password</a>
   <a class="menu-item" href="{% url 'core:styleguide' %}">{% icon "layout-grid" "ico-18" %} Style guide</a>
   <hr>
+  <div class="seg" role="group" aria-label="Theme" style="margin:4px 0 8px">
+    <button type="button" data-theme-set="light" aria-pressed="false">{% icon "sun" "ico-16" %}<span class="sr-only">Light</span></button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">{% icon "moon" "ico-16" %}<span class="sr-only">Dark</span></button>
+    <button type="button" data-theme-set="auto" aria-pressed="true">{% icon "monitor" "ico-16" %}<span class="sr-only">Auto</span></button>
+  </div>
   <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="menu-item" type="submit">{% icon "log-out" "ico-18" %} Sign out</button></form>
 </div>

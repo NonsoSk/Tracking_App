@@ -31,9 +31,9 @@ def dashboard(request):
     applications = applications_for(user)
     active_apps = applications.filter(status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD])
 
-    stage_counts = {row["stage"]: row["n"] for row in active_apps.values("stage").annotate(n=Count("id"))}
+    stage_counts = {row["stage"]: row["n"] for row in active_apps.order_by().values("stage").annotate(n=Count("id", distinct=True))}
     funnel = [{"stage": s.value, "label": s.label, "count": stage_counts.get(s.value, 0)} for s in Stage if s != Stage.HIRED]
-    source_counts = list(applications.values("source").annotate(n=Count("id")).order_by("-n"))
+    source_counts = list(applications.values("source").annotate(n=Count("id", distinct=True)).order_by("-n"))
     from candidates.models import Candidate
 
     source_labels = dict(Candidate.Source.choices)
@@ -93,7 +93,7 @@ def dashboard(request):
         for req in requisitions.filter(status__in=[Requisition.Status.OPEN, Requisition.Status.APPROVED,
                                                    Requisition.Status.ON_HOLD])[:10]:
             counts = {row["stage"]: row["n"] for row in req.applications.filter(
-                status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD]).values("stage").annotate(n=Count("id"))}
+                status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD]).order_by().values("stage").annotate(n=Count("id"))}
             dept_requisitions.append({"req": req, "counts": counts, "total": sum(counts.values())})
 
     my_referrals = Application.objects.filter(candidate__referred_by=user).select_related("candidate", "requisition")[:8]
@@ -101,7 +101,50 @@ def dashboard(request):
         Q(application__in=applications) | Q(requisition__in=requisitions)
     ).select_related("actor", "application__candidate", "requisition").distinct()[:12]
 
+    # --- Presentation only: arrange what is loaded above for the My tasks screen -------------------
+    from core import home
+    from core.templatetags.ds import STAGE_SHORT
+
+    hiring = user.is_hr or user.is_department_user or user.is_management
+    documents_due = (active_apps.filter(stage=Stage.DOCUMENTS, status=Application.Status.ACTIVE)
+                     .select_related("candidate", "requisition")[:8]) if user.is_hr else []
+    tasks, task_kinds = home.build_tasks(
+        user, action_requisitions=list(action_requisitions[:8]), pending_evaluations=pending_evaluations,
+        offer_reviews=list(offer_reviews), decisions_needed=list(decisions_needed[:8]) if decisions_needed else [],
+        documents_due=list(documents_due), onboardings=list(onboardings))
+    for row in funnel:
+        row["short"] = STAGE_SHORT.get(row["stage"], row["label"])
+    trends = {}
+    if hiring:
+        interviews_scope = Interview.objects.filter(application__in=applications).exclude(status=Interview.Status.CANCELLED)
+        trends = {
+            "roles": home.weekly(requisitions.filter(published_at__gte=now - timedelta(weeks=8)).values_list("published_at", flat=True)),
+            "roles_month": requisitions.filter(published_at__gte=now - timedelta(days=30)).count(),
+            "candidates": home.weekly(applications.filter(applied_at__gte=now - timedelta(weeks=8)).values_list("applied_at", flat=True)),
+            "candidates_week": applications.filter(applied_at__gte=now - timedelta(days=7)).count(),
+            "interviews": home.weekly(interviews_scope.filter(scheduled_at__gte=now - timedelta(weeks=7), scheduled_at__lte=now + timedelta(weeks=2))
+                                      .values_list("scheduled_at", flat=True), ahead=1),
+            "interviews_today": interviews_scope.filter(scheduled_at__date=today, status=Interview.Status.SCHEDULED).count(),
+            "offers": home.weekly(Offer.objects.filter(application__in=applications, sent_at__gte=now - timedelta(weeks=8)).values_list("sent_at", flat=True)),
+            "offers_review": Offer.objects.filter(application__in=applications, status=Offer.Status.REVIEW_REQUESTED).count(),
+        }
+        trends["roles_delta"] = f"+{trends['roles_month']} this month" if trends["roles_month"] else "None new this month"
+        trends["candidates_delta"] = f"+{trends['candidates_week']} this week" if trends["candidates_week"] else "None new this week"
+        trends["interviews_delta"] = f"{trends['interviews_today']} today" if trends["interviews_today"] else "None today"
+        trends["offers_delta"] = f"{trends['offers_review']} in review" if trends["offers_review"] else "Awaiting replies"
+    calendar = Interview.objects.filter(status=Interview.Status.SCHEDULED, scheduled_at__date__gte=today,
+                                        scheduled_at__date__lt=today + timedelta(days=7))
+    calendar = calendar.filter(application__in=applications) if hiring else calendar.filter(panel=user)
+    week = home.week_calendar(calendar.select_related("application__candidate", "application__requisition")
+                              .prefetch_related("panel").order_by("scheduled_at").distinct())
+    sent_today = Interview.objects.filter(application__in=applications)
+    automation = {"invites": sent_today.filter(invite_sent_at__date=today).count(),
+                  "reminders": sent_today.filter(reminder_sent_at__date=today).count()}
+
     return render(request, "core/dashboard.html", {
+        "tasks": tasks, "task_kinds": task_kinds, "trends": trends, "week": week, "automation": automation,
+        "hiring": hiring, "greeting": home.greeting(now), "summary": home.summary_line(len(tasks)),
+        "funnel_max": max([f["count"] for f in funnel] + [1]), "week_has_events": any(d["events"] for d in week),
         "kpis": kpis, "funnel": funnel, "source_counts": source_counts, "my_interviews": my_interviews,
         "pending_evaluations": pending_evaluations, "upcoming_interviews": upcoming_interviews,
         "action_requisitions": action_requisitions[:8], "offer_reviews": offer_reviews,

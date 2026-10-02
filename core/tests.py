@@ -131,6 +131,27 @@ class DemoSmokeTests(TestCase):
                     response = self.client.get(url)
                     self.assertEqual(response.status_code, 200, f"{user.username} {url}")
 
+    def test_dashboard_counts_each_application_once(self):
+        # Department users' application list joins interview panels; the pipeline must still count people, not rows.
+        for user in User.objects.filter(username__in=["hod.production", "hr.admin", "management", "interviewer"]):
+            self.client.force_login(user)
+            context = self.client.get(reverse("core:dashboard")).context
+            active = applications_for(user).filter(status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD])
+            for row in context["funnel"]:
+                self.assertEqual(row["count"], active.filter(stage=row["stage"]).count(), (user.username, row["stage"]))
+            self.assertEqual(sum(r["n"] for r in context["source_counts"]), applications_for(user).count(), user.username)
+            self.assertLessEqual(sum(r["count"] for r in context["funnel"]), context["kpis"]["active_candidates"])
+
+    def test_requisition_page_counts_each_application_once(self):
+        self.client.force_login(User.objects.get(username="hr.admin"))
+        for req in Requisition.objects.all():
+            context = self.client.get(req.get_absolute_url()).context
+            apps = req.applications.all()
+            for stage, n in context["counts"].items():
+                self.assertEqual(n, apps.filter(stage=stage, status__in=["active", "on_hold"]).count(), (req.reference, stage))
+            for grade, n in context["grade_counts"].items():
+                self.assertEqual(n, apps.filter(match_grade=grade).count(), (req.reference, grade))
+
     def test_public_pages(self):
         self.client.logout()
         urls = [reverse("careers:jobs"), reverse("careers:status"), reverse("accounts:login")]

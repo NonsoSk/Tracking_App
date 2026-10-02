@@ -137,8 +137,8 @@ def requisition_detail(request, pk):
         stages = [s for s in stages if s != Stage.OFFER and (s != Stage.MEDICAL or settings.RECRUITMENT["TRAINEE_REQUIRES_MEDICALS"])]
 
     counts = {row["stage"]: row["n"] for row in applications.filter(
-        status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD]).values("stage").annotate(n=Count("id"))}
-    grade_counts = {row["match_grade"]: row["n"] for row in applications.values("match_grade").annotate(n=Count("id"))}
+        status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD]).order_by().values("stage").annotate(n=Count("id"))}
+    grade_counts = {row["match_grade"]: row["n"] for row in applications.order_by().values("match_grade").annotate(n=Count("id"))}
     interviews = Interview.objects.filter(application__requisition=requisition).select_related(
         "application__candidate").prefetch_related("panel").order_by("-scheduled_at")
     return render(request, "requisitions/detail.html", {
