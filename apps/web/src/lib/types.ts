@@ -40,6 +40,12 @@ export interface SubmissionStatus {
   valid_from: string | null;
   valid_until: string | null;
   server_time: string;
+  /** false when the Super Admin lets members send grievances without a code */
+  code_required: boolean;
+  /** the code itself, only when the Super Admin chose to share it with everyone */
+  code: string | null;
+  /** grievances this member may still send with the open code, when a per-person limit is set */
+  uses_left: number | null;
 }
 
 export interface MyGrievance {
@@ -65,7 +71,9 @@ export interface MyGrievanceDetail extends MyGrievance {
   suggestions: string | null;
   resolved_at: string | null;
   timeline: { label: string; message: string; at: string; code: string }[];
-  updates: { body: string; at: string }[];
+  /** the conversation with staff: messages from staff and the member's own replies */
+  updates: { body: string; at: string; from: 'staff' | 'me' }[];
+  can_reply: boolean;
   resolution: { details: string; resolved_at: string | null } | null;
   acknowledgement: { response: 'acknowledged' | 'disputed'; reason: string | null; at: string } | null;
 }
@@ -189,6 +197,7 @@ export interface OfficerHome {
 export interface SubmissionCode {
   id: string; code: string; label: string | null; scope_type: string; scope_name: string;
   valid_from: string; valid_until: string; max_submissions: number | null; submission_count: number;
+  show_to_members: boolean; max_per_person: number | null;
   state: 'draft' | 'active' | 'scheduled' | 'expired' | 'full' | 'deactivated';
   created_by: string | null; created_at: string; released_by: string | null; released_at: string | null;
   deactivated_by: string | null; deactivated_at: string | null; deactivation_reason: string | null;

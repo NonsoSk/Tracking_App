@@ -209,7 +209,7 @@ function RemarkForm({ g }: { g: StaffDetail }) {
         </Select>
       )}
       <Textarea aria-label="Text" className="min-h-[110px]" value={body} onChange={(e) => setBody(e.target.value)}
-        placeholder={kind === 'internal' ? 'Only staff can see this.' : kind === 'complainant' ? 'The complainant will see this in the app.' : 'What was done?'} />
+        placeholder={kind === 'internal' ? 'Only staff can see this.' : kind === 'complainant' ? 'The complainant will see this in the app and can reply.' : 'What was done?'} />
       {kind === 'complainant' && <p className="flex items-start gap-1.5 text-xs text-ink-500"><ShieldAlert className="h-4 w-4 shrink-0" />Visible to the complainant. Don't include internal or personal information.</p>}
       {error && <Banner tone="warning">{error}</Banner>}
       <Button loading={busy} disabled={body.trim().length < 2} onClick={submit} icon={kind === 'complainant' ? Send : MessageSquarePlus} className="w-full">
@@ -373,7 +373,8 @@ function HistoryTimeline({ items, monthOnly }: { items: HistoryItem[]; monthOnly
             <div className="min-w-0 flex-1 pt-1">
               <p className="text-[15px]">
                 {i.kind === 'status' && <><b>{i.label}</b>{i.from_label && <span className="text-ink-500"> (from {i.from_label})</span>}</>}
-                {i.kind === 'comment' && <><b>{i.label === 'officer_remark' ? 'Officer remark' : 'Remark'}</b>{i.public && <span className="ml-1.5 rounded bg-info-soft px-1.5 text-xs font-semibold text-info">sent to complainant</span>}</>}
+                {i.kind === 'comment' && i.label === 'reply' && <><b>Reply from the complainant</b><span className="ml-1.5 rounded bg-success-soft px-1.5 text-xs font-semibold text-success">answer</span></>}
+                {i.kind === 'comment' && i.label !== 'reply' && <><b>{i.label === 'officer_remark' ? 'Officer remark' : 'Remark'}</b>{i.public && <span className="ml-1.5 rounded bg-info-soft px-1.5 text-xs font-semibold text-info">sent to complainant</span>}</>}
                 {i.kind === 'action' && <b className="capitalize">{(i.label ?? 'action').replace('_', ' ')}</b>}
                 {i.kind === 'assignment' && <>Assigned to <b>{i.label ?? 'nobody'}</b></>}
                 {i.kind === 'acknowledgement' && <b>{i.label === 'acknowledged' ? 'Complainant acknowledged the resolution' : 'Complainant did not accept the resolution'}</b>}

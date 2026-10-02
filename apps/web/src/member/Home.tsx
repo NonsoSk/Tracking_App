@@ -19,6 +19,10 @@ export function Home() {
   const needAck = list.filter((g) => g.needs_acknowledgement).length;
   const settled = list.filter((g) => g.status_code === 'RESOLVED' || g.status_code === 'CLOSED').length;
   const open = status.data?.open;
+  const noCode = status.data?.code_required === false;
+  const sharedCode = status.data?.code ?? null;
+  const codeHint = noCode ? 'No submission code is needed right now.'
+    : sharedCode ? `The submission code is ${sharedCode}.` : 'Get the submission code from your community leader.';
 
   return (
     <div className="space-y-[18px]">
@@ -43,7 +47,7 @@ export function Home() {
               <span className="font-bold text-ink-500">· {status.data?.community_name ?? profile?.community_name ?? '—'}</span>
             </p>
             <p className="mt-0.5 text-[14px] leading-snug text-ink-700">
-              {open ? `Until ${formatDate(status.data?.valid_until)}. Get the submission code from your community leader.`
+              {open ? (noCode && !status.data?.valid_until ? 'You can send a grievance at any time.' : `Until ${formatDate(status.data?.valid_until)}. ${codeHint}`)
                     : status.data ? 'Collection is closed for your community right now.' : "We'll check when you're back online."}
             </p>
           </div>
@@ -53,7 +57,7 @@ export function Home() {
       <Button size="lg" icon={PenLine} onClick={() => nav('/submit')} className="h-16 text-lg">
         Submit a grievance
       </Button>
-      <p className="-mt-2 text-center text-sm text-ink-500">You'll need the submission code from your community leader.</p>
+      {!noCode && <p className="-mt-2 text-center text-sm text-ink-500">{sharedCode ? `Submission code: ${sharedCode}` : "You'll need the submission code from your community leader."}</p>}
 
       <QuickActions items={[
         { label: 'Mine', icon: FileText, onClick: () => nav('/grievances') },
@@ -73,7 +77,7 @@ export function Home() {
           {needAck === 1 ? 'One grievance was resolved. Please tell us if you agree.' : `${needAck} grievances were resolved. Please tell us if you agree.`}
         </NextStep>
       ) : (
-        <NextStep>{list.length ? 'Nothing needs you right now. We will send you an alert when there is news.' : 'Get the submission code from your community leader, then tap “Submit a grievance”. It takes about 2 minutes.'}</NextStep>
+        <NextStep>{list.length ? 'Nothing needs you right now. We will send you an alert when there is news.' : (noCode ? 'Tap “Submit a grievance”. It takes about 2 minutes.' : sharedCode ? `Tap “Submit a grievance” and use the code ${sharedCode}. It takes about 2 minutes.` : 'Get the submission code from your community leader, then tap “Submit a grievance”. It takes about 2 minutes.')}</NextStep>
       )}
 
       {list.length > 0 && (

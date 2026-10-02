@@ -92,6 +92,8 @@ export const api = {
   listStaff: () => rpc<{ id: string; full_name: string; job_title: string | null; roles: string[]; is_active: boolean }[]>('list_staff'),
   codes: () => rpc<SubmissionCode[]>('list_submission_codes', { p_include_inactive: true }),
   createCode: (p: Record<string, unknown>) => rpc<SubmissionCode>('create_submission_code', { p }),
+  updateCode: (id: string, p: Record<string, unknown>) => rpc<unknown>('update_submission_code', { p_id: id, p }),
+  replyToGrievance: (id: string, body: string) => rpc<number>('reply_to_grievance', { p_id: id, p_body: body }),
   releaseCode: (id: string) => rpc<unknown>('release_submission_code', { p_id: id }),
   deactivateCode: (id: string, reason?: string) => rpc<unknown>('deactivate_submission_code', { p_id: id, p_reason: reason ?? null }),
 

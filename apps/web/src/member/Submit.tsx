@@ -64,7 +64,9 @@ export function Submit() {
     return () => clearTimeout(t);
   }, [draft, localId, userId, createdAt]);
 
-  const steps = useMemo(() => ['Code', 'Community', 'Your concern', 'Type of concern', 'What should we do?', 'Review'], []);
+  // The Super Admin can switch codes off (Settings); then the code step is skipped.
+  const codeRequired = status.data ? status.data.code_required !== false : master.data?.settings?.submission_code_required !== false;
+  const steps = useMemo(() => [...(codeRequired ? ['Code'] : []), 'Community', 'Your concern', 'Type of concern', 'What should we do?', 'Review'], [codeRequired]);
   const name = steps[step];
   const set = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
@@ -118,8 +120,15 @@ export function Submit() {
         {name === 'Code' && (
           <div className="space-y-4 animate-fade-up" key="code">
             <div className="flex items-start gap-3"><KeyRound className="mt-1 h-6 w-6 shrink-0 text-brand-700" aria-hidden />
-              <p className="text-ink-700">Enter the submission code your community leader gave you, exactly as written.
+              <p className="text-ink-700">{status.data?.code ? 'Enter the submission code for your community.' : 'Enter the submission code your community leader gave you, exactly as written.'}
                 {status.data && !status.data.open && ' Collection is closed for your community right now, so a code may not work yet.'}</p></div>
+            {status.data?.code && (
+              <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div><p className="text-sm text-ink-500">The code for your community</p><p className="font-mono text-lg font-bold tracking-wide">{status.data.code}</p></div>
+                <Button size="sm" variant="secondary" onClick={() => { setCodeOk(null); set({ submission_code: status.data!.code! }); }}>Use this code</Button>
+              </Card>
+            )}
+            {status.data?.uses_left != null && <p className="text-sm text-ink-500">You can send {status.data.uses_left} more {status.data.uses_left === 1 ? 'grievance' : 'grievances'} with this code.</p>}
             <Field label="Submission code" htmlFor="code">
               <Input id="code" autoCapitalize="characters" autoComplete="off" placeholder="AGB-2026-0923-X7P4" className="font-mono text-lg uppercase tracking-wide"
                 value={draft.submission_code} onChange={(e) => { setCodeOk(null); set({ submission_code: e.target.value.toUpperCase() }); }} />
@@ -201,7 +210,7 @@ export function Submit() {
             <ReviewRow label="Type" value={draft.category_label ?? 'Not chosen'} onEdit={() => setStep(steps.indexOf('Type of concern'))} />
             {!!draft.desired_resolution?.trim() && <ReviewRow label="What you'd like us to do" value={draft.desired_resolution} onEdit={() => setStep(steps.indexOf('What should we do?'))} />}
             {!!draft.suggestions?.trim() && <ReviewRow label="Suggestions" value={draft.suggestions} onEdit={() => setStep(steps.indexOf('What should we do?'))} />}
-            <p className="flex items-center gap-2 pt-1 text-sm text-ink-500"><KeyRound className="h-4 w-4" aria-hidden /> Submission code <Kbd>{draft.submission_code || '—'}</Kbd></p>
+            {codeRequired && <p className="flex items-center gap-2 pt-1 text-sm text-ink-500"><KeyRound className="h-4 w-4" aria-hidden /> Submission code <Kbd>{draft.submission_code || '—'}</Kbd></p>}
             {!online && <Banner tone="warning" title="You're offline">Your grievance will be saved on this phone and sent automatically when you're back online.</Banner>}
           </div>
         )}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Copy, FilePlus2, KeyRound, Plus, Rocket } from 'lucide-react';
+import { Ban, Copy, FilePlus2, KeyRound, Plus, Rocket, Settings2 } from 'lucide-react';
 import { useMasterData } from '@/app/hooks';
 import { useAuth } from '@/app/auth';
 import { api } from '@/lib/api';
@@ -26,6 +26,7 @@ export function Codes() {
   const q = useQuery({ queryKey: ['codes'], queryFn: api.codes });
   const [creating, setCreating] = useState(false);
   const [deactivate, setDeactivate] = useState<SubmissionCode | null>(null);
+  const [editing, setEditing] = useState<SubmissionCode | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const canManage = useAuth().can('codes.manage');
@@ -66,12 +67,15 @@ export function Codes() {
                 <dl className="mt-3 space-y-1 text-sm">
                   <div className="flex justify-between"><dt className="text-ink-500">Valid</dt><dd>{formatDate(c.valid_from)} – {formatDate(c.valid_until)}</dd></div>
                   <div className="flex justify-between"><dt className="text-ink-500">Submissions</dt><dd className="tabular">{c.submission_count}{c.max_submissions ? ` / ${c.max_submissions}` : ''}</dd></div>
+                  <div className="flex justify-between"><dt className="text-ink-500">Per person</dt><dd className="tabular">{c.max_per_person ? `Up to ${c.max_per_person}` : 'No limit'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-ink-500">Who sees the code</dt><dd>{c.show_to_members ? 'All members, in the app' : 'Leaders and staff'}</dd></div>
                   <div className="flex justify-between"><dt className="text-ink-500">Created</dt><dd>{c.created_by ?? '—'} · {formatDate(c.created_at)}</dd></div>
                   {c.released_at && <div className="flex justify-between"><dt className="text-ink-500">Released</dt><dd>{c.released_by} · {formatDateTime(c.released_at)}</dd></div>}
                   {c.deactivated_at && <div className="flex justify-between"><dt className="text-ink-500">Deactivated</dt><dd>{c.deactivated_by} · {formatDate(c.deactivated_at)}</dd></div>}
                 </dl>
                 {canManage && <div className="mt-4 flex gap-2 pt-1">
                   {c.state === 'draft' && <Button size="sm" icon={Rocket} loading={busy} onClick={() => act(() => api.releaseCode(c.id), 'Activated. Members are told collection is open (without the code); share the code with the leaders.')}>Release</Button>}
+                  {['draft', 'active', 'scheduled', 'full'].includes(c.state) && <Button size="sm" variant="secondary" icon={Settings2} onClick={() => setEditing(c)}>Options</Button>}
                   {['draft', 'active', 'scheduled', 'full'].includes(c.state) && <Button size="sm" variant="secondary" icon={Ban} onClick={() => setDeactivate(c)}>Deactivate</Button>}
                 </div>}
               </Card>
@@ -79,6 +83,7 @@ export function Codes() {
           </div>
         )}
       <CreateCode open={creating} onClose={() => setCreating(false)} />
+      {editing && <CodeOptions code={editing} onClose={() => setEditing(null)} />}
       <ConfirmDialog open={!!deactivate} onClose={() => setDeactivate(null)} title={`Deactivate ${deactivate?.code}?`} confirmLabel="Deactivate" danger loading={busy}
         onConfirm={async () => { if (deactivate && await act(() => api.deactivateCode(deactivate.id, reason), 'Code deactivated')) { setDeactivate(null); setReason(''); } }}
         body="Members will no longer be able to submit with this code. Grievances already submitted are not affected.">
@@ -99,6 +104,8 @@ function CreateCode({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [max, setMax] = useState('');
   const [label, setLabel] = useState('');
   const [release, setRelease] = useState(true);
+  const [shared, setShared] = useState(false);
+  const [perPerson, setPerPerson] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const d = master.data;
@@ -114,6 +121,7 @@ function CreateCode({ open, onClose }: { open: boolean; onClose: () => void }) {
         valid_from: new Date(`${from}T00:00:00+01:00`).toISOString(),
         valid_until: new Date(`${until}T23:59:59+01:00`).toISOString(),
         max_submissions: max ? Number(max) : null,
+        show_to_members: shared, max_per_person: perPerson ? Number(perPerson) : null,
       };
       if (scope === 'community') p.community_id = target;
       if (scope === 'cluster') p.cluster_id = Number(target);
@@ -145,9 +153,49 @@ function CreateCode({ open, onClose }: { open: boolean; onClose: () => void }) {
           <Field label="Opens" htmlFor="from"><Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
           <Field label="Closes (end of day)" htmlFor="until"><Input id="until" type="date" value={until} min={from} onChange={(e) => setUntil(e.target.value)} /></Field>
         </div>
-        <Field label="Maximum submissions" htmlFor="max" optional><Input id="max" type="number" min={1} inputMode="numeric" value={max} onChange={(e) => setMax(e.target.value)} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Maximum in total" htmlFor="max" optional><Input id="max" type="number" min={1} inputMode="numeric" value={max} onChange={(e) => setMax(e.target.value)} /></Field>
+          <Field label="Maximum per person" htmlFor="pp" optional hint="Grievances one member may send"><Input id="pp" type="number" min={1} inputMode="numeric" value={perPerson} onChange={(e) => setPerPerson(e.target.value)} /></Field>
+        </div>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 h-4 w-4 accent-brand-700" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          <span>Show the code to all members in the app<span className="block text-sm text-ink-500">Anyone in the communities it covers can use it, not only people who got it from a community leader.</span></span></label>
         <Field label="Label" htmlFor="lbl" optional hint="e.g. September town hall"><Input id="lbl" value={label} onChange={(e) => setLabel(e.target.value)} /></Field>
-        <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={release} onChange={(e) => setRelease(e.target.checked)} />Activate now (members are told collection is open, but never shown the code)</label>
+        <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-brand-700" checked={release} onChange={(e) => setRelease(e.target.checked)} />Activate now (members are told collection is open{shared ? ' and given the code' : ', but not shown the code'})</label>
+        {error && <Banner tone="warning">{error}</Banner>}
+      </div>
+    </Modal>
+  );
+}
+
+/** Change a code's options after it was created. */
+function CodeOptions({ code, onClose }: { code: SubmissionCode; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [shared, setShared] = useState(code.show_to_members);
+  const [perPerson, setPerPerson] = useState(code.max_per_person ? String(code.max_per_person) : '');
+  const [max, setMax] = useState(code.max_submissions ? String(code.max_submissions) : '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.updateCode(code.id, { show_to_members: shared, max_per_person: perPerson ? Number(perPerson) : null, max_submissions: max ? Number(max) : null });
+      toast('Code options saved');
+      await qc.invalidateQueries({ queryKey: ['codes'] });
+      onClose();
+    } catch (e) { setError(toAppError(e).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Modal open onClose={onClose} title={`Options for ${code.code}`}
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={save}>Save</Button></>}>
+      <div className="space-y-4">
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 h-4 w-4 accent-brand-700" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          <span>Show the code to all members in the app<span className="block text-sm text-ink-500">Off: only staff and community leaders see it, and members type it.</span></span></label>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Maximum per person" htmlFor="opp" optional hint="Empty = no limit"><Input id="opp" type="number" min={1} inputMode="numeric" value={perPerson} onChange={(e) => setPerPerson(e.target.value)} /></Field>
+          <Field label="Maximum in total" htmlFor="omax" optional hint={`${code.submission_count} used so far`}><Input id="omax" type="number" min={Math.max(1, code.submission_count)} inputMode="numeric" value={max} onChange={(e) => setMax(e.target.value)} /></Field>
+        </div>
         {error && <Banner tone="warning">{error}</Banner>}
       </div>
     </Modal>

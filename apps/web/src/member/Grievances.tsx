@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronRight, CloudUpload, FileText, MessageSquareWarning, Search, ThumbsUp } from 'lucide-react';
+import { Check, ChevronRight, CloudUpload, FileText, MessageSquareWarning, Search, Send, ThumbsUp } from 'lucide-react';
 import { useAuth } from '@/app/auth';
-import { useCachedQuery, usePendingOutbox } from '@/app/hooks';
+import { useCachedQuery, useOnline, usePendingOutbox } from '@/app/hooks';
 import { api } from '@/lib/api';
 import { messageFor, toAppError } from '@/lib/errors';
 import { formatDate, formatRelative } from '@/lib/format';
 import type { MyGrievanceDetail } from '@/lib/types';
-import { Banner, Button, Card, EmptyState, ErrorState, Field, Input, Kbd, NextStep, ProgressRing, Skeleton, StatusBadge, cx, useToast } from '@/design/ui';
+import { Banner, Button, Card, EmptyState, ErrorState, Field, Input, Kbd, NextStep, ProgressRing, Skeleton, StatusBadge, Textarea, cx, useToast } from '@/design/ui';
 import { PageHeader } from './shell';
 import { CalmNote } from './CalmNote';
 
@@ -125,12 +125,7 @@ export function GrievanceDetail() {
         <Timeline items={g.timeline} current={g.status_code} />
       </Card>
 
-      {g.updates.length > 0 && (
-        <Card className="p-5">
-          <h2 className="font-semibold">Messages from the team</h2>
-          <ul className="mt-3 space-y-3">{g.updates.map((u, i) => <li key={i} className="rounded-xl bg-sunken p-3"><p className="whitespace-pre-wrap">{u.body}</p><p className="mt-1 text-xs text-ink-500">{formatDate(u.at)}</p></li>)}</ul>
-        </Card>
-      )}
+      {g.updates.length > 0 && <Conversation g={g} onSent={() => q.refetch()} />}
 
       <Card className="p-5">
         <h2 className="font-semibold">Your grievance</h2>
@@ -233,6 +228,53 @@ function Acknowledge({ g }: { g: MyGrievanceDetail }) {
         <Button size="lg" icon={ThumbsUp} loading={busy} disabled={!agree} onClick={confirm}>Confirm</Button>
         {error && <Banner tone="warning">{error}</Banner>}
       </div>
+    </Card>
+  );
+}
+
+/** Messages between the member and the Community Relations team, with a reply box. */
+function Conversation({ g, onSent }: { g: MyGrievanceDetail; onSent: () => void }) {
+  const toast = useToast();
+  const online = useOnline();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = async (e: FormEvent) => {
+    e.preventDefault();
+    if (text.trim().length < 2) return setError(messageFor('reply_too_short'));
+    setBusy(true); setError(null);
+    try {
+      await api.replyToGrievance(g.id, text.trim());
+      setText('');
+      toast('Reply sent');
+      onSent();
+    } catch (err) { setError(toAppError(err).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Card className="p-5">
+      <h2 className="font-semibold">Messages</h2>
+      <ul className="mt-3 space-y-3">
+        {g.updates.map((u, i) => (
+          <li key={i} className={cx('flex', u.from === 'me' ? 'justify-end' : 'justify-start')}>
+            <div className={cx('max-w-[85%] rounded-2xl px-3.5 py-2.5', u.from === 'me' ? 'rounded-br-md bg-btn text-white' : 'rounded-bl-md bg-sunken')}>
+              <p className={cx('text-xs font-bold', u.from === 'me' ? 'text-white/80' : 'text-brand-700')}>{u.from === 'me' ? 'You' : 'Community Relations'}</p>
+              <p className="mt-0.5 whitespace-pre-wrap">{u.body}</p>
+              <p className={cx('mt-1 text-xs', u.from === 'me' ? 'text-white/70' : 'text-ink-500')}>{formatDate(u.at)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {g.can_reply ? (
+        <form onSubmit={send} className="mt-4 space-y-2">
+          <Field label="Your reply" htmlFor="reply">
+            <Textarea id="reply" rows={3} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write your answer to the team." />
+          </Field>
+          {error && <Banner tone="warning">{error}</Banner>}
+          {!online && <p className="text-sm text-ink-500">You're offline. You can send your reply when you're back online.</p>}
+          <Button type="submit" icon={Send} loading={busy} disabled={!online || text.trim().length < 2} className="w-full">Send reply</Button>
+        </form>
+      ) : <p className="mt-4 text-sm text-ink-500">This grievance is closed, so replies are no longer possible.</p>}
     </Card>
   );
 }

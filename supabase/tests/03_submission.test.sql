@@ -31,7 +31,7 @@ select tests.logout();
 
 select tests.login((select v from ids where k = 'member'));
 select is((public.get_submission_status() ->> 'open')::boolean, true, 'member sees collection OPEN for their community');
-select ok(not (public.get_submission_status() ? 'code'), 'the member is never shown the code; they must get it from their leader');
+select ok((public.get_submission_status() ->> 'code') is null, 'the member is not shown the code unless the Super Admin chose to share it');
 select tests.logout();
 
 select tests.login((select v from ids where k = 'member2'));

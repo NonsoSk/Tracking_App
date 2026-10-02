@@ -577,6 +577,7 @@ const SETTING_UI: Record<string, { label: string; type: 'number' | 'bool' | 'sel
   overdue_realert_hours: { label: 'Re-alert officers every (hours)', type: 'number' },
   code_offline_grace_hours: { label: 'Offline grace period for codes (hours)', type: 'number' },
   whatsapp_enabled: { label: 'Send WhatsApp notifications', type: 'bool' },
+  submission_code_required: { label: 'Members need a submission code to send a grievance (switch off to let them send without one)', type: 'bool' },
   phone_otp_required: { label: 'Confirm phone numbers by text-message code at registration', type: 'bool' },
   whatsapp_resolution_template: { label: 'WhatsApp resolution template name', type: 'text' },
   app_name: { label: 'App name', type: 'text' },

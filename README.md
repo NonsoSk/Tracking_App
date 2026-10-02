@@ -141,7 +141,8 @@ The source workbooks contain complainant names and phone numbers. **Do not commi
    [`08-update-2026-09-28.sql`](supabase/setup/08-update-2026-09-28.sql), then
    [`09-update-2026-09-29.sql`](supabase/setup/09-update-2026-09-29.sql), then
    [`10-update-2026-09-30.sql`](supabase/setup/10-update-2026-09-30.sql), then
-   [`11-update-2026-10-01.sql`](supabase/setup/11-update-2026-10-01.sql).
+   [`11-update-2026-10-01.sql`](supabase/setup/11-update-2026-10-01.sql), then
+   [`12-update-2026-10-02.sql`](supabase/setup/12-update-2026-10-02.sql).
 2. Authentication → Users → Add user (Auto Confirm) **for yourself only**, then run
    [`01-make-me-super-admin.sql`](supabase/setup/01-make-me-super-admin.sql) with your email.
 3. Deploy `apps/web` on Netlify from this repository ([`netlify.toml`](netlify.toml)) with `VITE_SUPABASE_URL` and
