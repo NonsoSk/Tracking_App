@@ -12,9 +12,16 @@ if /i not "%~1"=="--run" (
 
 set "PORTAL=%~2"
 title Update IEFCL Recruitment Portal
+rem Use the folder this file sits in if the portal is set up there; otherwise the usual place, %USERPROFILE%\portal
+if exist "%PORTAL%.venv\Scripts\python.exe" goto found
+if exist "%USERPROFILE%\portal\.venv\Scripts\python.exe" goto useprofile
+goto novenv
+:useprofile
+set "PORTAL=%USERPROFILE%\portal\"
+echo Updating your portal in %PORTAL%
+:found
 cd /d "%PORTAL%"
 if not exist "manage.py" goto notportal
-if not exist ".venv\Scripts\python.exe" goto novenv
 
 netstat -ano | findstr /r /c:":8000 .*LISTENING" >nul
 if not errorlevel 1 goto running
@@ -53,7 +60,8 @@ pause
 exit /b 1
 
 :novenv
-echo Set up the portal once first: follow "Quick start" in README.md, then run this again.
+echo Could not find your portal folder, the one that contains the .venv folder.
+echo Put this file in that folder, usually C:\Users\%USERNAME%\portal, and double-click it there.
 pause
 exit /b 1
 
