@@ -1,0 +1,19 @@
+{% load ds %}<nav class="{% if glass %}glass pub-nav{% else %}pub-bar pub-nav{% endif %}" aria-label="Careers">
+  <a class="pub-brand" href="{% url 'careers:jobs' %}" aria-label="{{ COMPANY_SHORT_NAME }} careers home">{% logo %}<span>Careers</span></a>
+  <span class="spacer"></span>
+  <a class="pub-link{% if request.resolver_match.url_name == 'jobs' or request.resolver_match.url_name == 'job' %} is-on{% endif %}" href="{% url 'careers:jobs' %}" aria-label="Vacancies">{% icon "briefcase-business" "ico-18" %}<span>Vacancies</span></a>
+  <a class="pub-link{% if request.resolver_match.url_name == 'status' %} is-on{% endif %}" href="{% url 'careers:status' %}" aria-label="Track application">{% icon "search" "ico-18" %}<span>Track application</span></a>
+  <div class="pop-wrap">
+    <button class="icon-btn" type="button" data-popover="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Theme">
+      <span data-theme-icon="light" hidden>{% icon "sun" %}</span><span data-theme-icon="dark" hidden>{% icon "moon" %}</span><span data-theme-icon="auto">{% icon "sun-moon" %}</span>
+    </button>
+    <div class="popover" id="theme-menu" hidden>
+      <div class="pg eyebrow" style="padding:4px 8px 8px">Appearance</div>
+      <div class="seg" role="group" aria-label="Theme">
+        <button type="button" data-theme-set="light" aria-pressed="false">{% icon "sun" "ico-16" %} Light</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">{% icon "moon" "ico-16" %} Dark</button>
+        <button type="button" data-theme-set="auto" aria-pressed="true">{% icon "monitor" "ico-16" %} Auto</button>
+      </div>
+    </div>
+  </div>
+</nav>

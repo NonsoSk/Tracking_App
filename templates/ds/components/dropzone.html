@@ -1,0 +1,12 @@
+{% load ds %}{# A file field as a drop-zone: {% include "ds/components/dropzone.html" with f=form.files title="…" hint="…" %} #}
+<div class="field{% if f.errors %} has-error{% endif %}" id="field-{{ f.html_name }}">
+  <span class="label" id="{{ f.id_for_label }}-label">{{ f.label }}{% if f.field.required %}<span class="req" aria-hidden="true">*</span>{% endif %}</span>
+  <label class="dropzone" tabindex="0" data-list="{{ f.id_for_label }}-list" aria-labelledby="{{ f.id_for_label }}-label">
+    <span class="tile">{% icon icon_name|default:"cloud-upload" %}</span>
+    <span class="title">{{ title|default:"Drop files here or" }} <u>browse</u></span>
+    <span class="help">{{ hint|default:f.help_text }}</span>
+    {{ f }}
+  </label>
+  <div class="filelist" id="{{ f.id_for_label }}-list" aria-live="polite"></div>
+  {% for error in f.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ error }}</span>{% endfor %}
+</div>

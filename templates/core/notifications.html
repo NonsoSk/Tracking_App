@@ -1,15 +1,33 @@
-{% extends "base.html" %}
-{% load humanize %}
+{% extends "ds/base.html" %}
+{% load ds humanize %}
 {% block title %}Notifications{% endblock %}
+{% block crumbs %}<span aria-current="page">Notifications</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>Notifications</h1><div class="subtitle">Everything the portal has told you about.</div></div>
-  <form method="post" action="{% url 'core:read_all' %}">{% csrf_token %}<button class="btn btn-outline-primary btn-sm">Mark all as read</button></form></div>
-<div class="card"><div class="list-group list-group-flush">
-  {% for n in items %}
-    <a class="list-group-item list-group-item-action {% if not n.is_read %}bg-light{% endif %}" href="{% url 'core:open_notification' n.pk %}">
-      <div class="d-flex justify-content-between"><span class="{% if not n.is_read %}fw-bold{% endif %}"><i class="bi bi-circle-fill text-{{ n.level }} me-2" style="font-size:.55rem"></i>{{ n.title }}</span><span class="small text-muted">{{ n.created_at|naturaltime }}</span></div>
-      {% if n.message %}<div class="small text-muted ms-3">{{ n.message|truncatechars:220 }}</div>{% endif %}
-    </a>
-  {% empty %}{% include "partials/_empty.html" with icon="bi-bell-slash" text="No notifications yet." %}{% endfor %}
-</div></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Inbox</div>
+    <h1>Notifications</h1>
+    <p class="lede">Everything the portal has told you about, newest first.</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="{% url 'core:read_all' %}">{% csrf_token %}<button class="btn btn-secondary" type="submit">{% icon "check-check" "ico-18" %} Mark all as read</button></form>
+  </div>
+</header>
+
+<section class="sheet notif-sheet" aria-label="Notifications">
+  {% if items %}
+  <div class="sheet-b pad-top">
+    {% for n in items %}
+    {% ifchanged n.created_at|date:"Ymd" %}{% if not forloop.first %}</div>{% endif %}<h2 class="eyebrow muted-eyebrow notif-day">{{ n.created_at|naturalday:"l j F"|capfirst }}</h2><div class="notif-list">{% endifchanged %}
+      <a class="notif-row{% if not n.is_read %} unread{% endif %}" href="{% url 'core:open_notification' n.pk %}">
+        <span class="tile sm {% if n.level == 'success' %}green{% elif n.level == 'warning' %}amber{% elif n.level == 'danger' %}danger{% endif %}">{% if n.level == 'success' %}{% icon "circle-check" "ico-16" %}{% elif n.level == 'warning' %}{% icon "triangle-alert" "ico-16" %}{% elif n.level == 'danger' %}{% icon "circle-alert" "ico-16" %}{% else %}{% icon "bell" "ico-16" %}{% endif %}</span>
+        <div class="nr-t"><b>{{ n.title }}</b>{% if n.message %}<span>{{ n.message|truncatechars:200 }}</span>{% endif %}</div>
+        <time class="num" datetime="{{ n.created_at|date:'c' }}" title="{{ n.created_at|date:'j M Y, H:i' }}">{{ n.created_at|date:"H:i" }}</time>
+        {% if not n.is_read %}<span class="nr-dot" aria-label="Unread"></span>{% endif %}
+      </a>
+    {% if forloop.last %}</div>{% endif %}
+    {% endfor %}
+  </div>
+  {% else %}{% empty_state "You're all caught up" "New approvals, interviews and decisions will show up here." object_name="Desk bell on a clipboard" %}{% endif %}
+</section>
 {% endblock %}

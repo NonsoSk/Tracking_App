@@ -45,8 +45,8 @@ python manage.py runserver
 > `lxml`).
 
 > **Windows, to get the latest version:** close the portal window and double-click `update-portal.bat`. It downloads
-> the newest code, keeps your database, settings, uploads and Python environment, installs any new packages and starts
-> the portal.
+> the newest code, keeps your database, settings, uploads and Python environment, removes screens and styles the new
+> version no longer uses, installs any new packages and starts the portal.
 >
 > **Windows, every day after that:** double-click `start-portal.bat`. It applies any database updates, starts the
 > portal and opens it in your browser. Keep its window open while you work; close it to stop the portal. To start it
@@ -186,7 +186,7 @@ requisitions/    requisitions, job roles, skill catalogue, suggestions (knowledg
 candidates/      candidate profiles, document folders, CV reader, bulk intake, referrals, Excel import
 pipeline/        applications, matching, interviews, selection reports, decisions, offers, medicals, onboarding
 careers/         public careers site and the candidate's personal application page
-templates/, static/   Bootstrap 5 UI (all assets vendored, no CDN needed)
+templates/, static/   Design system UI (static/ds), all assets vendored, no CDN needed
 ```
 
 ## Tests

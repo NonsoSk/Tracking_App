@@ -1,50 +1,66 @@
-{% extends "base.html" %}
-{% load portal %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}CV intake{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">CV intake</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>CV intake</h1><div class="subtitle">Drop in CVs that arrived by email, as hard copies (scan or photograph them) or through referrals. Each one is read, turned into a candidate profile, filed in their folder and — if you pick a vacancy — scored immediately.</div></div></div>
-<div class="row g-3">
-  <div class="col-lg-5">
-    <div class="card"><div class="card-body">
-      <form method="post" enctype="multipart/form-data">{% csrf_token %}
-        {% include "partials/_form_fields.html" %}
-        <button class="btn btn-primary w-100"><i class="bi bi-magic"></i> Read &amp; add CVs</button>
-      </form>
-    </div></div>
-    <div class="card mt-3"><div class="card-body small text-muted">
-      <p class="mb-1"><i class="bi bi-info-circle text-brand"></i> <strong>How reading works</strong></p>
-      <ul class="ps-3 mb-0">
-        <li>PDF and Word CVs are read directly.</li>
-        <li>Scanned PDFs and photos of hard-copy CVs are read by {% if AI_ENABLED %}<strong>AI</strong> (enabled){% else %}AI when an API key is configured, or by OCR if installed{% endif %}.</li>
-        <li>Duplicates are detected by email / phone — an existing profile is updated instead of duplicated.</li>
-        <li>CVs from the <em>{{ COMPANY_SHORT_NAME }} careers mailbox</em> can also be pulled in automatically (see README: <code>fetch_cv_emails</code>).</li>
-      </ul>
-    </div></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Talent</div>
+    <h1>CV intake</h1>
+    <p class="lede">CVs that came by email, as hard copies or through referrals. Each one is read, turned into a profile, filed, and scored if you pick a vacancy.</p>
   </div>
-  <div class="col-lg-7">
-    <div class="card"><div class="card-header"><i class="bi bi-list-check"></i> Results</div>
-      {% if results %}
-      <div class="list-group list-group-flush">
-        {% for name, r in results %}
-        <div class="list-group-item">
-          {% if r.error %}
-            <div class="text-danger small"><i class="bi bi-x-circle"></i> {{ r.error }}</div>
-          {% else %}
-            <div class="d-flex justify-content-between align-items-start gap-2">
-              <div><a class="fw-semibold" href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a> <span class="badge text-bg-{% if r.created %}success{% else %}info{% endif %}">{% if r.created %}New{% else %}Updated existing{% endif %}</span>
-                <div class="small text-muted"><i class="bi bi-file-earmark"></i> {{ name }} · read by {{ r.parsed.method|default:"—" }}</div>
-                <div class="small">{{ r.candidate.get_highest_qualification_display|default:"" }} {{ r.candidate.course }}{% if r.candidate.years_experience %} · {{ r.candidate.years_experience|floatformat:"-1" }} yrs{% endif %}{% if r.candidate.email %} · {{ r.candidate.email }}{% endif %}</div>
-                <div>{% for s in r.candidate.skills|slice:":5" %}<span class="chip soft">{{ s }}</span>{% endfor %}</div>
-                {% for n in r.parsed.notes %}<div class="small text-warning"><i class="bi bi-exclamation-triangle"></i> {{ n }}</div>{% endfor %}
-              </div>
-              {% if r.application %}<a href="{{ r.application.get_absolute_url }}">{% score_pill r.application.match_score r.application.match_grade %}</a>{% endif %}
-            </div>
-          {% endif %}
+</header>
+
+<div class="intake-grid">
+  <div class="stack-24">
+    <form method="post" enctype="multipart/form-data" class="sheet" data-loading aria-labelledby="add-h">{% csrf_token %}
+      <div class="sheet-h"><h2 class="title" id="add-h">Add CVs</h2></div>
+      <div class="sheet-b stack">
+        {% include "ds/components/dropzone.html" with f=form.files title="Drop CVs here or" hint="PDF, Word, text, or photos of paper CVs. Select many at once." %}
+        <div class="form-grid">
+          {% dsfield form.source "span-2" %}{% dsfield form.requisition "span-2" %}
+          {% dsfield form.referred_by "span-4" %}
+          {% dsfield form.note "span-4" %}
         </div>
-        {% endfor %}
+        <button class="btn btn-primary btn-lg btn-block" type="submit">{% icon "scan-text" "ico-18" %} Read &amp; add CVs</button>
       </div>
-      {% else %}{% include "partials/_empty.html" with icon="bi-cloud-arrow-up" text="Upload CVs to see what was extracted." %}{% endif %}
-    </div>
+    </form>
+    <section class="sheet" aria-labelledby="how-h">
+      <div class="sheet-h"><h2 class="title" id="how-h">How reading works</h2></div>
+      <div class="sheet-b">
+        <ul class="how-list">
+          <li><span class="tile sm">{% icon "file-text" "ico-16" %}</span><span>PDF and Word CVs are read directly.</span></li>
+          <li><span class="tile sm">{% icon "scan-text" "ico-16" %}</span><span>Scanned PDFs and photos of paper CVs are read by {% if AI_ENABLED %}<b>AI</b> (switched on){% else %}AI once an API key is added, or by OCR where it is installed{% endif %}.</span></li>
+          <li><span class="tile sm">{% icon "copy" "ico-16" %}</span><span>Duplicates are spotted by email or phone. The existing profile is updated instead.</span></li>
+          <li><span class="tile sm">{% icon "mail" "ico-16" %}</span><span>CVs sent to the {{ COMPANY_SHORT_NAME }} careers mailbox can be pulled in automatically.</span></li>
+        </ul>
+      </div>
+    </section>
   </div>
+
+  <section class="sheet" aria-labelledby="res-h">
+    <div class="sheet-h"><h2 class="title" id="res-h">Results</h2>{% if results %}<span class="count">{{ results|length }}</span>{% endif %}</div>
+    {% if results %}
+    <div class="sheet-b intake-results">
+      {% for name, r in results %}
+      {% if r.error %}
+      <div class="banner danger"><span class="tile">{% icon "file-x" "ico-18" %}</span><div><b>{{ name }}</b><span class="small">{{ r.error }}</span></div></div>
+      {% else %}{% with c=r.candidate %}
+      <article class="card intake-card">
+        {% avatar c "md" %}
+        <div class="ic-body">
+          <div class="row wrap"><a class="ic-name" href="{{ c.get_absolute_url }}">{{ c.full_name }}</a><span class="chip {% if r.created %}success{% else %}brand{% endif %}">{% if r.created %}New profile{% else %}Updated existing{% endif %}</span></div>
+          <p class="small muted">{% icon "file-text" "ico-14" %} {{ name }} · read by {{ r.parsed.method|default:"—" }}</p>
+          <p class="small soft">{{ c.get_highest_qualification_display|default:"" }} {{ c.course }}{% if c.years_experience %} · {{ c.years_experience|floatformat:"-1" }} yrs{% endif %}{% if c.email %} · {{ c.email }}{% endif %}</p>
+          {% if c.skills %}<div class="tags">{% for s in c.skills|slice:":4" %}<span class="tag">{{ s }}</span>{% endfor %}</div>{% endif %}
+          {% for n in r.parsed.notes %}<p class="ic-note">{% icon "triangle-alert" "ico-14" %} {{ n }}</p>{% endfor %}
+        </div>
+        {% if r.application %}<a class="ic-score" href="{{ r.application.get_absolute_url }}" aria-label="Open the application">{% if r.application.match_grade == "A" %}{% score_ring r.application.match_score 56 True "" False %}{% else %}{% score_ring r.application.match_score 56 False "" False %}{% endif %}<span class="caption muted">Grade {{ r.application.match_grade|default:"–" }}</span></a>{% endif %}
+      </article>
+      {% endwith %}{% endif %}
+      {% endfor %}
+    </div>
+    {% else %}{% empty_state "Nothing read yet" "Upload CVs on the left. Each one appears here with what was found in it." object_name="Stack of paper CVs beside a scanner" %}{% endif %}
+  </section>
 </div>
 {% endblock %}

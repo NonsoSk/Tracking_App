@@ -152,6 +152,27 @@ class DemoSmokeTests(TestCase):
             for grade, n in context["grade_counts"].items():
                 self.assertEqual(n, apps.filter(match_grade=grade).count(), (req.reference, grade))
 
+    def test_requisition_board_is_editable_for_hr_only(self):
+        req = Requisition.objects.get(title="Process Engineer")
+        self.client.force_login(User.objects.get(username="hr.admin"))
+        html = self.client.get(req.get_absolute_url()).content.decode()
+        self.assertIn('class="board pipeline-board" data-board>', html)
+        self.assertIn("Sortable.min.js", html)
+        self.assertEqual(html.count('class="card kcard"'), req.applications.filter(status__in=["active", "on_hold", "hired"]).count())
+        self.client.force_login(User.objects.get(username="hod.production"))
+        html = self.client.get(req.get_absolute_url()).content.decode()
+        self.assertIn("data-board data-readonly>", html)
+        self.assertNotIn("Sortable.min.js", html)
+
+    def test_panel_member_sees_a_score_button_for_each_upcoming_interview(self):
+        user = User.objects.get(username="interviewer")
+        self.client.force_login(user)
+        html = self.client.get(reverse("pipeline:interviews")).content.decode()
+        upcoming = Interview.objects.filter(panel=user, status="scheduled", scheduled_at__gte=timezone.now() - timedelta(hours=3))
+        self.assertTrue(upcoming.exists())
+        for interview in upcoming:
+            self.assertIn(reverse("pipeline:evaluate", args=[interview.application_id]) + f"?interview={interview.pk}", html)
+
     def test_public_pages(self):
         self.client.logout()
         urls = [reverse("careers:jobs"), reverse("careers:status"), reverse("accounts:login")]

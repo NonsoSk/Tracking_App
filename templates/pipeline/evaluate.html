@@ -1,32 +1,82 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Selection report · {{ app.candidate.full_name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'pipeline:interviews' %}">Interviews</a>{% icon "chevron-right" "ico-14" %}<a href="{{ app.get_absolute_url }}">{{ app.candidate.full_name }}</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Selection report</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>Selection report</h1><div class="subtitle">{{ app.candidate.full_name }} · {{ app.requisition.title }}{% if interview %} · {{ interview.get_round_display }}{% endif %}{% if evaluation.submitted_at %} · <span class="text-success">submitted {{ evaluation.submitted_at|date:"d M H:i" }} (you can update it)</span>{% endif %}</div></div>
-  <a class="btn btn-light" href="{{ app.get_absolute_url }}">Back to candidate</a></div>
-<form method="post" id="evaluation-form">{% csrf_token %}
-{% if interview %}<input type="hidden" name="interview" value="{{ interview.pk }}">{% endif %}
-{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-<div class="card mb-3"><div class="table-responsive"><table class="table align-middle mb-0">
-  <thead><tr><th style="width:36px">Sr</th><th>Criterion</th><th class="text-center">E</th><th class="text-center">VG</th><th class="text-center">G</th><th class="text-center">S</th><th class="text-center">P</th><th class="text-center">Max</th><th style="width:130px">Secured marks</th><th class="text-center">Rating</th></tr></thead>
-  <tbody>
-  {% for criterion, f in form.criterion_fields %}
-    <tr class="marks-row"><td class="text-muted">{{ forloop.counter }}</td><td class="fw-semibold">{{ criterion.name }}{% if criterion.description %}<div class="small text-muted fw-normal">{{ criterion.description }}</div>{% endif %}</td>
-      <td class="rating-cell cursor-pointer border" data-code="E" title="Excellent 91%+">E</td><td class="rating-cell cursor-pointer border" data-code="VG" title="Very good 71-90%">VG</td><td class="rating-cell cursor-pointer border" data-code="G" title="Good 51-70%">G</td><td class="rating-cell cursor-pointer border" data-code="S" title="Satisfactory 31-50%">S</td><td class="rating-cell cursor-pointer border" data-code="P" title="Poor 0-30%">P</td>
-      <td class="text-center text-muted">{{ criterion.max_marks }}</td>
-      <td>{{ f }}{% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
-      <td class="text-center"><span class="badge rating-badge bg-light text-muted">–</span></td></tr>
-  {% endfor %}
-  <tr class="table-light"><td></td><td class="fw-bold text-end" colspan="6">Total</td><td class="text-center fw-bold">{{ max_total }}</td><td class="fw-bold fs-5"><span id="eval-total">0</span></td><td class="text-center"><span id="eval-rating" class="badge bg-light text-muted">–</span></td></tr>
-  </tbody></table></div>
-  <div class="card-footer bg-white small text-muted">Legend: P – Poor 0–30% · S – Satisfactory 31–50% · G – Good 51–70% · VG – Very Good 71–90% · E – Excellent 91% and above. Tip: click a rating letter to fill a typical mark for that band, then adjust.</div>
-</div>
-<div class="card mb-3"><div class="card-body">
-  <div class="mb-3"><label class="form-label fw-semibold small">Remarks</label>{{ form.remarks }}</div>
-  <label class="form-label fw-semibold small">Recommendation <span class="text-danger">*</span></label>
-  <div class="d-flex gap-4">{% for radio in form.recommendation %}<div class="form-check">{{ radio.tag }}<label class="form-check-label fw-semibold" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label></div>{% endfor %}</div>
-  {% for e in form.recommendation.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
-  <p class="small text-muted mt-3 mb-0"><i class="bi bi-pen"></i> Submitting signs this report electronically as <strong>{{ request.user.display_name }}</strong> on {% now "d M Y" %}.</p>
-</div></div>
-<div class="sticky-actions d-flex justify-content-end"><button class="btn btn-primary btn-lg"><i class="bi bi-check2-circle"></i> Submit selection report</button></div>
+<header class="page-head">
+  <div class="ph-person">
+    {% avatar app.candidate "lg" %}
+    <div>
+      <div class="eyebrow">Selection report{% if interview %} · {{ interview.get_round_display }}{% endif %}</div>
+      <h1>Score {{ app.candidate.full_name }}</h1>
+      <p class="lede">{{ app.requisition.title }}{% if interview %} · interviewed {{ interview.scheduled_at|date:"j M Y" }}{% endif %}</p>
+    </div>
+  </div>
+  <div class="actions">
+    {% if evaluation.submitted_at %}<span class="chip success">{% icon "circle-check" "ico-14" %} Sent {{ evaluation.submitted_at|date:"j M, H:i" }} · you can still update it</span>{% endif %}
+    <a class="btn btn-ghost" href="{{ app.get_absolute_url }}">{% icon "arrow-left" "ico-18" %} Back to candidate</a>
+  </div>
+</header>
+
+<form method="post" id="evaluation-form" class="eval-grid" novalidate>{% csrf_token %}
+  {% if interview %}<input type="hidden" name="interview" value="{{ interview.pk }}">{% endif %}
+  <div class="stack-24">
+    {% if form.errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few scores need attention</b><span class="small">{% if form.non_field_errors %}{{ form.non_field_errors|join:" " }}{% else %}They are marked in red below.{% endif %}</span></div></div>{% endif %}
+    <section class="sheet" aria-labelledby="crit-h">
+      <div class="sheet-h"><h2 class="title" id="crit-h">Criteria</h2><span class="spacer"></span>
+        <ul class="band-key" aria-label="Rating bands">
+          <li><span class="chip success no-dot">E</span> 91%+</li><li><span class="chip brand no-dot">VG</span> 71–90</li><li><span class="chip no-dot">G</span> 51–70</li><li><span class="chip warning no-dot">S</span> 31–50</li><li><span class="chip danger no-dot">P</span> 0–30</li>
+        </ul>
+      </div>
+      <p class="sheet-b small muted sc-tip">{% icon "mouse-pointer-click" "ico-16" %} Tap a band to fill a typical mark, then adjust the number if you need to.</p>
+      <ol class="scorecard">
+        {% for criterion, f in form.criterion_fields %}
+        <li class="sc-row{% if f.errors %} has-error{% endif %}" data-criterion>
+          <span class="sc-n num">{{ forloop.counter }}</span>
+          <div class="sc-t"><label for="{{ f.id_for_label }}"><b>{{ criterion.name }}</b></label><span class="sc-chip chip neutral" hidden></span>{% if criterion.description %}<p>{{ criterion.description }}</p>{% endif %}
+            {% for e in f.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ e }}</span>{% endfor %}</div>
+          <div class="bands" role="group" aria-label="Quick band for {{ criterion.name }}">
+            <button type="button" class="band" data-code="E" aria-pressed="false" title="Excellent, 91% and above">E</button>
+            <button type="button" class="band" data-code="VG" aria-pressed="false" title="Very good, 71–90%">VG</button>
+            <button type="button" class="band" data-code="G" aria-pressed="false" title="Good, 51–70%">G</button>
+            <button type="button" class="band" data-code="S" aria-pressed="false" title="Satisfactory, 31–50%">S</button>
+            <button type="button" class="band" data-code="P" aria-pressed="false" title="Poor, 0–30%">P</button>
+          </div>
+          <div class="sc-marks">{{ f }}<span class="num">/ {{ criterion.max_marks }}</span></div>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section class="sheet" aria-labelledby="rec-h">
+      <div class="sheet-h"><h2 class="title" id="rec-h">Your recommendation</h2></div>
+      <div class="sheet-b stack-24">
+        <div class="field{% if form.recommendation.errors %} has-error{% endif %}">
+          <div class="choices" role="radiogroup" aria-labelledby="rec-h">
+            {% for radio in form.recommendation %}
+            <label class="choice {% if radio.data.value == 'select' %}success{% elif radio.data.value == 'on_hold' %}warning{% else %}danger{% endif %}">{{ radio.tag }}
+              <span class="tile">{% if radio.data.value == 'select' %}{% icon "circle-check" %}{% elif radio.data.value == 'on_hold' %}{% icon "hourglass" %}{% else %}{% icon "circle-x" %}{% endif %}</span>
+              <b>{{ radio.choice_label }}</b>
+              <span class="d">{% if radio.data.value == 'select' %}Move forward with this candidate.{% elif radio.data.value == 'on_hold' %}Keep in reserve for now.{% else %}Not suitable for this role.{% endif %}</span>
+            </label>
+            {% endfor %}
+          </div>
+          {% for e in form.recommendation.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ e }}</span>{% endfor %}
+        </div>
+        {% dsfield form.remarks %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="side-sticky">
+    <section class="sheet eval-total" aria-labelledby="tot-h" aria-live="polite">
+      <h2 class="eyebrow" id="tot-h">Total</h2>
+      <div class="et-num"><b id="eval-total" class="num">0</b><span class="num">/ {{ max_total }}</span></div>
+      <div class="progress et-bar"><i id="eval-bar" style="width:0%"></i></div>
+      <div class="row wrap"><span id="eval-rating" class="chip neutral">Not scored</span><span class="spacer"></span><span class="small muted" id="eval-progress"></span></div>
+      <p class="foot-note">{% icon "pen-line" "ico-16" %} Sending signs this report electronically as {{ request.user.display_name }} on {% now "j M Y" %}.</p>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">{% icon "send" "ico-18" %} {% if evaluation.submitted_at %}Update report{% else %}Send selection report{% endif %}</button>
+    </section>
+  </aside>
 </form>
 {% endblock %}

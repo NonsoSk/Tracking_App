@@ -1,2 +1,15 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Not found</title><link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css"></head>
-<body class="d-grid" style="min-height:100vh;place-items:center"><div class="text-center"><h1 class="display-5">404</h1><p>We couldn't find that page.</p><a class="btn btn-primary" href="/">Go home</a> <a class="btn btn-outline-secondary" href="/careers/">Careers</a></div></body></html>
+{% extends "ds/public_base.html" %}
+{% load ds %}
+{% block title %}Page not found{% endblock %}
+{% block content %}
+<div class="error-page">
+  {% ph3d "Hard hat beside a signpost" 220 160 %}
+  <div class="eyebrow">Error 404</div>
+  <h1>We couldn't find that page</h1>
+  <p class="lede">The link may be old, or the vacancy may have closed.</p>
+  <div class="row wrap">
+    <a class="btn btn-primary" href="{% url 'careers:jobs' %}">{% icon "briefcase-business" "ico-18" %} See open vacancies</a>
+    {% if request.user.is_authenticated %}<a class="btn btn-ghost" href="{% url 'core:dashboard' %}">My tasks</a>{% else %}<a class="btn btn-ghost" href="{% url 'careers:status' %}">Track an application</a>{% endif %}
+  </div>
+</div>
+{% endblock %}

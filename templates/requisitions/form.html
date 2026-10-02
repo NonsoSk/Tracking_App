@@ -1,67 +1,95 @@
-{% extends "base.html" %}
-{% load portal %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}{% if is_new %}Raise requisition{% else %}Edit {{ requisition.reference }}{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'requisitions:list' %}">Requisitions</a>{% icon "chevron-right" "ico-14" %}{% if requisition %}<a href="{{ requisition.get_absolute_url }}">{{ requisition.reference }}</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Edit</span>{% else %}<span aria-current="page">New</span>{% endif %}{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>{% if is_new %}Raise a requisition{% else %}Edit {{ requisition.reference }}{% endif %}</h1>
-  <div class="subtitle">Tell the hiring team who you need. The requirements you pick here are used to score every applicant automatically.</div></div>
-</div>
-<form method="post" id="requisition-form" novalidate>{% csrf_token %}
-{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-<div class="row g-3">
-  <div class="col-xl-8">
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-briefcase"></i> 1. The position</div><div class="card-body"><div class="row">
-      {% field form.department "col-md-6 mb-3" %}
-      {% field form.job_role "col-md-6 mb-3" %}
-      {% field form.title "col-md-8 mb-3" %}
-      {% field form.positions "col-md-4 mb-3" %}
-      {% field form.employment_type "col-md-4 mb-3" %}
-      {% field form.grade "col-md-4 mb-3" %}
-      {% field form.location "col-md-4 mb-3" %}
-      {% field form.reason "col-md-6 mb-3" %}
-      {% field form.replacing_employee "col-md-6 mb-3" %}
-      {% field form.target_start_date "col-md-6 mb-3" %}
-    </div></div></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">{% if is_new %}New requisition{% else %}{{ requisition.reference }}{% endif %}</div>
+    <h1>{% if is_new %}Raise a requisition{% else %}Edit {{ requisition.title }}{% endif %}</h1>
+    <p class="lede">Tell the hiring team who you need. The requirements you pick are used to score every applicant automatically.</p>
+  </div>
+</header>
 
-    <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><span><i class="bi bi-list-check"></i> 2. Requirements (used for automatic matching)</span>
-      <button type="button" class="btn btn-sm btn-success" id="suggest-btn"><i class="bi bi-stars"></i> Suggest skills &amp; tools{% if AI_ENABLED %} with AI{% endif %}</button></div>
-      <div class="card-body">
-        <div id="suggestions" class="mb-3 p-3 rounded" style="background:#f6faf8;border:1px dashed #c4e7d2"><div class="small text-muted"><i class="bi bi-info-circle"></i> Enter the position title and click <strong>Suggest skills &amp; tools</strong> — pick from the suggestions or type your own in any box below.</div></div>
-        <div class="row">
-          {% field form.min_experience_years "col-md-4 mb-3" %}
-          {% field form.max_experience_years "col-md-4 mb-3" %}
-          {% field form.education_level "col-md-4 mb-3" %}
-          {% field form.min_degree_class "col-md-6 mb-3" %}
-          {% field form.requires_nysc "col-md-6 mb-3 pt-md-4" %}
-          {% field form.courses "col-12 mb-3" %}
-          {% field form.required_skills "col-12 mb-3" %}
-          {% field form.preferred_skills "col-12 mb-3" %}
-          {% field form.tools "col-12 mb-3" %}
-          {% field form.certifications "col-12 mb-3" %}
-          {% field form.other_requirements "col-12 mb-3" %}
+<form method="post" id="requisition-form" class="wizard" novalidate data-role-url="{% url 'requisitions:api_role' 0 %}" data-suggest-url="{% url 'requisitions:api_suggest' %}">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>Please check the form</b><span class="small">{{ form.non_field_errors|join:" " }}</span></div></div>{% endif %}
+  {% if form.errors and not form.non_field_errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">They are marked in red below.</span></div></div>{% endif %}
+
+  <div class="wizard-grid">
+    <aside class="wizard-side">
+      <nav class="sheet wiz-steps" data-steps aria-label="Form sections">
+        <ol>
+          <li class="step"><a href="#s-position"><span class="num">1</span><span>The position<small>Title, team and type</small></span></a></li>
+          <li class="step"><a href="#s-requirements"><span class="num">2</span><span>Requirements<small>Used to score applicants</small></span></a></li>
+          <li class="step"><a href="#s-context"><span class="num">3</span><span>Context<small>Why, and what the job is</small></span></a></li>
+        </ol>
+      </nav>
+      <section class="sheet next-card" aria-labelledby="next-h">
+        <h2 class="eyebrow" id="next-h">What happens next</h2>
+        <ol class="next-list">
+          <li><span class="tile sm">{% icon "clipboard-check" "ico-16" %}</span><span>The hiring team reviews and approves your request.</span></li>
+          <li><span class="tile sm">{% icon "radio-tower" "ico-16" %}</span><span>The vacancy goes live. Applications, referrals and emailed CVs are read and scored for you.</span></li>
+          <li><span class="tile sm">{% icon "eye" "ico-16" %}</span><span>You follow the shortlist, interviews and offers live from My tasks.</span></li>
+        </ol>
+      </section>
+    </aside>
+
+    <div class="wizard-main">
+      <section class="sheet form-sec" id="s-position" aria-labelledby="s-position-h">
+        <div class="sheet-h"><span class="step-num">1</span><div><h2 class="h3" id="s-position-h">The position</h2><p class="small muted">Pick a standard role to pre-fill everything, or type a new title.</p></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.department "span-2" %}
+          {% dsfield form.job_role "span-2" %}
+          {% dsfield form.title "span-3" %}
+          {% dsfield form.positions %}
+          {% dsfield form.employment_type "span-2" %}
+          {% dsfield form.grade %}
+          {% dsfield form.location %}
+          {% dsfield form.reason "span-2" %}
+          {% dsfield form.replacing_employee "span-2" %}
+          {% dsfield form.target_start_date "span-2" %}
         </div>
+      </section>
+
+      <section class="sheet form-sec" id="s-requirements" aria-labelledby="s-req-h">
+        <div class="sheet-h"><span class="step-num">2</span><div><h2 class="h3" id="s-req-h">Requirements</h2><p class="small muted">Used for automatic matching. Be specific, and keep it to what truly matters.</p></div>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-tint" id="suggest-btn">{% icon "sparkles" "ico-18" %} Suggest skills &amp; tools{% if AI_ENABLED %} with AI{% endif %}</button></div>
+        <div class="sheet-b stack-24">
+          <div class="ai-box" id="suggestions" aria-live="polite"><p class="small">{% icon "sparkles" "ico-16" %}<span>Enter the position title, then tap <b>Suggest skills &amp; tools</b>. Pick from the suggestions or type your own in any box below.</span></p></div>
+          <div class="form-grid">
+            {% dsfield form.min_experience_years %}
+            {% dsfield form.max_experience_years %}
+            {% dsfield form.education_level "span-2" %}
+            {% dsfield form.min_degree_class "span-2" %}
+            {% dsfield form.requires_nysc "span-2 align-end" %}
+          </div>
+          <div class="form-grid">
+            {% dsfield form.courses "span-4" %}
+            {% dsfield form.required_skills "span-4" %}
+            {% dsfield form.preferred_skills "span-4" %}
+            {% dsfield form.tools "span-4" %}
+            {% dsfield form.certifications "span-4" %}
+            {% dsfield form.other_requirements "span-4" %}
+          </div>
+        </div>
+      </section>
+
+      <section class="sheet form-sec" id="s-context" aria-labelledby="s-ctx-h">
+        <div class="sheet-h"><span class="step-num">3</span><div><h2 class="h3" id="s-ctx-h">Context</h2><p class="small muted">A few lines help the hiring team approve quickly.</p></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.justification "span-4" %}
+          {% dsfield form.job_description "span-4" %}
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <a class="btn btn-ghost" href="{% if requisition %}{{ requisition.get_absolute_url }}{% else %}{% url 'requisitions:list' %}{% endif %}">Cancel</a>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary" type="submit" name="save" value="1">{% icon "save" "ico-18" %} Save {% if is_new or requisition.is_editable_by_department %}draft{% else %}changes{% endif %}</button>
+        {% if is_new or requisition.is_editable_by_department %}<button class="btn btn-primary" type="submit" name="submit" value="1">{% icon "send" "ico-18" %} Submit to hiring team</button>{% endif %}
       </div>
     </div>
   </div>
-  <div class="col-xl-4">
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-chat-left-text"></i> 3. Context</div><div class="card-body">
-      {% field form.justification %}
-      {% field form.job_description %}
-    </div></div>
-    <div class="card"><div class="card-body small text-muted">
-      <p class="mb-2"><i class="bi bi-diagram-3 text-brand"></i> <strong>What happens next</strong></p>
-      <ol class="ps-3 mb-0">
-        <li>The hiring team reviews and approves your request.</li>
-        <li>The vacancy is published; applications, referrals and emailed CVs are read and scored automatically.</li>
-        <li>You follow shortlisted candidates, interviews and offers live from your dashboard.</li>
-      </ol>
-    </div></div>
-  </div>
-</div>
-<div class="sticky-actions d-flex gap-2 justify-content-end">
-  <a class="btn btn-light" href="{% if requisition %}{{ requisition.get_absolute_url }}{% else %}{% url 'requisitions:list' %}{% endif %}">Cancel</a>
-  <button class="btn btn-outline-primary" name="save" value="1">Save {% if is_new or requisition.is_editable_by_department %}draft{% else %}changes{% endif %}</button>
-  {% if is_new or requisition.is_editable_by_department %}<button class="btn btn-primary" name="submit" value="1"><i class="bi bi-send"></i> Submit to hiring team</button>{% endif %}
-</div>
 </form>
 {% endblock %}

@@ -1,29 +1,68 @@
-{% extends "public_base.html" %}
+{% extends "ds/public_base.html" %}
+{% load ds %}
 {% block title %}Vacancies{% endblock %}
 {% block hero %}
-<section class="careers-hero"><div class="container">
-  <h1 class="display-6">Build your career with us</h1>
-  <p class="lead opacity-75 mb-4">{{ COMPANY_NAME }} — producing fertilizer that feeds Nigeria and the world.</p>
-  <form class="row g-2" method="get" style="max-width:720px">
-    <div class="col-md-6"><input class="form-control form-control-lg" name="q" value="{{ q }}" placeholder="Search job title or department"></div>
-    <div class="col-md-4"><select name="type" class="form-select form-select-lg"><option value="">All job types</option>{% for v, l in types %}<option value="{{ v }}" {% if type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><button class="btn btn-success btn-lg w-100">Search</button></div>
-  </form>
-</div></section>
+<section class="hero careers-hero has-glass" aria-labelledby="ch-h">
+  <div class="mesh" aria-hidden="true"></div>
+  <div class="glass-wrap">{% include "ds/_pub_nav.html" with glass=True %}</div>
+  <div class="ch-copy">
+    <div class="eyebrow">Careers at {{ COMPANY_SHORT_NAME }}</div>
+    <h1 class="display" id="ch-h">Build your career with us</h1>
+    <p class="lede">{{ COMPANY_NAME }} makes the fertilizer that feeds Nigeria and the world. Find a role, apply in about five minutes, and follow your application online.</p>
+    <form class="hero-search" method="get" role="search" aria-label="Search vacancies">
+      <div class="input-icon">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Job title or department" aria-label="Job title or department"></div>
+      {% if type %}<input type="hidden" name="type" value="{{ type }}">{% endif %}
+      <button class="btn btn-primary btn-lg" type="submit">Search</button>
+    </form>
+  </div>
+  <div class="hero-object" aria-hidden="false">{% ph3d "Hard hat" 240 156 "on-hero" %}</div>
+</section>
 {% endblock %}
 {% block content %}
-<div class="lift">
-  <div class="row g-3">
-  {% for job in jobs %}
-    <div class="col-md-6 col-lg-4"><div class="card job-card h-100"><div class="card-body d-flex flex-column">
-      <div class="small text-muted mb-1">{{ job.department }}</div>
-      <h2 class="h5 fw-bold"><a class="stretched-link text-body" href="{% url 'careers:job' job.reference %}">{{ job.title }}</a></h2>
-      <div class="mb-3"><span class="chip soft"><i class="bi bi-geo-alt"></i> {{ job.location }}</span><span class="chip soft">{{ job.get_employment_type_display }}</span>{% if job.min_experience_years %}<span class="chip soft">{{ job.min_experience_years }}+ yrs</span>{% endif %}</div>
-      <div class="mt-auto small text-muted">{% if job.closing_date %}Closes {{ job.closing_date|date:"d M Y" }}{% else %}Open until filled{% endif %}</div>
-    </div></div></div>
-  {% empty %}
-    <div class="col-12"><div class="card">{% include "partials/_empty.html" with icon="bi-briefcase" text="There are no open vacancies right now. Please check back soon." %}</div></div>
-  {% endfor %}
+<div class="jobs-head">
+  <div>
+    <h2 class="h2">{% if q %}Results for “{{ q }}”{% else %}Open vacancies{% endif %}</h2>
+    <p class="muted">{{ jobs|length }} role{{ jobs|length|pluralize }} open right now{% if q %} · <a href="?{% if type %}type={{ type }}{% endif %}">Clear search</a>{% endif %}</p>
   </div>
+  <nav class="chip-filter" aria-label="Job type">
+    <a href="?{% if q %}q={{ q|urlencode }}{% endif %}" class="fchip{% if not type %} is-on{% endif %}"{% if not type %} aria-current="true"{% endif %}>All types</a>
+    {% for v, l in types %}<a href="?type={{ v }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="fchip{% if type == v %} is-on{% endif %}"{% if type == v %} aria-current="true"{% endif %}>{{ l }}</a>{% endfor %}
+  </nav>
 </div>
+
+{% if jobs %}
+<div class="job-grid">
+  {% for job in jobs %}
+  <article class="card job-card">
+    <div class="jc-top"><span class="eyebrow">{{ job.department }}</span><span class="spacer"></span>
+      {% if job.closing_date %}{% with d=job.closing_date|days_left %}<span class="countdown{% if d <= 7 %} soon{% endif %}" title="Closes {{ job.closing_date|date:'j F Y' }}">{% icon "clock" "ico-14" %} {% if d == 0 %}Closes today{% elif d == 1 %}Closes tomorrow{% else %}{{ d }} days left{% endif %}</span>{% endwith %}{% else %}<span class="countdown calm-c">{% icon "infinity" "ico-14" %} Open until filled</span>{% endif %}</div>
+    <h3 class="jc-title"><a href="{% url 'careers:job' job.reference %}">{{ job.title }}</a></h3>
+    <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span>{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
+    <div class="jc-foot">
+      <button class="btn btn-ghost btn-sm" type="button" data-open="qv-{{ job.pk }}">{% icon "eye" "ico-16" %} Quick view</button>
+      <span class="spacer"></span>
+      <a class="btn btn-secondary btn-sm" href="{% url 'careers:job' job.reference %}">View role {% icon "arrow-right" "ico-16" %}</a>
+    </div>
+  </article>
+  <dialog class="drawer" id="qv-{{ job.pk }}" aria-labelledby="qv-h-{{ job.pk }}">
+    <div class="modal-h"><div><div class="eyebrow">{{ job.department }}</div><h3 id="qv-h-{{ job.pk }}" class="h2">{{ job.title }}</h3></div><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack-24">
+      <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span><span class="tag">{{ job.get_education_level_display }}+</span>{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
+      {% if job.job_description %}<div><div class="eyebrow muted-eyebrow">About the role</div><p class="soft">{{ job.job_description|truncatewords:60 }}</p></div>{% endif %}
+      <div><div class="eyebrow muted-eyebrow">What you need</div>
+        <ul class="req-list">
+          <li>{% icon "graduation-cap" "ico-16" %}<span>{{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|slice:":3"|join:", " }}{% endif %}</span></li>
+          {% if job.min_experience_years %}<li>{% icon "briefcase-business" "ico-16" %}<span>At least {{ job.min_experience_years }} years of relevant experience</span></li>{% endif %}
+          {% for s in job.required_skills|slice:":4" %}<li>{% icon "check" "ico-16" %}<span>{{ s }}</span></li>{% endfor %}
+        </ul>
+      </div>
+      {% if job.closing_date %}<p class="foot-note">{% icon "calendar-clock" "ico-16" %} Applications close on {{ job.closing_date|date:"j F Y" }}.</p>{% endif %}
+    </div>
+    <div class="modal-f"><a class="btn btn-ghost" href="{% url 'careers:job' job.reference %}">Full details</a><a class="btn btn-primary" href="{% url 'careers:apply' job.reference %}">{% icon "send" "ico-18" %} Apply now</a></div>
+  </dialog>
+  {% endfor %}
+</div>
+{% else %}
+<div class="sheet">{% empty_state "No vacancies match right now" "Check back soon, or clear the search to see every open role." object_name="Hard hat on a clipboard" %}</div>
+{% endif %}
 {% endblock %}

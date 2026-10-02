@@ -7,7 +7,7 @@ from core.text import split_list
 
 
 class BootstrapMixin:
-    """Adds Bootstrap classes to every widget so templates stay simple."""
+    """Adds the design system's field classes (form-control, form-select, form-check-input) to every widget."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -41,7 +41,7 @@ class DateTimeInput(forms.DateTimeInput):
 
 
 class TagListField(forms.CharField):
-    """A list of short strings edited as chips in the browser (see static/js/app.js)."""
+    """A list of short strings edited as chips in the browser (see static/ds/app.js)."""
 
     def __init__(self, *, kind: str = "skill", **kwargs):
         kwargs.setdefault("required", False)

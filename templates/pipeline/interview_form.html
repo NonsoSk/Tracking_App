@@ -1,20 +1,63 @@
-{% extends "base.html" %}
-{% load portal %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}{% if interview %}Reschedule{% else %}Schedule{% endif %} interview{% endblock %}
+{% block crumbs %}<a href="{% url 'pipeline:applications' %}">Pipeline</a>{% icon "chevron-right" "ico-14" %}<a href="{{ app.get_absolute_url }}">{{ app.candidate.full_name }}</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">{% if interview %}Reschedule{% else %}Schedule{% endif %} interview</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{% if interview %}Reschedule interview{% else %}Schedule interview{% endif %}</h1><div class="subtitle">{{ app.candidate.full_name }} · {{ app.requisition.title }}</div></div></div>
-<div class="row g-3"><div class="col-lg-8"><div class="card"><div class="card-body">
-<form method="post">{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}<div class="row">
-  {% field form.round "col-md-6 mb-3" %}{% field form.scheduled_at "col-md-4 mb-3" %}{% field form.duration_minutes "col-md-2 mb-3" %}
-  {% field form.mode "col-md-4 mb-3" %}{% field form.location "col-md-8 mb-3" %}{% field form.meeting_link "col-md-8 mb-3" %}
-  {% field form.panel "col-md-6 mb-3" %}{% field form.instructions "col-md-6 mb-3" %}
-</div>
-<button class="btn btn-primary"><i class="bi bi-send"></i> {% if interview %}Update &amp; resend invites{% else %}Schedule &amp; send invites{% endif %}</button>
-<a class="btn btn-light" href="{{ app.get_absolute_url }}">Cancel</a></form>
-</div></div></div>
-<div class="col-lg-4"><div class="card"><div class="card-body small text-muted">
-  <p class="mb-2"><i class="bi bi-envelope-check text-brand"></i> <strong>What gets sent</strong></p>
-  <ul class="ps-3 mb-2"><li>The candidate gets an email invite with a calendar file and a button to confirm or ask for another time.</li><li>Each panel member gets a notification and calendar invite, and is reminded to fill the selection report after the interview.</li></ul>
-  <p class="mb-0">For video interviews, paste a Teams/Zoom link or leave it empty and a meeting room is created automatically.</p>
-</div></div></div></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Interviews</div>
+    <h1>{% if interview %}Reschedule the interview{% else %}Schedule an interview{% endif %}</h1>
+    <p class="lede">{{ app.candidate.full_name }} · {{ app.requisition.title }}</p>
+  </div>
+</header>
+
+<form method="post" class="split" novalidate>{% csrf_token %}
+  <div class="stack-24">
+    {% if form.errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">{% if form.non_field_errors %}{{ form.non_field_errors|join:" " }}{% else %}They are marked in red below.{% endif %}</span></div></div>{% endif %}
+    <section class="sheet form-sec" aria-labelledby="when-h">
+      <div class="sheet-h"><span class="step-num">{% icon "calendar-clock" "ico-18" %}</span><div><h2 class="h3" id="when-h">When and where</h2><p class="small muted">The candidate can confirm or ask for another time from the invite.</p></div></div>
+      <div class="sheet-b form-grid">
+        {% dsfield form.round "span-4" %}
+        {% dsfield form.scheduled_at "span-2" %}{% dsfield form.duration_minutes "span-2" %}
+        {% dsfield form.mode "span-2" %}{% dsfield form.location "span-2" %}{% dsfield form.meeting_link "span-2" %}
+      </div>
+    </section>
+    <section class="sheet form-sec" aria-labelledby="panel-h">
+      <div class="sheet-h"><span class="step-num">{% icon "users" "ico-18" %}</span><div><h2 class="h3" id="panel-h">Panel and instructions</h2><p class="small muted">Everyone picked gets an invite and a reminder to score afterwards.</p></div></div>
+      <div class="sheet-b stack">
+        <fieldset class="field people-field{% if form.panel.errors %} has-error{% endif %}" id="field-panel">
+          <legend class="label">{{ form.panel.label }}</legend>
+          <div class="input-icon"><span>{% icon "search" "ico-18" %}</span><input class="input" type="search" placeholder="Find a person" aria-label="Find a person" data-filter-list="panel-list"></div>
+          <div class="people-pick" id="panel-list">
+            {% for opt in form.panel %}{% with p=opt.data.value.instance %}
+            <label class="person-pick" data-text="{{ opt.choice_label }} {{ p.get_role_display }} {{ p.department|default:'' }}">
+              <input type="checkbox" name="{{ opt.data.name }}" value="{{ opt.data.value }}"{% if opt.data.selected %} checked{% endif %}>
+              {% avatar p "sm" %}<span class="pp-t"><b>{{ opt.choice_label }}</b><small>{{ p.get_role_display }}{% if p.department %} · {{ p.department }}{% endif %}</small></span>
+              <span class="pp-check" aria-hidden="true">{% icon "check" "ico-14" %}</span>
+            </label>
+            {% endwith %}{% endfor %}
+          </div>
+          {% for e in form.panel.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ e }}</span>{% endfor %}
+        </fieldset>
+        {% dsfield form.instructions %}
+      </div>
+    </section>
+    <div class="form-actions">
+      <a class="btn btn-ghost" href="{{ app.get_absolute_url }}">Cancel</a><span class="spacer"></span>
+      <button class="btn btn-primary" type="submit">{% icon "send" "ico-18" %} {% if interview %}Update &amp; resend invites{% else %}Schedule &amp; send invites{% endif %}</button>
+    </div>
+  </div>
+
+  <aside class="stack-24 side-sticky">
+    <section class="sheet next-card" aria-labelledby="sent-h">
+      <h2 class="eyebrow" id="sent-h">What gets sent</h2>
+      <ol class="next-list">
+        <li><span class="tile sm">{% icon "mail" "ico-16" %}</span><span>The candidate gets an email invite with a calendar file and a button to confirm or ask for another time.</span></li>
+        <li><span class="tile sm">{% icon "calendar-plus" "ico-16" %}</span><span>Each panel member gets a notification and calendar invite.</span></li>
+        <li><span class="tile sm">{% icon "clipboard-check" "ico-16" %}</span><span>After the interview, the panel is reminded to fill the selection report.</span></li>
+      </ol>
+      <p class="foot-note">{% icon "video" "ico-16" %} For video calls, paste a Teams or Zoom link, or leave it empty and a meeting room is created for you.</p>
+    </section>
+  </aside>
+</form>
 {% endblock %}

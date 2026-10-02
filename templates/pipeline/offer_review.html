@@ -1,31 +1,86 @@
-{% extends "base.html" %}
-{% load portal %}
+{% extends "ds/base.html" %}
+{% load ds portal %}
 {% block title %}Offer review · {{ app.candidate.full_name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'pipeline:offer_reviews' %}">Offer reviews</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">{{ app.candidate.full_name }}</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>Offer review — {{ app.candidate.full_name }}</h1><div class="subtitle">{{ offer.job_title }} · {{ app.requisition.department }} · <a href="{{ app.get_absolute_url }}">open application</a></div></div></div>
-<div class="row g-3">
-  <div class="col-lg-6">
-    <div class="card mb-3"><div class="card-header">Current offer (v{{ offer.version }})</div><div class="card-body">
-      <div class="row small">
-        <div class="col-6 mb-2"><div class="small-label">Annual salary</div><div class="fs-5 fw-bold">{{ offer.annual_salary|naira }}</div>{{ offer.monthly_salary|naira }} / month</div>
-        <div class="col-6 mb-2"><div class="small-label">Candidate asks</div><div class="fs-5 fw-bold text-warning">{{ offer.counter_salary|naira|default:"—" }}</div></div>
-        <div class="col-12 mb-2"><div class="small-label">Candidate's comment</div>“{{ offer.candidate_comment|default:"—" }}”</div>
-        {% if offer.benefits %}<div class="col-12 mb-2"><div class="small-label">Benefits</div>{{ offer.benefits }}</div>{% endif %}
-        {% if offer.negotiation_notes %}<div class="col-12 mb-2"><div class="small-label">Negotiation notes</div>{{ offer.negotiation_notes }}</div>{% endif %}
-      </div>
-    </div></div>
-    <div class="card"><div class="card-header">Candidate</div><div class="card-body small">
-      {{ app.candidate.get_highest_qualification_display }} {{ app.candidate.course }} · {{ app.candidate.years_experience|floatformat:"-1" }} years<br>
-      Match {{ app.match_score }}% (grade {{ app.match_grade }}){% if summary %} · Panel {{ summary.percentage }}% ({{ summary.rating.label }}){% endif %}
-      {% if history %}<hr><div class="small-label">Previous offers</div>{% for o in history %}<div>v{{ o.version }}: {{ o.annual_salary|naira }} — {{ o.get_status_display }}</div>{% endfor %}{% endif %}
-    </div></div>
+{% with u=request.user c=app.candidate %}
+<header class="page-head">
+  <div class="ph-person">
+    {% avatar c "lg" %}
+    <div>
+      <div class="eyebrow">Offer review · version {{ offer.version }}</div>
+      <h1>{{ c.full_name }}</h1>
+      <p class="lede">{{ offer.job_title }} · {{ app.requisition.department }} · <a href="{{ app.get_absolute_url }}#offer-tab">Open the application</a></p>
+    </div>
   </div>
-  <div class="col-lg-6"><div class="card"><div class="card-header">Management decision</div><div class="card-body">
-    {% if offer.status == 'review_requested' %}
-      {% if request.user.is_management or request.user.is_superuser or request.user.role == 'hr_admin' %}
-      <form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary">Record decision</button></form>
-      {% else %}<p class="text-muted small mb-0">Waiting for management to decide.</p>{% endif %}
-    {% else %}<p class="mb-0">Decision: <strong>{{ offer.get_management_decision_display|default:offer.get_status_display }}</strong>{% if offer.management_comment %} — {{ offer.management_comment }}{% endif %}</p>{% endif %}
-  </div></div></div>
+</header>
+
+<div class="split">
+  <div class="stack-24">
+    <section class="sheet" aria-labelledby="cur-h">
+      <div class="sheet-h"><h2 class="title" id="cur-h">The offer and the ask</h2><span class="spacer"></span><span class="chip {{ offer.status|tone:'offer' }}">{{ offer.get_status_display }}</span></div>
+      <div class="sheet-b stack-24">
+        <div class="compare">
+          <div class="card ro"><div class="ro-l">We offered</div><div class="ro-v num">{{ offer.annual_salary|naira }}</div><div class="ro-s">{{ offer.monthly_salary|naira }} a month</div></div>
+          <span class="compare-arrow">{% icon "arrow-right" "ico-24" %}</span>
+          <div class="card ro is-ask"><div class="ro-l">Candidate asks</div><div class="ro-v num">{{ offer.counter_salary|naira|default:"—" }}</div>
+            <div class="ro-s">{% if offer.counter_salary and offer.annual_salary %}{{ offer.counter_salary|pct_over:offer.annual_salary }}{% else %}No figure given{% endif %}</div></div>
+        </div>
+        {% if offer.candidate_comment %}<blockquote class="quote">{% icon "quote" "ico-18" %}<p>{{ offer.candidate_comment }}</p></blockquote>{% endif %}
+        <dl class="facts">
+          {% if offer.benefits %}<div><dt>Benefits</dt><dd>{{ offer.benefits|linebreaksbr }}</dd></div>{% endif %}
+          {% if offer.negotiation_notes %}<div><dt>Negotiation notes</dt><dd>{{ offer.negotiation_notes|linebreaksbr }}</dd></div>{% endif %}
+        </dl>
+      </div>
+    </section>
+    <section class="sheet" aria-labelledby="cand-h">
+      <div class="sheet-h"><h2 class="title" id="cand-h">Why we chose them</h2></div>
+      <div class="sheet-b">
+        <div class="why-row">
+          {% if app.match_grade == "A" %}{% score_ring app.match_score 72 True "Match" %}{% else %}{% score_ring app.match_score 72 False "Match" %}{% endif %}
+          <dl class="facts facts-grid why-facts">
+            <div><dt>Qualification</dt><dd>{{ c.get_highest_qualification_display }}{% if c.course %}, {{ c.course }}{% endif %}</dd></div>
+            <div><dt>Experience</dt><dd>{{ c.years_experience|floatformat:"-1" }} years</dd></div>
+            <div><dt>Panel score</dt><dd>{% if summary %}<span class="chip {{ summary.rating.code|rating_tone }}">{{ summary.percentage }}% · {{ summary.rating.label }}</span>{% else %}<span class="muted">Not scored</span>{% endif %}</dd></div>
+          </dl>
+        </div>
+        {% if history %}<div class="prev-offers"><div class="eyebrow muted-eyebrow">Earlier versions</div>
+          <ul class="rows">{% for o in history %}<li class="prev-offer"><span class="tag">v{{ o.version }}</span><b class="num">{{ o.annual_salary|naira }}</b><span class="chip {{ o.status|tone:'offer' }}">{{ o.get_status_display }}</span></li>{% endfor %}</ul></div>{% endif %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="side-sticky">
+    <section class="sheet" aria-labelledby="dec-h">
+      <div class="sheet-h"><h2 class="title" id="dec-h">Management decision</h2></div>
+      <div class="sheet-b">
+      {% if offer.status == 'review_requested' %}
+        {% if u.is_management or u.is_superuser or u.role == 'hr_admin' %}
+        <form method="post" class="stack" novalidate>{% csrf_token %}
+          <div class="field{% if form.decision.errors %} has-error{% endif %}">
+            <div class="choices choices-1" role="radiogroup" aria-labelledby="dec-h">
+              {% for radio in form.decision %}
+              <label class="choice {% if radio.data.value == 'revise' %}{% elif radio.data.value == 'maintain' %}success{% else %}warning{% endif %}">{{ radio.tag }}
+                <span class="tile">{% if radio.data.value == 'revise' %}{% icon "pencil" %}{% elif radio.data.value == 'maintain' %}{% icon "check" %}{% else %}{% icon "user-round-x" %}{% endif %}</span>
+                <b>{{ radio.choice_label }}</b>
+                <span class="d">{% if radio.data.value == 'revise' %}Send a new version with the salary below.{% elif radio.data.value == 'maintain' %}Keep the offer as it is and let them decide.{% else %}Withdraw and move to the next best candidate.{% endif %}</span>
+              </label>
+              {% endfor %}
+            </div>
+            {% for e in form.decision.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ e }}</span>{% endfor %}
+          </div>
+          {% dsfield form.new_salary %}
+          {% dsfield form.new_benefits %}
+          {% dsfield form.comment %}
+          <button class="btn btn-primary btn-block" type="submit">{% icon "check" "ico-18" %} Record decision</button>
+        </form>
+        {% else %}<div class="all-clear neutral"><span class="tile">{% icon "hourglass" %}</span><div><b>Waiting for management</b><p>You will be notified when a decision is made.</p></div></div>{% endif %}
+      {% else %}
+        <div class="all-clear"><span class="tile green">{% icon "circle-check" %}</span><div><b>{{ offer.get_management_decision_display|default:offer.get_status_display }}</b>{% if offer.management_comment %}<p>{{ offer.management_comment }}</p>{% endif %}</div></div>
+      {% endif %}
+      </div>
+    </section>
+  </aside>
 </div>
+{% endwith %}
 {% endblock %}

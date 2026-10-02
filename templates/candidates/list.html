@@ -1,40 +1,49 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Talent database{% endblock %}
+{% block crumbs %}<span aria-current="page">Talent database</span>{% endblock %}
+{% block primary_action %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-16" %} Upload CVs</a>{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>Talent database</h1><div class="subtitle">{{ total }} candidate{{ total|pluralize }} — everyone who applied, was referred, emailed a CV or dropped a hard copy.</div></div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-primary" href="{% url 'candidates:intake' %}"><i class="bi bi-cloud-arrow-up"></i> Upload CVs</a>
-    <a class="btn btn-outline-primary" href="{% url 'candidates:import' %}"><i class="bi bi-file-earmark-spreadsheet"></i> Import Excel</a>
-    <a class="btn btn-light" href="{% url 'candidates:create' %}"><i class="bi bi-plus"></i> Add manually</a>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Talent</div>
+    <h1>Talent database</h1>
+    <p class="lede">{{ total }} candidate{{ total|pluralize }}: everyone who applied, was referred, emailed a CV or dropped a hard copy.</p>
+    <p class="calm">{% calm_note %}</p>
   </div>
-</div>
-<div class="card mb-3"><div class="card-body py-2">
-  <form class="row g-2" method="get">
-    <div class="col-md-4"><input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Name, email, phone, course or any word in the CV"></div>
-    <div class="col-md-2"><input class="form-control form-control-sm" name="skill" value="{{ filters.skill }}" placeholder="Skill / tool / cert."></div>
-    <div class="col-md-2"><select name="highest_qualification" class="form-select form-select-sm"><option value="">Any qualification</option>{% for v, l in levels %}<option value="{{ v }}" {% if filters.highest_qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><select name="source" class="form-select form-select-sm"><option value="">Any source</option>{% for v, l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-    <div class="col-md-1"><input class="form-control form-control-sm" name="min_exp" value="{{ filters.min_exp }}" placeholder="Min yrs"></div>
-    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Search</button></div>
-  </form>
-</div></div>
-<div class="card"><div class="table-responsive">
-  <table class="table table-hover align-middle">
-    <thead><tr><th>Candidate</th><th>Qualification</th><th class="text-center">Exp.</th><th>Top skills</th><th>Source</th><th class="text-center">Applications</th><th>Added</th></tr></thead>
+  <div class="actions">
+    <a class="btn btn-secondary" href="{% url 'candidates:import' %}">{% icon "file-spreadsheet" "ico-18" %} Import Excel</a>
+    <a class="btn btn-ghost" href="{% url 'candidates:create' %}">{% icon "user-plus" "ico-18" %} Add manually</a>
+  </div>
+</header>
+
+<form class="sheet filters" method="get" role="search" aria-label="Search the talent database">
+  <div class="input-icon f-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Name, email, phone, course or any word in the CV" aria-label="Search"></div>
+  <input class="input" name="skill" value="{{ filters.skill }}" placeholder="Skill, tool or certificate" aria-label="Skill, tool or certificate">
+  <select name="highest_qualification" class="select" aria-label="Qualification"><option value="">Any qualification</option>{% for v, l in levels %}<option value="{{ v }}" {% if filters.highest_qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="source" class="select" aria-label="Source"><option value="">Any source</option>{% for v, l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <input class="input num" name="min_exp" value="{{ filters.min_exp }}" placeholder="Min. years" inputmode="decimal" aria-label="Minimum years of experience">
+  <div class="row"><button class="btn btn-primary" type="submit">{% icon "search" "ico-18" %} Search</button>{% if q or filters.skill or filters.highest_qualification or filters.source or filters.min_exp %}<a class="btn btn-ghost" href="?">Clear</a>{% endif %}</div>
+</form>
+
+<section class="sheet" aria-labelledby="tl-h">
+  <div class="sheet-h"><h2 class="title" id="tl-h">Candidates</h2><span class="count">{{ total }}</span>{% if total > 300 %}<span class="small muted">Showing the first 300. Narrow the search to see more.</span>{% endif %}<span class="spacer"></span>
+    <div class="seg" data-seg role="group" aria-label="Row density"><button type="button" aria-pressed="true" data-set-density="comfortable" data-target="talent-table">{% icon "rows-2" "ico-16" %}<span class="sr-only">Comfortable</span></button><button type="button" aria-pressed="false" data-set-density="compact" data-target="talent-table">{% icon "rows-3" "ico-16" %}<span class="sr-only">Compact</span></button></div></div>
+  {% if candidates %}
+  <div class="table-wrap stack-sm pipe-table" id="talent-table" data-density="comfortable"><table class="table">
+    <thead><tr><th>Candidate</th><th>Qualification</th><th class="num">Experience</th><th>Top skills</th><th>Source</th><th class="num">Vacancies</th></tr></thead>
     <tbody>
     {% for c in candidates %}
-      <tr class="cursor-pointer" onclick="location='{{ c.get_absolute_url }}'">
-        <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ c.initials }}</span><div><a class="fw-semibold" href="{{ c.get_absolute_url }}">{{ c.full_name }}</a><div class="small text-muted">{{ c.email }}{% if c.phone %} · {{ c.phone }}{% endif %}</div></div></div></td>
-        <td class="small">{{ c.qualification_short }}<div class="text-muted">{{ c.course }}</div></td>
-        <td class="text-center">{{ c.years_experience|floatformat:"-1" }}</td>
-        <td>{% for s in c.skills|slice:":3" %}<span class="chip soft">{{ s }}</span>{% endfor %}</td>
-        <td class="small">{{ c.source_short }}{% if c.parse_method == 'ai' %} <i class="bi bi-stars text-success" title="Read by AI"></i>{% endif %}</td>
-        <td class="text-center">{{ c.n_apps }}</td>
-        <td class="small text-muted">{{ c.created_at|date:"d M Y" }}</td>
+      <tr>
+        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a></b><span>{{ c.email|default:c.phone }}</span></div></div></td>
+        <td class="nowrap" data-label="Qualification">{{ c.qualification_short }}<div class="small muted ellip">{{ c.course }}</div></td>
+        <td class="num nowrap" data-label="Experience">{{ c.years_experience|floatformat:"-1" }} yrs</td>
+        <td data-label="Top skills"><div class="tags">{% for s in c.skills|slice:":2" %}<span class="tag">{{ s }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</div></td>
+        <td data-label="Source"><span class="src-cell">{% icon c.source|source_icon "ico-16" %} {{ c.source_short }}{% if c.parse_method == 'ai' %}<span class="ai-mark" data-tip="Read by AI">{% icon "sparkles" "ico-14" label="Read by AI" %}</span>{% endif %}</span><div class="small muted" title="{{ c.created_at|date:'j M Y' }}">Added {{ c.created_at|date:"j M" }}</div></td>
+        <td class="num" data-label="Vacancies">{{ c.n_apps }}</td>
       </tr>
-    {% empty %}<tr><td colspan="7">{% include "partials/_empty.html" with icon="bi-people" text="No candidates found." %}</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div></div>
+    {% endfor %}
+    </tbody></table></div>
+  {% else %}{% url 'candidates:intake' as intake_url %}{% empty_state "No candidates found" "Try fewer words, or upload CVs to grow the database." intake_url "Upload CVs" "Filing cabinet with CV folders" "cloud-upload" %}{% endif %}
+</section>
 {% endblock %}

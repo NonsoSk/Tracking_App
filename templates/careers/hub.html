@@ -1,75 +1,123 @@
-{% extends "public_base.html" %}
-{% load portal %}
+{% extends "ds/public_base.html" %}
+{% load ds portal %}
 {% block title %}My application{% endblock %}
+{% block body_attrs %}{% if offer and offer.status == 'accepted' and app.stage == 'offer' %} data-celebrate="offer-{{ offer.pk }}"{% endif %}{% endblock %}
 {% block content %}
-<div class="mx-auto" style="max-width:860px">
-  <div class="small text-muted">{{ app.reference }}</div>
-  <h1 class="h3 fw-bold">{{ app.requisition.title }}</h1>
-  <p class="text-muted">Hello {{ c.first_name|default:c.full_name }} — this is your private application page. Bookmark it.</p>
+<div class="hub">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">{{ app.reference }} · Your private page</div>
+      <h1>{{ app.requisition.title }}</h1>
+      <p class="lede">Hello {{ c.first_name|default:c.full_name }}. This page is only for you. Bookmark it to follow your application.</p>
+    </div>
+  </header>
 
-  <div class="card mb-3"><div class="card-body">
-    <div class="stepper mb-3">{% for s in steps %}<div class="step {{ s.state }}"><div class="dot"><i class="bi {% if s.state == 'done' %}bi-check-lg{% else %}bi-circle{% endif %}"></i></div>{{ s.label }}</div>{% endfor %}</div>
-    <h2 class="h5 fw-bold mb-1">{{ headline }}</h2><p class="mb-0 text-muted">{{ explanation }}</p>
-  </div></div>
+  <section class="sheet hub-status" aria-labelledby="st-h">
+    <div class="sheet-b pad-top-24 stack-24">
+      <ol class="hub-steps" aria-label="Your progress">
+        {% for s in steps %}<li class="hs {{ s.state }}"{% if s.state == 'current' %} aria-current="step"{% endif %}><span class="dot">{% if s.state == 'done' %}{% icon "check" "ico-14" %}{% endif %}</span><span class="hs-l">{{ s.label }}</span></li>{% endfor %}
+      </ol>
+      <div class="hub-now">
+        <span class="tile {% if app.stage == 'hired' %}gold{% endif %}">{% if app.status == 'rejected' or app.status == 'withdrawn' %}{% icon "circle-x" %}{% elif app.status == 'on_hold' %}{% icon "hourglass" %}{% elif app.stage == 'hired' %}{% icon "trophy" %}{% else %}{% icon "compass" %}{% endif %}</span>
+        <div><h2 class="h3" id="st-h">{{ headline }}</h2><p class="soft">{{ explanation }}</p></div>
+      </div>
+    </div>
+  </section>
 
   {% if interviews %}
-  <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-event"></i> Your interviews</div><div class="list-group list-group-flush">
-    {% for i in interviews %}
-    <div class="list-group-item">
-      <div class="fw-semibold">{{ i.get_round_display }}</div>
-      <div>{{ i.scheduled_at|date:"l d F Y, g:i A" }} · {{ i.duration_minutes }} minutes</div>
-      <div class="small text-muted">{{ i.get_mode_display }}{% if i.mode == 'video' %} · <a href="{{ i.meeting_link }}" target="_blank">join video call</a>{% elif i.location %} · {{ i.location }}{% endif %}</div>
-      {% if i.instructions %}<div class="small mt-1">{{ i.instructions }}</div>{% endif %}
-      {% if i.status == 'scheduled' %}
-        {% if i.candidate_response == 'confirmed' %}<span class="badge text-bg-success mt-2">You confirmed attendance</span>
-        {% else %}
-        <form method="post" action="{% url 'careers:hub_interview' app.token i.pk %}" class="row g-2 mt-1 align-items-center">{% csrf_token %}
-          <div class="col-md-4"><select name="response" class="form-select form-select-sm"><option value="confirmed">I will attend</option><option value="reschedule" {% if i.candidate_response == 'reschedule' %}selected{% endif %}>I need another time</option></select></div>
-          <div class="col-md-6"><input name="note" class="form-control form-control-sm" placeholder="Message (optional)" value="{{ i.candidate_note }}"></div>
-          <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Send</button></div>
-        </form>
-        {% endif %}
-      {% endif %}
+  <section class="sheet" aria-labelledby="iv-h">
+    <div class="sheet-h"><h2 class="title" id="iv-h">Your interviews</h2></div>
+    <div class="sheet-b stack">
+      {% for i in interviews %}
+      <article class="card hub-iv">
+        <div class="iv-when"><span class="iv-d">{{ i.scheduled_at|date:"j" }}</span><span class="iv-m">{{ i.scheduled_at|date:"M" }}</span><span class="iv-t num">{{ i.scheduled_at|time:"H:i" }}</span></div>
+        <div class="stack-8">
+          <b class="hub-iv-t">{{ i.get_round_display }}</b>
+          <p class="soft">{{ i.scheduled_at|date:"l j F Y, g:i A" }} · {{ i.duration_minutes }} minutes</p>
+          <p class="small muted">{% if i.mode == 'video' %}{% icon "video" "ico-14" %}{% elif i.mode == 'phone' %}{% icon "phone" "ico-14" %}{% else %}{% icon "map-pin" "ico-14" %}{% endif %} {{ i.get_mode_display }}{% if i.mode == 'video' and i.meeting_link %} · <a href="{{ i.meeting_link }}" target="_blank" rel="noopener">Join the video call</a>{% elif i.location %} · {{ i.location }}{% endif %}</p>
+          {% if i.instructions %}<p class="foot-note">{% icon "info" "ico-16" %} {{ i.instructions }}</p>{% endif %}
+          {% if i.status == 'scheduled' %}
+            {% if i.candidate_response == 'confirmed' %}<span class="chip success">{% icon "check" "ico-14" %} You confirmed you will attend</span>
+            {% else %}
+            <form method="post" action="{% url 'careers:hub_interview' app.token i.pk %}" class="hub-reply">{% csrf_token %}
+              <div class="seg" role="radiogroup" aria-label="Your answer">
+                <label><input type="radio" name="response" value="confirmed" {% if i.candidate_response != 'reschedule' %}checked{% endif %}><span>{% icon "check" "ico-16" %} I will attend</span></label>
+                <label><input type="radio" name="response" value="reschedule" {% if i.candidate_response == 'reschedule' %}checked{% endif %}><span>{% icon "calendar-clock" "ico-16" %} I need another time</span></label>
+              </div>
+              <input name="note" class="input" placeholder="Message (optional)" value="{{ i.candidate_note }}" aria-label="Message">
+              <button class="btn btn-primary" type="submit">Send</button>
+            </form>
+            {% endif %}
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
     </div>
-    {% endfor %}
-  </div></div>
+  </section>
   {% endif %}
 
   {% if checklist %}
-  <div class="card mb-3"><div class="card-header"><i class="bi bi-folder-check"></i> Documents we need</div>
-    <div class="list-group list-group-flush">
-      {% for row in checklist.rows %}<div class="list-group-item d-flex justify-content-between"><span>{{ row.requirement.get_doc_type_display }}{% if not row.requirement.is_mandatory %} <span class="text-muted small">(optional)</span>{% endif %}{% if row.requirement.note %}<div class="small text-muted">{{ row.requirement.note }}</div>{% endif %}</span>
-        {% if row.document %}<span class="badge text-bg-{% if row.document.status == 'verified' %}success{% elif row.document.status == 'rejected' %}danger{% else %}secondary{% endif %}">{% if row.document.status == 'pending' %}Uploaded — under review{% else %}{{ row.document.get_status_display }}{% endif %}</span>{% else %}<span class="badge text-bg-warning">Needed</span>{% endif %}</div>
-        {% if row.document.status == 'rejected' and row.document.review_note %}<div class="list-group-item small text-danger">Please re-upload: {{ row.document.review_note }}</div>{% endif %}{% endfor %}
+  <section class="sheet" aria-labelledby="doc-h">
+    <div class="sheet-h"><h2 class="title" id="doc-h">Documents we need</h2></div>
+    <div class="sheet-b">
+      <div class="rows">
+      {% for row in checklist.rows %}
+        <div class="doc-row doc-need">
+          {% if row.document.status == 'verified' %}<span class="tile sm green">{% icon "file-check" "ico-16" %}</span>{% elif row.document %}<span class="tile sm">{% icon "file-clock" "ico-16" %}</span>{% else %}<span class="tile sm amber">{% icon "file-plus" "ico-16" %}</span>{% endif %}
+          <div class="pr-t"><b>{{ row.requirement.get_doc_type_display }}{% if not row.requirement.is_mandatory %} <span class="muted">(optional)</span>{% endif %}</b>{% if row.requirement.note %}<span>{{ row.requirement.note }}</span>{% endif %}
+            {% if row.document.status == 'rejected' and row.document.review_note %}<span class="doc-st danger">Please upload again: {{ row.document.review_note }}</span>{% endif %}</div>
+          {% if row.document %}<span class="chip {{ row.document.status|tone:'document' }}">{% if row.document.status == 'pending' %}Under review{% else %}{{ row.document.get_status_display }}{% endif %}</span>{% else %}<span class="chip warning">Needed</span>{% endif %}
+        </div>
+      {% endfor %}
+      </div>
+      <form method="post" enctype="multipart/form-data" action="{% url 'careers:hub_document' app.token %}" class="upload-row hub-upload" data-loading>{% csrf_token %}
+        {% include "ds/components/dropzone.html" with f=doc_form.file title="Drop a document here or" hint="PDF, Word or a clear photo." %}
+        <div class="stack-8 upload-side">{% dsfield doc_form.doc_type %}<button class="btn btn-primary" type="submit">{% icon "upload" "ico-18" %} Upload</button></div>
+      </form>
     </div>
-    <div class="card-body border-top"><form method="post" enctype="multipart/form-data" action="{% url 'careers:hub_document' app.token %}" class="row g-2 align-items-end">{% csrf_token %}
-      <div class="col-md-5">{{ doc_form.doc_type }}</div><div class="col-md-5">{{ doc_form.file }}</div><div class="col-md-2"><button class="btn btn-primary w-100">Upload</button></div></form></div>
-  </div>
+  </section>
   {% endif %}
 
   {% if offer %}
-  <div class="card mb-3 border-success"><div class="card-header"><i class="bi bi-envelope-paper"></i> Your offer</div><div class="card-body">
-    <div class="row mb-3">
-      <div class="col-sm-6"><div class="small-label">Position</div>{{ offer.job_title }}{% if offer.grade %} ({{ offer.grade }}){% endif %}</div>
-      <div class="col-sm-6"><div class="small-label">Annual gross salary</div><span class="fs-5 fw-bold">{{ offer.annual_salary|naira }}</span></div>
-      {% if offer.start_date %}<div class="col-sm-6 mt-2"><div class="small-label">Proposed date of joining</div>{{ offer.start_date|date:"d F Y" }}</div>{% endif %}
-      {% if offer.expires_on %}<div class="col-sm-6 mt-2"><div class="small-label">Respond by</div>{{ offer.expires_on|date:"d F Y" }}</div>{% endif %}
-      {% if offer.benefits %}<div class="col-12 mt-2"><div class="small-label">Benefits</div>{{ offer.benefits|linebreaksbr }}</div>{% endif %}
+  <section class="sheet offer-sheet{% if offer.status == 'accepted' %} is-accepted{% endif %}" aria-labelledby="of-h">
+    <div class="sheet-h"><h2 class="title" id="of-h">Your offer</h2><span class="spacer"></span><span class="chip {{ offer.status|tone:'offer' }}">{{ offer.get_status_display }}</span></div>
+    <div class="sheet-b stack-24">
+      <div class="offer-hero">
+        <div><span class="ro-l">Annual gross salary</span><b class="num">{{ offer.annual_salary|naira }}</b></div>
+        <dl class="facts facts-grid">
+          <div><dt>Position</dt><dd>{{ offer.job_title }}{% if offer.grade %} ({{ offer.grade }}){% endif %}</dd></div>
+          {% if offer.start_date %}<div><dt>Proposed start</dt><dd>{{ offer.start_date|date:"j F Y" }}</dd></div>{% endif %}
+          {% if offer.expires_on %}<div><dt>Respond by</dt><dd>{{ offer.expires_on|date:"j F Y" }}</dd></div>{% endif %}
+        </dl>
+      </div>
+      {% if offer.benefits %}<div><div class="eyebrow muted-eyebrow">Benefits</div><p class="soft">{{ offer.benefits|linebreaksbr }}</p></div>{% endif %}
+      {% if offer.status == 'sent' %}
+      <form method="post" action="{% url 'careers:hub_offer' app.token offer.pk %}" class="stack">{% csrf_token %}
+        <div class="choices" role="radiogroup" aria-label="Your response">
+          {% for radio in offer_form.response %}
+          <label class="choice {% if radio.data.value == 'accept' %}success{% elif radio.data.value == 'review' %}{% else %}warning{% endif %}">{{ radio.tag }}
+            <span class="tile">{% if radio.data.value == 'accept' %}{% icon "circle-check" %}{% elif radio.data.value == 'review' %}{% icon "messages-square" %}{% else %}{% icon "circle-x" %}{% endif %}</span>
+            <b>{{ radio.choice_label }}</b>
+            <span class="d">{% if radio.data.value == 'accept' %}We will start your joining steps.{% elif radio.data.value == 'review' %}Tell us what you expect. Management will review it.{% else %}No hard feelings. We keep your profile for future roles.{% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="form-grid">{% dsfield offer_form.counter_salary "span-2" %}{% dsfield offer_form.comment "span-4" %}</div>
+        <div class="row"><span class="spacer"></span><button class="btn btn-primary btn-lg" type="submit">{% icon "send" "ico-18" %} Send my response</button></div>
+      </form>
+      {% elif offer.status == 'review_requested' %}<div class="banner"><span class="tile">{% icon "hourglass" "ico-18" %}</span><div><b>Your review request is with management</b><span class="small">We will email you as soon as there is a decision.</span></div></div>
+      {% elif offer.status == 'accepted' %}<div class="banner gold"><span class="tile">{% icon "party-popper" "ico-18" %}</span><div><b>You accepted this offer. Congratulations!</b><span class="small">We will be in touch about your joining steps.</span></div></div>{% endif %}
     </div>
-    {% if offer.status == 'sent' %}
-    <form method="post" action="{% url 'careers:hub_offer' app.token offer.pk %}">{% csrf_token %}
-      <div class="d-flex gap-3 flex-wrap mb-2">{% for radio in offer_form.response %}<div class="form-check">{{ radio.tag }}<label class="form-check-label fw-semibold" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label></div>{% endfor %}</div>
-      <div class="row g-2"><div class="col-md-4"><input type="number" name="counter_salary" class="form-control" placeholder="Expected salary (₦) — for review"></div><div class="col-md-8"><input name="comment" class="form-control" placeholder="Comments (optional)"></div></div>
-      <button class="btn btn-success mt-3">Send my response</button>
-    </form>
-    {% elif offer.status == 'review_requested' %}<div class="alert alert-info mb-0">Your review request is with management. We'll email you once there is a decision.</div>
-    {% elif offer.status == 'accepted' %}<div class="alert alert-success mb-0">You accepted this offer. Congratulations!</div>{% endif %}
-  </div></div>
+  </section>
   {% endif %}
 
   {% if medical %}
-  <div class="card mb-3"><div class="card-header"><i class="bi bi-heart-pulse"></i> Pre-employment medical</div><div class="card-body">{{ medical.scheduled_for|date:"l d F Y, g:i A" }} at {{ medical.facility }}{% if medical.notes %}<div class="small text-muted">{{ medical.notes }}</div>{% endif %}</div></div>
+  <section class="sheet" aria-labelledby="md-h">
+    <div class="sheet-h"><h2 class="title" id="md-h">Pre-employment medical</h2></div>
+    <div class="sheet-b"><div class="hub-now"><span class="tile">{% icon "stethoscope" %}</span><div><b>{{ medical.scheduled_for|date:"l j F Y, g:i A" }}</b><p class="soft">{{ medical.facility }}</p>{% if medical.notes %}<p class="small muted">{{ medical.notes }}</p>{% endif %}</div></div></div>
+  </section>
   {% endif %}
-  <p class="small text-muted">Questions? Reply to any email from the HR &amp; A department quoting <strong>{{ app.reference }}</strong>.</p>
+
+  <p class="foot-note">{% icon "mail" "ico-16" %}<span>Questions? Reply to any email from the HR &amp; A department and quote <b>{{ app.reference }}</b>.</span></p>
 </div>
 {% endblock %}

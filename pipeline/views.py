@@ -302,11 +302,14 @@ def my_interviews(request):
         qs = qs.filter(scheduled_at__gte=now - timezone.timedelta(hours=3), status=Interview.Status.SCHEDULED).order_by("scheduled_at")
     else:
         qs = qs.filter(Q(scheduled_at__lt=now) | ~Q(status=Interview.Status.SCHEDULED)).order_by("-scheduled_at")
+    submitted = set(Evaluation.objects.filter(evaluator=user, submitted_at__isnull=False).values_list("application_id", "interview_id"))
     days = {}
     for interview in qs[:200]:
+        interview.is_scored = (interview.application_id, interview.pk) in submitted
+        interview.on_panel = any(p.pk == user.pk for p in interview.panel.all())
         days.setdefault(timezone.localtime(interview.scheduled_at).date(), []).append(interview)
-    submitted = set(Evaluation.objects.filter(evaluator=user, submitted_at__isnull=False).values_list("application_id", "interview_id"))
-    return render(request, "pipeline/interviews.html", {"days": days, "scope": scope, "submitted": submitted})
+    return render(request, "pipeline/interviews.html", {"days": days, "scope": scope, "submitted": submitted,
+                                                         "today": timezone.localdate()})
 
 
 # ---------------------------------------------------------------------------
@@ -561,8 +564,10 @@ def onboarding_detail(request, pk):
             onboarding.save(update_fields=["status"])
         messages.success(request, "Onboarding details saved.")
         return redirect("pipeline:onboarding", pk=pk)
+    just_completed = bool(onboarding.completed_at and (timezone.now() - onboarding.completed_at).total_seconds() < 120)
     return render(request, "pipeline/onboarding_detail.html", {
         "ob": onboarding, "app": onboarding.application, "form": form, "task_form": OnboardingTaskForm(),
+        "celebrate": just_completed,
         "tasks": onboarding.tasks.select_related("done_by"),
         "documents": onboarding.application.candidate.documents.all(),
     })

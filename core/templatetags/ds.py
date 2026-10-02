@@ -433,6 +433,11 @@ STATUS_TONES = {
     "interview": {"scheduled": "", "completed": "success", "cancelled": "neutral", "no_show": "warning"},
     "medical": {"scheduled": "", "fit": "success", "conditional": "warning", "unfit": "danger"},
     "document": {"pending": "neutral", "verified": "success", "rejected": "danger"},
+    "requisition": {"draft": "neutral", "submitted": "warning", "returned": "danger", "pending_management": "warning",
+                    "approved": "brand", "open": "success", "on_hold": "neutral", "filled": "gold", "closed": "neutral",
+                    "cancelled": "neutral"},
+    "employee": {"active": "success", "retired": "neutral", "resigned": "warning", "terminated": "danger",
+                 "transferred": "brand", "deceased": "neutral"},
 }
 
 
@@ -449,3 +454,25 @@ def days_since(moment):
         return ""
     days = max(0, (timezone.now() - moment).days)
     return "Today" if days == 0 else ("1 day" if days == 1 else f"{days} days")
+
+
+@register.filter
+def pct_over(value, base):
+    """'12% above the offer' — how far an ask is from what was offered."""
+    a, b = _number(value), _number(base)
+    if a is None or not b:
+        return ""
+    diff = round((a - b) / b * 100)
+    if diff == 0:
+        return "Same as the offer"
+    return f"{abs(diff)}% {'above' if diff > 0 else 'below'} the offer"
+
+
+@register.filter
+def days_left(day):
+    """Whole days from today until a date (0 = today); None when there is no date."""
+    if not day:
+        return None
+    if hasattr(day, "date") and callable(day.date):
+        day = timezone.localtime(day).date() if timezone.is_aware(day) else day.date()
+    return max(0, (day - timezone.localdate()).days)

@@ -1,3 +1,0 @@
-{% load portal %}
-{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-{% for f in form %}{% if f.is_hidden %}{{ f }}{% else %}{% field f %}{% endif %}{% endfor %}

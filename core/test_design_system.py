@@ -1,6 +1,7 @@
 """Design-system guarantees: AA contrast, vendored assets only, and a working style guide."""
 
 import re
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ from django.conf import settings
 from django.template import Context, Template
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import User
 from core import contrast
@@ -60,6 +62,80 @@ class AssetTests(TestCase):
     def test_theme_is_applied_before_the_stylesheet_loads(self):
         base = (BASE / "templates" / "ds" / "base.html").read_text(encoding="utf-8")
         self.assertLess(base.index("iefcl-theme"), base.index("ds/ds.css"))
+
+
+class MigrationTests(TestCase):
+    """Every screen is on the design system; the old Bootstrap shell is gone for good."""
+
+    BASES = {"ds/base.html", "ds/public_base.html"}
+
+    def test_every_page_extends_a_design_system_base(self):
+        offenders = []
+        for path in (BASE / "templates").rglob("*.html"):
+            text = path.read_text(encoding="utf-8")
+            match = re.search(r'{%\s*extends\s+"([^"]+)"', text)
+            if match and match.group(1) not in self.BASES:
+                offenders.append(f"{path.relative_to(BASE)} extends {match.group(1)}")
+            if re.search(r'bootstrap|data-bs-|class="[^"]*\bbi bi-', text, re.I):
+                offenders.append(f"{path.relative_to(BASE)} still uses Bootstrap")
+        self.assertEqual(offenders, [])
+
+    def test_old_shell_and_assets_are_removed(self):
+        for rel in ("templates/base.html", "templates/public_base.html", "templates/partials", "static/css/app.css",
+                    "static/js/app.js", "static/vendor/bootstrap", "static/vendor/bootstrap-icons", "static/vendor/chartjs"):
+            self.assertFalse((BASE / rel).exists(), rel)
+
+    def test_both_bases_set_the_theme_first_and_load_page_behaviours(self):
+        for name in self.BASES:
+            text = (BASE / "templates" / name).read_text(encoding="utf-8")
+            self.assertLess(text.index("iefcl-theme"), text.index("ds/ds.css"), name)
+            self.assertLess(text.index("ds/ds.js"), text.index("ds/app.js"), name)
+            self.assertIn("data-terms-url", text, name)
+            self.assertIn("ds/_icons.html", text, name)
+
+    def test_public_pages_use_the_design_system(self):
+        for url in (reverse("careers:jobs"), reverse("careers:status"), reverse("accounts:login")):
+            with self.subTest(url=url):
+                html = self.client.get(url).content.decode()
+                self.assertIn("ds/ds.css", html)
+                self.assertNotIn("bootstrap", html.lower())
+        careers = self.client.get(reverse("careers:jobs")).content.decode()
+        self.assertIn("never ask candidates for payment", careers)
+        self.assertIn('class="glass pub-nav"', careers)  # glass only on the bar over the hero
+        self.assertNotIn('class="glass', self.client.get(reverse("careers:status")).content.decode())
+
+    def test_error_pages_render_without_a_signed_in_user(self):
+        from django.template.loader import render_to_string
+
+        request = RequestFactory().get("/missing/")
+        from django.contrib.auth.models import AnonymousUser
+
+        request.user = AnonymousUser()
+        for name in ("403.html", "404.html"):
+            html = render_to_string(name, request=request)
+            self.assertIn("ds/ds.css", html)
+            self.assertIn("Placeholder for 3D render", html)
+
+
+class FilterTests(TestCase):
+    def test_days_left(self):
+        today = timezone.localdate()
+        self.assertEqual(ds.days_left(today), 0)
+        self.assertEqual(ds.days_left(today + timedelta(days=12)), 12)
+        self.assertEqual(ds.days_left(today - timedelta(days=3)), 0)
+        self.assertIsNone(ds.days_left(None))
+
+    def test_pct_over(self):
+        self.assertEqual(ds.pct_over(16800000, 14400000), "17% above the offer")
+        self.assertEqual(ds.pct_over(13000000, 14400000), "10% below the offer")
+        self.assertEqual(ds.pct_over(100, 100), "Same as the offer")
+        self.assertEqual(ds.pct_over(None, 100), "")
+
+    def test_requisition_and_employee_tones(self):
+        self.assertEqual(ds.tone("open", "requisition"), "success")
+        self.assertEqual(ds.tone("filled", "requisition"), "gold")
+        self.assertEqual(ds.tone("returned", "requisition"), "danger")
+        self.assertEqual(ds.tone("retired", "employee"), "neutral")
 
 
 class TagTests(TestCase):

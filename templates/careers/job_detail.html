@@ -1,36 +1,52 @@
-{% extends "public_base.html" %}
+{% extends "ds/public_base.html" %}
+{% load ds %}
 {% block title %}{{ job.title }}{% endblock %}
+{% block description %}{{ job.title }} at {{ COMPANY_NAME }}, {{ job.department }}. {{ job.get_employment_type_display }}{% if job.location %} in {{ job.location }}{% endif %}.{% endblock %}
 {% block content %}
-<a href="{% url 'careers:jobs' %}" class="small"><i class="bi bi-arrow-left"></i> All vacancies</a>
-<div class="row g-4 mt-1">
-  <div class="col-lg-8">
-    <div class="small text-muted">{{ job.department }} · {{ job.reference }}</div>
-    <h1 class="h2 fw-bold">{{ job.title }}</h1>
-    <div class="mb-4"><span class="chip soft"><i class="bi bi-geo-alt"></i> {{ job.location }}</span><span class="chip soft">{{ job.get_employment_type_display }}</span><span class="chip soft">{{ job.get_education_level_display }}+</span>{% if job.min_experience_years %}<span class="chip soft">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
-    <div class="card"><div class="card-body">
-    {% if job.advert %}
-      <div style="white-space: pre-line">{{ job.advert }}</div>
-    {% else %}
-      {% if job.job_description %}<h2 class="h6 fw-bold">About the role</h2><p style="white-space: pre-line">{{ job.job_description }}</p>{% endif %}
-      <h2 class="h6 fw-bold">Requirements</h2>
-      <ul>
-        <li>Minimum of {{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|join:", " }}{% endif %}{% if job.min_degree_class %} ({{ job.get_min_degree_class_display }} or better){% endif %}</li>
-        {% if job.requires_nysc %}<li>NYSC completed or exempted</li>{% endif %}
-        {% if job.min_experience_years %}<li>At least {{ job.min_experience_years }} years of relevant experience</li>{% endif %}
-        {% for s in job.required_skills %}<li>{{ s }}</li>{% endfor %}
-        {% if job.tools %}<li>Working knowledge of {{ job.tools|join:", " }}</li>{% endif %}
-        {% if job.certifications %}<li>Certifications: {{ job.certifications|join:", " }}</li>{% endif %}
-        {% if job.other_requirements %}<li>{{ job.other_requirements }}</li>{% endif %}
-      </ul>
-      {% if job.preferred_skills %}<h2 class="h6 fw-bold">Nice to have</h2><ul>{% for s in job.preferred_skills %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
-    {% endif %}
-    </div></div>
-  </div>
-  <div class="col-lg-4"><div class="card position-sticky" style="top:1rem"><div class="card-body">
-    {% if job.is_accepting_applications %}
-      <a class="btn btn-success btn-lg w-100 mb-2" href="{% url 'careers:apply' job.reference %}">Apply now</a>
-      <p class="small text-muted mb-0">Takes about 5 minutes. Upload your CV and we'll fill most of the form for you.{% if job.closing_date %} Closing date: <strong>{{ job.closing_date|date:"d M Y" }}</strong>.{% endif %}</p>
-    {% else %}<div class="alert alert-secondary mb-0">Applications for this role are closed.</div>{% endif %}
-  </div></div></div>
+<a class="back-link" href="{% url 'careers:jobs' %}">{% icon "arrow-left" "ico-16" %} All vacancies</a>
+<div class="job-layout">
+  <article class="stack-24">
+    <header>
+      <div class="eyebrow">{{ job.department }} · {{ job.reference }}</div>
+      <h1 class="display job-h1">{{ job.title }}</h1>
+      <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span><span class="tag">{{ job.get_education_level_display }}+</span>{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
+    </header>
+    <section class="sheet job-body" aria-label="About this role">
+      <div class="sheet-b pad-top-24">
+      {% if job.advert %}
+        <div class="advert-text-out">{{ job.advert }}</div>
+      {% else %}
+        {% if job.job_description %}<h2 class="h3">About the role</h2><p class="soft pre">{{ job.job_description }}</p>{% endif %}
+        <h2 class="h3">What you need</h2>
+        <ul class="req-list">
+          <li>{% icon "graduation-cap" "ico-18" %}<span>Minimum of {{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|join:", " }}{% endif %}{% if job.min_degree_class %} ({{ job.get_min_degree_class_display }} or better){% endif %}</span></li>
+          {% if job.requires_nysc %}<li>{% icon "badge-check" "ico-18" %}<span>NYSC completed or exempted</span></li>{% endif %}
+          {% if job.min_experience_years %}<li>{% icon "briefcase-business" "ico-18" %}<span>At least {{ job.min_experience_years }} years of relevant experience</span></li>{% endif %}
+          {% for s in job.required_skills %}<li>{% icon "check" "ico-18" %}<span>{{ s }}</span></li>{% endfor %}
+          {% if job.tools %}<li>{% icon "wrench" "ico-18" %}<span>Working knowledge of {{ job.tools|join:", " }}</span></li>{% endif %}
+          {% if job.certifications %}<li>{% icon "award" "ico-18" %}<span>Certifications: {{ job.certifications|join:", " }}</span></li>{% endif %}
+          {% if job.other_requirements %}<li>{% icon "info" "ico-18" %}<span>{{ job.other_requirements }}</span></li>{% endif %}
+        </ul>
+        {% if job.preferred_skills %}<h2 class="h3">Nice to have</h2><div class="tags">{% for s in job.preferred_skills %}<span class="tag dashed">{{ s }}</span>{% endfor %}</div>{% endif %}
+      {% endif %}
+      </div>
+    </section>
+  </article>
+  <aside class="side-sticky">
+    <section class="sheet apply-card" aria-label="Apply">
+      {% if job.is_accepting_applications %}
+        {% if job.closing_date %}{% with d=job.closing_date|days_left %}<div class="countdown big{% if d <= 7 %} soon{% endif %}">{% icon "clock" "ico-18" %} {% if d == 0 %}Closes today{% elif d == 1 %}Closes tomorrow{% else %}{{ d }} days left to apply{% endif %}</div>{% endwith %}{% endif %}
+        <a class="btn btn-primary btn-lg btn-block" href="{% url 'careers:apply' job.reference %}">{% icon "send" "ico-18" %} Apply now</a>
+        <ul class="apply-points">
+          <li>{% icon "timer" "ico-16" %} Takes about 5 minutes</li>
+          <li>{% icon "scan-text" "ico-16" %} Upload your CV and we fill most of the form</li>
+          <li>{% icon "bell" "ico-16" %} Follow your application online</li>
+        </ul>
+        {% if job.closing_date %}<p class="small muted">Closing date: <b>{{ job.closing_date|date:"j F Y" }}</b></p>{% endif %}
+      {% else %}
+        <div class="all-clear neutral"><span class="tile">{% icon "lock" %}</span><div><b>Applications are closed</b><p>See the other open roles.</p></div></div>
+      {% endif %}
+    </section>
+  </aside>
 </div>
 {% endblock %}

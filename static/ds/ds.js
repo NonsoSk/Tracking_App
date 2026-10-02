@@ -369,7 +369,7 @@
     if (e.target.closest("[data-close]")) { var dlg = e.target.closest("dialog"); if (dlg) dlg.close(); return; }
     if (e.target.tagName === "DIALOG") { e.target.close(); return; } /* click on the backdrop */
 
-    var pick = e.target.closest(".pick, .seg[data-seg] > button");
+    var pick = e.target.closest(".pick:not([data-tag-pick]), .seg[data-seg] > button");
     if (pick) {
       if (pick.closest(".seg")) $$("button", pick.parentNode).forEach(function (b) { b.setAttribute("aria-pressed", String(b === pick)); });
       var filterOf = pick.parentNode.dataset && pick.parentNode.dataset.filter;
@@ -496,7 +496,13 @@
     });
     onFirstView($$(".ring[data-animate]"), animateRing);
     onFirstView($$("[data-count-to]"), countUp);
-    if (document.body.hasAttribute("data-celebrate")) setTimeout(confetti, 300);
+    /* data-celebrate="key" celebrates once per browser for that key; a bare data-celebrate always does */
+    var cel = document.body.getAttribute("data-celebrate");
+    if (cel !== null) {
+      var seen = false;
+      try { if (cel) { seen = !!localStorage.getItem("iefcl-celebrated-" + cel); localStorage.setItem("iefcl-celebrated-" + cel, "1"); } } catch (e) { /* private mode */ }
+      if (!seen) setTimeout(confetti, 300);
+    }
     window.addEventListener("resize", function () { $$(".tabs").forEach(moveIndicator); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();

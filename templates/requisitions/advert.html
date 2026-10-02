@@ -1,10 +1,47 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Job advert · {{ req.reference }}{% endblock %}
+{% block crumbs %}<a href="{% url 'requisitions:list' %}">Requisitions</a>{% icon "chevron-right" "ico-14" %}<a href="{{ req.get_absolute_url }}">{{ req.reference }}</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Job advert</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>Job advert</h1><div class="subtitle">{{ req.reference }} · {{ req.title }} — shown on the public careers page.</div></div>
-  <form method="post">{% csrf_token %}<button class="btn btn-success" name="generate" value="1" data-confirm="Replace the current advert text with a new draft?"><i class="bi bi-stars"></i> Draft advert{% if AI_ENABLED %} with AI{% endif %}</button></form></div>
-<div class="card"><div class="card-body">
-  <form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}
-    <button class="btn btn-primary">Save advert</button> <a class="btn btn-light" href="{{ req.get_absolute_url }}">Back</a></form>
-</div></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">{{ req.reference }} · {{ req.department }}</div>
+    <h1>Job advert</h1>
+    <p class="lede">What candidates read on the careers page for {{ req.title }}.</p>
+  </div>
+  <div class="actions">
+    <form method="post">{% csrf_token %}<button class="btn btn-tint" type="submit" name="generate" value="1" data-confirm="Replace the current advert text with a fresh draft?" data-confirm-label="Write a new draft" data-confirm-tone="primary">{% icon "sparkles" "ico-18" %} Draft advert{% if AI_ENABLED %} with AI{% endif %}</button></form>
+  </div>
+</header>
+
+<form method="post" class="advert-grid">{% csrf_token %}
+  <section class="sheet" aria-labelledby="ed-h">
+    <div class="sheet-h"><h2 class="title" id="ed-h">Write</h2><span class="spacer"></span><span class="small muted">Plain text. Blank lines start a new paragraph.</span></div>
+    <div class="sheet-b stack">
+      {% if form.non_field_errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>{{ form.non_field_errors|join:" " }}</b></div></div>{% endif %}
+      <div class="field{% if form.advert.errors %} has-error{% endif %}" id="field-advert">
+        <label class="label" for="{{ form.advert.id_for_label }}">Advert text</label>
+        <textarea name="{{ form.advert.html_name }}" id="{{ form.advert.id_for_label }}" class="textarea advert-text" rows="18" data-preview="advert-preview">{{ form.advert.value|default:"" }}</textarea>
+        {% for e in form.advert.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ e }}</span>{% endfor %}
+      </div>
+      {% dsfield form.closing_date %}
+    </div>
+    <div class="sheet-f row wrap">
+      <a class="btn btn-ghost" href="{{ req.get_absolute_url }}">Back</a><span class="spacer"></span>
+      <button class="btn btn-primary" type="submit">{% icon "save" "ico-18" %} Save advert</button>
+    </div>
+  </section>
+
+  <section class="sheet preview-sheet" aria-labelledby="pv-h">
+    <div class="sheet-h"><h2 class="title" id="pv-h">Preview</h2><span class="spacer"></span><span class="chip outline no-dot">{% icon "globe" "ico-14" %} Careers page</span></div>
+    <div class="sheet-b">
+      <article class="job-preview">
+        <div class="eyebrow">{{ req.department }}</div>
+        <h3>{{ req.title }}</h3>
+        <div class="tags">{% if req.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ req.location }}</span>{% endif %}<span class="tag">{{ req.get_employment_type_display }}</span>{% if req.min_experience_years %}<span class="tag">{{ req.min_experience_years }}+ years</span>{% endif %}</div>
+        <div class="advert-out" id="advert-preview" data-empty="Nothing written yet. Without an advert, the careers page shows the requirements."></div>
+      </article>
+    </div>
+  </section>
+</form>
 {% endblock %}

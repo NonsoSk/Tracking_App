@@ -1,21 +1,59 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Interviews{% endblock %}
+{% block crumbs %}<span aria-current="page">Interviews</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{% if request.user.is_hr %}Interview calendar{% else %}My interviews{% endif %}</h1><div class="subtitle">{% if request.user.is_hr %}All scheduled interviews.{% else %}Interviews where you sit on the panel.{% endif %}</div></div>
-  <div class="btn-group"><a class="btn btn-sm {% if scope == 'upcoming' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?scope=upcoming">Upcoming</a><a class="btn btn-sm {% if scope == 'past' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?scope=past">Past</a></div></div>
-{% for day, items in days.items %}
-  <h2 class="h6 text-muted mt-3">{{ day|date:"l, d F Y" }}</h2>
-  <div class="card mb-2"><div class="list-group list-group-flush">
-  {% for i in items %}
-    <div class="list-group-item d-flex gap-3 align-items-center flex-wrap">
-      <div class="text-center" style="width:64px"><div class="fw-bold text-brand">{{ i.scheduled_at|time:"H:i" }}</div><div class="small text-muted">{{ i.duration_minutes }} min</div></div>
-      <div class="flex-grow-1"><a class="fw-semibold" href="{{ i.application.get_absolute_url }}#interviews">{{ i.application.candidate.full_name }}</a> <span class="badge text-bg-{{ i.status_color }}">{{ i.get_status_display }}</span>
-        <div class="small text-muted">{{ i.get_round_display }} · {{ i.application.requisition.title }} · {{ i.get_mode_display }}{% if i.mode == 'video' %} · <a href="{{ i.meeting_link }}" target="_blank">join</a>{% elif i.location %} · {{ i.location }}{% endif %}</div>
-        <div class="small">Panel: {% for p in i.panel.all %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
-      <div class="d-flex gap-1"><a class="btn btn-sm btn-light" href="{% url 'pipeline:ics' i.pk %}" title="Add to calendar"><i class="bi bi-calendar-plus"></i></a>
-        {% if request.user in i.panel.all and i.status != 'cancelled' %}<a class="btn btn-sm btn-success" href="{% url 'pipeline:evaluate' i.application.pk %}?interview={{ i.pk }}"><i class="bi bi-clipboard-check"></i> Score</a>{% endif %}</div>
+{% with u=request.user %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Interviews</div>
+    <h1>{% if u.is_hr %}Interview calendar{% else %}My interviews{% endif %}</h1>
+    <p class="lede">{% if u.is_hr %}Every scheduled interview, day by day.{% else %}Interviews where you sit on the panel. Score each one when it ends.{% endif %}</p>
+    <p class="calm">{% calm_note %}</p>
+  </div>
+  <div class="actions">
+    <div class="seg" role="group" aria-label="Show">
+      <a href="?scope=upcoming" {% if scope == 'upcoming' %}class="is-on" aria-current="true"{% else %}{% endif %}>{% icon "calendar-clock" "ico-16" %} Upcoming</a>
+      <a href="?scope=past" {% if scope == 'past' %}class="is-on" aria-current="true"{% else %}{% endif %}>{% icon "history" "ico-16" %} Past</a>
     </div>
+  </div>
+</header>
+
+{% if days %}
+<div class="day-groups">
+  {% for day, items in days.items %}
+  <section class="day-group" aria-labelledby="d-{{ day|date:'Ymd' }}">
+    <header class="dg-h">
+      <span class="dg-date{% if day == today %} is-today{% endif %}"><b class="num">{{ day|date:"j" }}</b><span>{{ day|date:"M" }}</span></span>
+      <div><h2 class="h3" id="d-{{ day|date:'Ymd' }}">{% if day == today %}Today{% else %}{{ day|date:"l" }}{% endif %}</h2><p class="small muted">{{ day|date:"l j F Y" }} · {{ items|length }} interview{{ items|length|pluralize }}</p></div>
+    </header>
+    <div class="dg-list">
+      {% for i in items %}
+      <article class="card iv-card phase-{{ i.round }}">
+        <div class="iv-when"><span class="iv-d num">{{ i.scheduled_at|time:"H:i" }}</span><span class="iv-m">{{ i.duration_minutes }} min</span></div>
+        <div class="iv-body">
+          <div class="row wrap"><a class="iv-name" href="{{ i.application.get_absolute_url }}#interviews-tab">{{ i.application.candidate.full_name }}</a><span class="chip {{ i.status|tone:'interview' }}">{{ i.get_status_display }}</span>
+            {% if i.candidate_response == "confirmed" %}<span class="chip success">Confirmed</span>{% elif i.candidate_response == "reschedule" %}<span class="chip warning" title="{{ i.candidate_note }}">Asked to move</span>{% endif %}</div>
+          <p class="small soft">{{ i.get_round_display }} · {{ i.application.requisition.title }}</p>
+          <p class="small muted">{% if i.mode == "video" %}{% icon "video" "ico-14" %}{% elif i.mode == "phone" %}{% icon "phone" "ico-14" %}{% else %}{% icon "map-pin" "ico-14" %}{% endif %} {{ i.get_mode_display }}{% if i.mode == 'video' and i.meeting_link %} · <a href="{{ i.meeting_link }}" target="_blank" rel="noopener">Join link</a>{% elif i.location %} · {{ i.location }}{% endif %}</p>
+          <div class="row">{% with panel=i.panel.all %}{% if panel %}{% avatar_stack panel 4 "sm" %}<span class="small muted">{% for p in panel %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% else %}<span class="small muted">No panel yet</span>{% endif %}{% endwith %}</div>
+        </div>
+        <div class="iv-actions">
+          <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'pipeline:ics' i.pk %}" aria-label="Add to calendar" data-tip="Add to calendar">{% icon "calendar-plus" "ico-16" %}</a>
+          {% if u.is_hr and i.status == 'scheduled' %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'pipeline:edit_interview' i.pk %}" aria-label="Reschedule" data-tip="Reschedule">{% icon "pencil" "ico-16" %}</a>{% endif %}
+          {% if i.on_panel and i.status != 'cancelled' %}
+            {% if i.is_scored %}<a class="btn btn-secondary btn-sm" href="{% url 'pipeline:evaluate' i.application.pk %}?interview={{ i.pk }}">{% icon "circle-check" "ico-16" %} Report sent</a>
+            {% else %}<a class="btn btn-primary btn-sm" href="{% url 'pipeline:evaluate' i.application.pk %}?interview={{ i.pk }}">{% icon "clipboard-check" "ico-16" %} Score</a>{% endif %}
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
   {% endfor %}
-  </div></div>
-{% empty %}<div class="card">{% include "partials/_empty.html" with icon="bi-calendar2-x" text="No interviews to show." %}</div>{% endfor %}
+</div>
+{% else %}
+<div class="sheet">{% if scope == 'upcoming' %}{% empty_state "No interviews coming up" "When an interview is scheduled, it appears here with a calendar invite." object_name="Desk calendar with a pen" %}{% else %}{% empty_state "No past interviews yet" "" object_name="Desk calendar with a pen" %}{% endif %}</div>
+{% endif %}
+{% endwith %}
 {% endblock %}

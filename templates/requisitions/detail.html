@@ -1,212 +1,277 @@
-{% extends "base.html" %}
-{% load static portal humanize %}
+{% extends "ds/base.html" %}
+{% load static ds portal humanize %}
 {% block title %}{{ req.reference }} · {{ req.title }}{% endblock %}
-{% block breadcrumb %}<a href="{% url 'requisitions:list' %}">Requisitions</a> / {{ req.reference }}{% endblock %}
+{% block crumbs %}<a href="{% url 'requisitions:list' %}">Requisitions</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">{{ req.reference }}</span>{% endblock %}
 {% block content %}
 {% with u=request.user %}
-<div class="page-header">
+<header class="page-head">
   <div>
-    <div class="d-flex align-items-center gap-2 flex-wrap"><h1>{{ req.title }}</h1><span class="badge text-bg-{{ req.status_color }}">{{ req.get_status_display }}</span></div>
-    <div class="subtitle">{{ req.reference }} · {{ req.department }} · {{ req.get_employment_type_display }} · {{ req.positions }} position{{ req.positions|pluralize }} · {{ req.get_reason_display }}{% if req.replacing_employee %} ({{ req.replacing_employee.full_name }}){% endif %}</div>
+    <div class="eyebrow">{{ req.reference }} · {{ req.department }}</div>
+    <div class="title-row"><h1>{{ req.title }}</h1><span class="chip {{ req.status|tone:'requisition' }}">{{ req.get_status_display }}</span></div>
+    <p class="lede">{{ req.get_employment_type_display }} · {{ req.positions }} position{{ req.positions|pluralize }} · {{ req.get_reason_display }}{% if req.replacing_employee %} ({{ req.replacing_employee.full_name }}){% endif %}</p>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    {% if u.is_hr or req.is_editable_by_department %}<a class="btn btn-light" href="{% url 'requisitions:edit' req.pk %}"><i class="bi bi-pencil"></i> Edit</a>{% endif %}
+  <div class="actions">
+    {% if u.is_hr or req.is_editable_by_department %}<a class="btn btn-secondary" href="{% url 'requisitions:edit' req.pk %}">{% icon "pencil" "ico-18" %} Edit</a>{% endif %}
     {% if req.is_editable_by_department and u.can_raise_requisition %}
-      <form method="post" action="{% url 'requisitions:action' req.pk 'submit' %}">{% csrf_token %}<button class="btn btn-primary"><i class="bi bi-send"></i> Submit</button></form>
+      <form method="post" action="{% url 'requisitions:action' req.pk 'submit' %}">{% csrf_token %}<button class="btn btn-primary" type="submit">{% icon "send" "ico-18" %} Submit</button></form>
     {% endif %}
     {% if req.status == 'submitted' and u.is_hr or req.status == 'pending_management' and u.is_management %}
-      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#approveModal"><i class="bi bi-check2-circle"></i> Approve</button>
-      <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#returnModal"><i class="bi bi-arrow-return-left"></i> Return</button>
+      <button class="btn btn-secondary" type="button" data-open="return-dlg">{% icon "undo-2" "ico-18" %} Return</button>
+      <button class="btn btn-primary" type="button" data-open="approve-dlg">{% icon "circle-check" "ico-18" %} Approve</button>
     {% endif %}
     {% if u.is_hr %}
-      {% if req.status == 'approved' or req.status == 'on_hold' or req.status == 'closed' %}<button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#publishModal"><i class="bi bi-megaphone"></i> {% if req.status == 'approved' %}Publish vacancy{% else %}Re-open{% endif %}</button>{% endif %}
-      <div class="dropdown"><button class="btn btn-light dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><a class="dropdown-item" href="{% url 'requisitions:advert' req.pk %}"><i class="bi bi-megaphone me-2"></i>Edit job advert</a></li>
-          <li><a class="dropdown-item" href="{% url 'requisitions:export' req.pk %}"><i class="bi bi-file-earmark-excel me-2"></i>Export applicants (Excel)</a></li>
-          <li><form method="post" action="{% url 'requisitions:rescore' req.pk %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-arrow-repeat me-2"></i>Re-score all applicants</button></form></li>
-          <li><hr class="dropdown-divider"></li>
-          {% if req.status == 'open' %}<li><form method="post" action="{% url 'requisitions:action' req.pk 'hold' %}">{% csrf_token %}<button class="dropdown-item">Put on hold</button></form></li>
-          <li><form method="post" action="{% url 'requisitions:action' req.pk 'close' %}">{% csrf_token %}<button class="dropdown-item" data-confirm="Close applications for this vacancy?">Close applications</button></form></li>{% endif %}
-          <li><form method="post" action="{% url 'requisitions:action' req.pk 'cancel' %}">{% csrf_token %}<button class="dropdown-item text-danger" data-confirm="Cancel this requisition?">Cancel requisition</button></form></li>
-        </ul></div>
+      {% if req.status == 'approved' or req.status == 'on_hold' or req.status == 'closed' %}<button class="btn btn-primary" type="button" data-open="publish-dlg">{% icon "megaphone" "ico-18" %} {% if req.status == 'approved' %}Publish vacancy{% else %}Re-open{% endif %}</button>{% endif %}
+      <div class="pop-wrap">
+        <button class="btn btn-secondary btn-icon" type="button" data-popover="req-menu" aria-haspopup="true" aria-expanded="false" aria-label="More actions">{% icon "ellipsis" "ico-18" %}</button>
+        <div class="popover" id="req-menu" hidden>
+          <a class="menu-item" href="{% url 'requisitions:advert' req.pk %}">{% icon "megaphone" "ico-18" %} Edit job advert</a>
+          <a class="menu-item" href="{% url 'requisitions:export' req.pk %}">{% icon "file-spreadsheet" "ico-18" %} Export applicants (Excel)</a>
+          <form method="post" action="{% url 'requisitions:rescore' req.pk %}">{% csrf_token %}<button class="menu-item" type="submit">{% icon "refresh-cw" "ico-18" %} Re-score all applicants</button></form>
+          <hr>
+          {% if req.status == 'open' %}
+          <form method="post" action="{% url 'requisitions:action' req.pk 'hold' %}">{% csrf_token %}<button class="menu-item" type="submit">{% icon "pause" "ico-18" %} Put on hold</button></form>
+          <form method="post" action="{% url 'requisitions:action' req.pk 'close' %}">{% csrf_token %}<button class="menu-item" type="submit" data-confirm="Close applications for this vacancy? It comes off the careers page." data-confirm-label="Close applications">{% icon "lock" "ico-18" %} Close applications</button></form>
+          {% endif %}
+          <form method="post" action="{% url 'requisitions:action' req.pk 'cancel' %}">{% csrf_token %}<button class="menu-item danger" type="submit" data-confirm="Cancel this requisition? Candidates stay in the talent database." data-confirm-label="Cancel requisition">{% icon "ban" "ico-18" %} Cancel requisition</button></form>
+        </div>
+      </div>
     {% elif u.is_department_user and req.raised_by_id == u.pk and req.status in 'draft,returned,submitted' %}
-      <form method="post" action="{% url 'requisitions:action' req.pk 'cancel' %}">{% csrf_token %}<button class="btn btn-outline-danger" data-confirm="Cancel this requisition?">Cancel</button></form>
+      <form method="post" action="{% url 'requisitions:action' req.pk 'cancel' %}">{% csrf_token %}<button class="btn btn-ghost" type="submit" data-confirm="Cancel this requisition?" data-confirm-label="Cancel requisition">{% icon "ban" "ico-18" %} Cancel request</button></form>
     {% endif %}
   </div>
-</div>
+</header>
 
 {% if req.status == 'open' %}
-<div class="alert alert-success d-flex align-items-center gap-2 py-2"><i class="bi bi-broadcast"></i><div class="flex-grow-1">Live on the careers page{% if req.closing_date %} until {{ req.closing_date|date:"d M Y" }}{% endif %}: <a href="{{ careers_url }}" target="_blank">{{ careers_url }}</a></div></div>
+<div class="banner success"><span class="tile">{% icon "radio-tower" "ico-18" %}</span>
+  <div><b>Live on the careers page{% if req.closing_date %} until {{ req.closing_date|date:"j M Y" }}{% endif %}</b><span class="small">Share this link with candidates or on job boards.</span></div>
+  <div class="copy-field live-link"><input class="input" value="{{ careers_url }}" readonly aria-label="Careers page link"><button class="btn btn-secondary btn-sm" type="button" data-copy="{{ careers_url }}">{% icon "copy" "ico-16" %} Copy</button><a class="btn btn-ghost btn-sm" href="{{ careers_url }}" target="_blank" rel="noopener">{% icon "external-link" "ico-16" %} View</a></div>
+</div>
 {% elif req.status == 'returned' %}
-<div class="alert alert-danger py-2"><i class="bi bi-arrow-return-left"></i> Returned for changes — see Messages below, edit, then submit again.</div>
+<div class="banner danger"><span class="tile">{% icon "undo-2" "ico-18" %}</span>
+  <div><b>Returned for changes</b><span class="small">Read the note in Messages, edit the request, then submit it again.</span></div>
+  <a class="btn btn-secondary btn-sm" href="#messages">Read messages</a>
+</div>
+{% elif req.status == 'submitted' or req.status == 'pending_management' %}
+<div class="banner warning"><span class="tile">{% icon "hourglass" "ico-18" %}</span>
+  <div><b>{% if req.status == 'submitted' %}Waiting for the hiring team{% else %}Waiting for management approval{% endif %}</b><span class="small">Everyone involved is notified as soon as it moves.</span></div>
+</div>
+{% elif req.status == 'filled' %}
+<div class="banner gold"><span class="tile">{% icon "trophy" "ico-18" %}</span><div><b>All {{ req.positions }} position{{ req.positions|pluralize }} filled</b><span class="small">Well done. This vacancy is complete.</span></div></div>
 {% endif %}
 
-<div class="row g-3 mb-3">
-  <div class="col-6 col-lg-3"><div class="card kpi"><div class="kpi-icon tone-blue"><i class="bi bi-inbox"></i></div><div><div class="kpi-value">{{ total_apps }}</div><div class="kpi-label">Applicants</div></div></div></div>
-  <div class="col-6 col-lg-3"><div class="card kpi"><div class="kpi-icon tone-green"><i class="bi bi-star"></i></div><div><div class="kpi-value">{{ grade_counts.A|default:0 }}</div><div class="kpi-label">Strong matches (A)</div></div></div></div>
-  <div class="col-6 col-lg-3"><div class="card kpi"><div class="kpi-icon tone-purple"><i class="bi bi-people"></i></div><div><div class="kpi-value">{{ counts.interview|default:0 }}</div><div class="kpi-label">In interviews</div></div></div></div>
-  <div class="col-6 col-lg-3"><div class="card kpi"><div class="kpi-icon tone-amber"><i class="bi bi-trophy"></i></div><div><div class="kpi-value">{{ req.hired_count }} / {{ req.positions }}</div><div class="kpi-label">Positions filled</div></div></div></div>
+<div class="kpi-row">
+  {% kpi "Applicants" total_apps "inbox" %}
+  {% kpi "Strong matches (A)" grade_counts.A|default:0 "star" %}
+  {% kpi "In interviews" counts.interview|default:0 "users" %}
+  {% with filled=req.hired_count %}<div class="card kpi"><div class="kpi-top"><span class="tile sm{% if filled >= req.positions %} gold{% endif %}">{% icon "trophy" "ico-18" %}</span><span>Positions filled</span></div><div class="kpi-num">{{ filled }}<small> / {{ req.positions }}</small></div></div>{% endwith %}
 </div>
 
-<ul class="nav nav-tabs mb-3" role="tablist">
-  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-candidates" type="button"><i class="bi bi-list-ol"></i> Ranked candidates</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-board" type="button"><i class="bi bi-kanban"></i> Pipeline board</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-requirements" type="button"><i class="bi bi-list-check"></i> Requirements</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-interviews" type="button"><i class="bi bi-calendar-event"></i> Interviews <span class="badge text-bg-light">{{ interviews|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-messages" type="button" id="messages"><i class="bi bi-chat-dots"></i> Messages <span class="badge text-bg-light">{{ notes|length }}</span></button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-activity" type="button"><i class="bi bi-clock-history"></i> Activity</button></li>
-</ul>
+<div class="tabs profile-tabs" role="tablist" aria-label="Requisition" data-hash>
+  <button role="tab" type="button" id="t-candidates" aria-controls="candidates" aria-selected="true">{% icon "list-ordered" "ico-18" %} Ranked candidates <span class="count-badge">{{ applications|length }}</span></button>
+  <button role="tab" type="button" id="t-board" aria-controls="board" aria-selected="false" tabindex="-1">{% icon "square-kanban" "ico-18" %} Board</button>
+  <button role="tab" type="button" id="t-requirements" aria-controls="requirements" aria-selected="false" tabindex="-1">{% icon "list-checks" "ico-18" %} Requirements</button>
+  <button role="tab" type="button" id="t-interviews" aria-controls="interviews" aria-selected="false" tabindex="-1">{% icon "calendar-days" "ico-18" %} Interviews <span class="count-badge">{{ interviews|length }}</span></button>
+  <button role="tab" type="button" id="t-messages" aria-controls="messages" aria-selected="false" tabindex="-1">{% icon "messages-square" "ico-18" %} Messages <span class="count-badge">{{ notes|length }}</span></button>
+  <button role="tab" type="button" id="t-activity" aria-controls="activity" aria-selected="false" tabindex="-1">{% icon "history" "ico-18" %} Activity</button>
+</div>
 
-<div class="tab-content">
-  <!-- Ranked candidates -->
-  <div class="tab-pane fade show active" id="tab-candidates">
-    <div class="card">
-      <div class="card-header d-flex flex-wrap gap-2 align-items-center">
-        <form class="d-flex gap-2 flex-wrap" method="get">
-          <select name="stage" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">All stages</option>{% for s in stages %}<option value="{{ s.value }}" {% if stage_filter == s.value %}selected{% endif %}>{{ s.label }} ({{ counts|get_item:s.value|default:0 }})</option>{% endfor %}</select>
-          <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="open" {% if status_filter == 'open' %}selected{% endif %}>Active &amp; on hold</option><option value="" {% if not status_filter %}selected{% endif %}>All statuses</option><option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option><option value="on_hold" {% if status_filter == 'on_hold' %}selected{% endif %}>On hold</option><option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option><option value="withdrawn" {% if status_filter == 'withdrawn' %}selected{% endif %}>Withdrawn</option><option value="hired" {% if status_filter == 'hired' %}selected{% endif %}>Hired</option></select>
-        </form>
-        {% if u.is_hr %}
-        <form class="d-flex gap-2 ms-auto align-items-center" method="post" action="{% url 'requisitions:auto_shortlist' req.pk %}">{% csrf_token %}
-          <span class="small text-muted">Auto-shortlist score ≥</span><input type="number" class="form-control form-control-sm" name="threshold" value="{{ threshold }}" style="width:70px" min="0" max="100">
-          <span class="small text-muted">top</span><input type="number" class="form-control form-control-sm" name="top_n" placeholder="all" style="width:65px" min="1">
-          <button class="btn btn-sm btn-success"><i class="bi bi-magic"></i> Shortlist</button>
-        </form>
-        {% endif %}
-      </div>
-      <form method="post" action="{% url 'requisitions:bulk' req.pk %}">{% csrf_token %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle">
-          <thead><tr>{% if u.is_hr %}<th style="width:28px"><input type="checkbox" class="form-check-input" data-select-all="selected"></th>{% endif %}<th>#</th><th>Candidate</th><th>Match</th><th>Qualification</th><th class="text-center">Exp.</th><th>Skills matched</th><th>Stage</th><th>Source</th></tr></thead>
-          <tbody>
-          {% for a in applications %}
-            {% with comps=a.match_breakdown.components %}
-            <tr>
-              {% if u.is_hr %}<td><input type="checkbox" class="form-check-input" name="selected" value="{{ a.pk }}"></td>{% endif %}
-              <td class="text-muted small">{{ forloop.counter }}</td>
-              <td><div class="d-flex align-items-center gap-2"><span class="avatar">{{ a.candidate.initials }}</span><div><a class="fw-semibold" href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a><div class="small text-muted">{{ a.candidate.current_job_title|default:a.candidate.email|truncatechars:38 }}</div></div></div></td>
-              <td>{% score_pill a.match_score a.match_grade %}{% if a.match_breakdown.flags %}<div class="small text-danger mt-1" title="{{ a.match_breakdown.flags|join:'; ' }}"><i class="bi bi-flag"></i> {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</div>{% endif %}</td>
-              <td class="small">{{ a.candidate.qualification_short }}{% if a.candidate.degree_class_short %} · {{ a.candidate.degree_class_short }}{% endif %}<div class="text-muted">{{ a.candidate.course|truncatechars:28 }}</div></td>
-              <td class="text-center">{{ a.candidate.years_experience|floatformat:"-1" }}</td>
-              <td class="small">{% with sk=comps.skills %}{% if sk %}{{ sk.detail }}{% else %}—{% endif %}{% endwith %}</td>
-              <td><span class="stage-badge"><i class="bi {{ a.stage_icon }}"></i> {{ a.get_stage_display }}</span>{% if a.status != 'active' %} <span class="badge text-bg-{{ a.status_color }}">{{ a.get_status_display }}</span>{% endif %}</td>
-              <td class="small text-muted">{{ a.candidate.source_short }}</td>
-            </tr>
-            {% endwith %}
-          {% empty %}<tr><td colspan="9">{% include "partials/_empty.html" with icon="bi-person-lines-fill" text="No candidates here yet. Applications from the careers page, referrals and uploaded CVs appear automatically." %}</td></tr>{% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% if u.is_hr and applications %}
-      <div class="card-footer d-flex gap-2 align-items-center flex-wrap bg-white">
-        <span class="small text-muted">With selected:</span>
-        <select name="bulk_action" class="form-select form-select-sm" style="width:auto"><option value="shortlist">Shortlist</option><option value="hold">Put on hold</option><option value="reject">Reject</option></select>
-        <div class="form-check small"><input class="form-check-input" type="checkbox" name="email" id="bulk-email"><label class="form-check-label" for="bulk-email">Send regret email when rejecting</label></div>
-        <button class="btn btn-sm btn-primary">Apply</button>
-      </div>
-      {% endif %}
+{# ======================= Ranked candidates ======================= #}
+<div role="tabpanel" id="candidates" aria-labelledby="t-candidates" class="tab-body">
+  <section class="sheet" aria-label="Ranked candidates">
+    <div class="sheet-h rank-tools">
+      <form class="row wrap" method="get" aria-label="Filter candidates">
+        <select name="stage" class="select select-sm" aria-label="Stage" data-autosubmit><option value="">All stages</option>{% for s in stages %}<option value="{{ s.value }}" {% if stage_filter == s.value %}selected{% endif %}>{{ s.label }} ({{ counts|get_item:s.value|default:0 }})</option>{% endfor %}</select>
+        <select name="status" class="select select-sm" aria-label="Status" data-autosubmit><option value="open" {% if status_filter == 'open' %}selected{% endif %}>Active &amp; on hold</option><option value="" {% if not status_filter %}selected{% endif %}>All statuses</option><option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option><option value="on_hold" {% if status_filter == 'on_hold' %}selected{% endif %}>On hold</option><option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option><option value="withdrawn" {% if status_filter == 'withdrawn' %}selected{% endif %}>Withdrawn</option><option value="hired" {% if status_filter == 'hired' %}selected{% endif %}>Hired</option></select>
+        <noscript><button class="btn btn-secondary btn-sm" type="submit">Filter</button></noscript>
       </form>
+      {% if u.is_hr %}
+      <span class="spacer"></span>
+      <form class="auto-sl" method="post" action="{% url 'requisitions:auto_shortlist' req.pk %}">{% csrf_token %}
+        <span class="tile sm">{% icon "wand-sparkles" "ico-16" %}</span>
+        <label for="sl-threshold">Shortlist everyone scoring at least</label>
+        <input id="sl-threshold" type="number" class="input input-sm num" name="threshold" value="{{ threshold }}" min="0" max="100">
+        <label for="sl-top">top</label>
+        <input id="sl-top" type="number" class="input input-sm num" name="top_n" placeholder="all" min="1">
+        <button class="btn btn-tint btn-sm" type="submit">Shortlist</button>
+      </form>
+      {% endif %}
     </div>
-  </div>
+    <form method="post" action="{% url 'requisitions:bulk' req.pk %}">{% csrf_token %}
+    {% if applications %}
+    <div class="table-wrap stack-sm rank-table"><table class="table">
+      <thead><tr>{% if u.is_hr %}<th class="cb"><input type="checkbox" class="form-check-input" data-select-all="selected" aria-label="Select all"></th>{% endif %}<th class="num">#</th><th>Candidate</th><th>Match</th><th>Background</th><th>Skills matched</th><th>Stage</th></tr></thead>
+      <tbody>
+      {% for a in applications %}{% with comps=a.match_breakdown.components c=a.candidate %}
+        <tr>
+          {% if u.is_hr %}<td class="cb"><input type="checkbox" class="form-check-input" name="selected" value="{{ a.pk }}" aria-label="Select {{ c.full_name }}"></td>{% endif %}
+          <td class="num muted hide-sm">{{ forloop.counter }}</td>
+          <td><div class="who">{% avatar c "sm" %}<div><b><a href="{{ a.get_absolute_url }}">{{ c.full_name }}</a></b><span>{{ c.current_job_title|default:c.email|truncatechars:38 }}</span></div></div></td>
+          <td data-label="Match"><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}{% if a.match_breakdown.flags %}<span class="flag" title="{{ a.match_breakdown.flags|join:'; ' }}">{% icon "flag" "ico-14" %} {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</span>{% endif %}</span></div></td>
+          <td data-label="Background">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %} · {{ c.years_experience|floatformat:"-1" }} yrs<div class="small muted">{{ c.course|truncatechars:30 }}</div></td>
+          <td class="small" data-label="Skills matched">{% with sk=comps.skills %}{% if sk %}{{ sk.detail }}{% else %}<span class="muted">—</span>{% endif %}{% endwith %}</td>
+          <td data-label="Stage">{% status_chip a %}<div class="small muted src">{% icon c.source|source_icon "ico-14" %} {{ c.source_short }}</div></td>
+        </tr>
+      {% endwith %}{% endfor %}
+      </tbody></table></div>
+    {% if u.is_hr %}
+    <div class="sheet-f bulk-bar" data-bulk-bar>
+      <b class="small" data-selected-count>None selected</b>
+      <select name="bulk_action" class="select select-sm" aria-label="Action for selected"><option value="shortlist">Shortlist</option><option value="hold">Put on hold</option><option value="reject">Reject</option></select>
+      <label class="check small"><input type="checkbox" name="email"> Send a regret email when rejecting</label>
+      <span class="spacer"></span>
+      <button class="btn btn-primary btn-sm" type="submit" data-needs-selection>Apply to selected</button>
+    </div>
+    {% endif %}
+    {% else %}
+      {% empty_state "No candidates here yet" "Applications from the careers page, referrals and uploaded CVs appear here automatically, ranked by match." object_name="Stack of CV folders" %}
+    {% endif %}
+    </form>
+  </section>
+</div>
 
-  <!-- Board -->
-  <div class="tab-pane fade" id="tab-board">
-    <p class="small text-muted">{% if u.is_hr %}Drag a card to move a candidate to another stage. Notifications and emails are sent automatically where needed.{% else %}Live view of where each candidate is.{% endif %}</p>
-    <div class="board">
-      {% for stage, cards in board %}
-      <div class="board-col">
-        <div class="board-col-head"><i class="bi {{ STAGE_ICONS|get_item:stage.value }}"></i> {{ stage.label }} <span class="count">{{ cards|length }}</span></div>
-        <div class="board-list" data-stage="{{ stage.value }}" data-readonly="{% if u.is_hr %}0{% else %}1{% endif %}">
-          {% for a in cards %}
-          <div class="board-card {% if a.status == 'on_hold' %}on-hold{% endif %}" data-move-url="{% url 'pipeline:move' a.pk %}">
-            <div class="d-flex justify-content-between align-items-start gap-2"><a class="name" href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a>{% score_pill a.match_score a.match_grade %}</div>
-            <div class="small text-muted">{{ a.candidate.course|default:a.candidate.current_job_title|truncatechars:32 }}</div>
-            {% if a.status == 'on_hold' %}<span class="badge text-bg-warning mt-1">On hold</span>{% endif %}
+{# ======================= Board ======================= #}
+<div role="tabpanel" id="board" aria-labelledby="t-board" class="tab-body" hidden>
+  <p class="board-hint">{% if u.is_hr %}{% icon "grip-vertical" "ico-16" %} Drag a card to move someone to another stage. Emails and notifications go out on their own where needed.{% else %}{% icon "eye" "ico-16" %} A live view of where each candidate is.{% endif %}</p>
+  <div class="board pipeline-board" data-board{% if not u.is_hr %} data-readonly{% endif %}>
+    {% for stage, cards in board %}
+    <section class="kcol" aria-labelledby="col-{{ stage.value }}">
+      <div class="kcol-h"><span id="col-{{ stage.value }}">{{ stage.label }}</span><span class="count-badge" data-count>{{ cards|length }}</span></div>
+      <div class="kcol-list" data-stage="{{ stage.value }}" data-label="{{ stage.label }}">
+        {% for a in cards %}
+        <a class="card kcard" href="{{ a.get_absolute_url }}" data-move-url="{% url 'pipeline:move' a.pk %}" data-name="{{ a.candidate.full_name }}">
+          <div class="kc-top">
+            {% avatar a.candidate "sm" %}
+            <div class="kc-id"><b>{{ a.candidate.full_name }}</b><span>{{ a.candidate.course|default:a.candidate.current_job_title|default:"—" }}</span></div>
+            {% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}
           </div>
-          {% endfor %}
-        </div>
+          <div class="ft">
+            {% if a.status == "on_hold" %}<span class="chip warning">On hold</span>{% elif a.status == "hired" %}<span class="chip gold">Hired</span>{% else %}{% for t in a.key_tags|slice:":1" %}<span class="tag" title="Matched: {{ t }}">{{ t }}</span>{% endfor %}{% endif %}
+            {% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}" title="Panel score">{{ a.panel.percentage|floatformat:"0" }}%</span>{% endif %}
+            <span class="age {{ a.days_tone }}" title="{{ a.days_in_stage }} day{{ a.days_in_stage|pluralize }} in this stage">{{ a.days_in_stage }}d</span>
+          </div>
+        </a>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
+      <p class="kcol-empty">{% if u.is_hr %}Drop here{% else %}No one here{% endif %}</p>
+    </section>
+    {% endfor %}
   </div>
+</div>
 
-  <!-- Requirements -->
-  <div class="tab-pane fade" id="tab-requirements">
-    <div class="row g-3">
-      <div class="col-lg-7"><div class="card"><div class="card-body">
-        <div class="row small mb-3">
-          <div class="col-sm-4 mb-2"><div class="small-label">Experience</div>{{ req.min_experience_years }}{% if req.max_experience_years %}–{{ req.max_experience_years }}{% else %}+{% endif %} years</div>
-          <div class="col-sm-4 mb-2"><div class="small-label">Minimum qualification</div>{{ req.get_education_level_display }}</div>
-          <div class="col-sm-4 mb-2"><div class="small-label">Location</div>{{ req.location }}</div>
-          {% if req.min_degree_class %}<div class="col-sm-4 mb-2"><div class="small-label">Minimum class</div>{{ req.get_min_degree_class_display }}</div>{% endif %}
-          {% if req.requires_nysc %}<div class="col-sm-4 mb-2"><div class="small-label">NYSC</div>Completed / exempted</div>{% endif %}
-        </div>
-        <div class="small-label">Accepted courses</div><div class="mb-3">{% for t in req.courses %}<span class="chip">{{ t }}</span>{% empty %}<span class="text-muted small">Any</span>{% endfor %}</div>
-        <div class="small-label">Required skills</div><div class="mb-3">{% for t in req.required_skills %}<span class="chip">{{ t }}</span>{% empty %}<span class="text-muted small">None specified</span>{% endfor %}</div>
-        {% if req.preferred_skills %}<div class="small-label">Nice to have</div><div class="mb-3">{% for t in req.preferred_skills %}<span class="chip soft">{{ t }}</span>{% endfor %}</div>{% endif %}
-        <div class="small-label">Tools / software</div><div class="mb-3">{% for t in req.tools %}<span class="chip">{{ t }}</span>{% empty %}<span class="text-muted small">None specified</span>{% endfor %}</div>
-        <div class="small-label">Certifications</div><div class="mb-3">{% for t in req.certifications %}<span class="chip">{{ t }}</span>{% empty %}<span class="text-muted small">None specified</span>{% endfor %}</div>
-        {% if req.other_requirements %}<div class="small-label">Other</div><p class="small">{{ req.other_requirements|linebreaksbr }}</p>{% endif %}
-      </div></div></div>
-      <div class="col-lg-5">
-        <div class="card mb-3"><div class="card-body small">
-          <div class="small-label">Raised by</div><p>{{ req.raised_by.display_name|default:"—" }} · {{ req.created_at|date:"d M Y" }}</p>
-          <div class="small-label">Assigned recruiter</div><p>{{ req.hr_owner.display_name|default:"Not assigned" }}</p>
-          {% if req.approved_by %}<div class="small-label">Approved</div><p>{{ req.approved_by.display_name }} · {{ req.approved_at|date:"d M Y" }}</p>{% endif %}
-          {% if req.target_start_date %}<div class="small-label">Target start</div><p>{{ req.target_start_date|date:"d M Y" }}</p>{% endif %}
-          {% if req.justification %}<div class="small-label">Justification</div><p>{{ req.justification|linebreaksbr }}</p>{% endif %}
-          {% if req.job_description %}<div class="small-label">Job description</div><p class="mb-0">{{ req.job_description|linebreaksbr }}</p>{% endif %}
-        </div></div>
+{# ======================= Requirements ======================= #}
+<div role="tabpanel" id="requirements" aria-labelledby="t-requirements" class="tab-body" hidden>
+  <div class="split">
+    <section class="sheet" aria-labelledby="rq-h">
+      <div class="sheet-h"><h2 class="title" id="rq-h">What we are looking for</h2><span class="spacer"></span><span class="small muted">{% icon "info" "ico-14" %} Every applicant is scored against these</span></div>
+      <div class="sheet-b stack-24">
+        <dl class="facts facts-grid">
+          <div><dt>Experience</dt><dd>{{ req.min_experience_years }}{% if req.max_experience_years %}–{{ req.max_experience_years }}{% else %}+{% endif %} years</dd></div>
+          <div><dt>Minimum qualification</dt><dd>{{ req.get_education_level_display }}</dd></div>
+          <div><dt>Location</dt><dd>{{ req.location|default:"—" }}</dd></div>
+          {% if req.min_degree_class %}<div><dt>Minimum class</dt><dd>{{ req.get_min_degree_class_display }}</dd></div>{% endif %}
+          {% if req.requires_nysc %}<div><dt>NYSC</dt><dd>Completed or exempted</dd></div>{% endif %}
+          {% if req.grade %}<div><dt>Grade</dt><dd>{{ req.grade }}</dd></div>{% endif %}
+        </dl>
+        <div class="term-group"><div class="eyebrow muted-eyebrow">Accepted courses</div><div class="tags">{% for t in req.courses %}<span class="tag">{{ t }}</span>{% empty %}<span class="small muted">Any course</span>{% endfor %}</div></div>
+        <div class="term-group"><div class="eyebrow muted-eyebrow">Required skills</div><div class="tags">{% for t in req.required_skills %}<span class="tag on">{{ t }}</span>{% empty %}<span class="small muted">None specified</span>{% endfor %}</div></div>
+        {% if req.preferred_skills %}<div class="term-group"><div class="eyebrow muted-eyebrow">Nice to have</div><div class="tags">{% for t in req.preferred_skills %}<span class="tag dashed">{{ t }}</span>{% endfor %}</div></div>{% endif %}
+        <div class="term-group"><div class="eyebrow muted-eyebrow">Tools and software</div><div class="tags">{% for t in req.tools %}<span class="tag">{{ t }}</span>{% empty %}<span class="small muted">None specified</span>{% endfor %}</div></div>
+        <div class="term-group"><div class="eyebrow muted-eyebrow">Certifications</div><div class="tags">{% for t in req.certifications %}<span class="tag">{{ t }}</span>{% empty %}<span class="small muted">None specified</span>{% endfor %}</div></div>
+        {% if req.other_requirements %}<div class="term-group"><div class="eyebrow muted-eyebrow">Other</div><p class="small soft">{{ req.other_requirements|linebreaksbr }}</p></div>{% endif %}
       </div>
-    </div>
+    </section>
+    <section class="sheet" aria-labelledby="ab-h">
+      <div class="sheet-h"><h2 class="title" id="ab-h">About this request</h2></div>
+      <div class="sheet-b">
+        <dl class="facts">
+          <div><dt>Raised by</dt><dd>{{ req.raised_by.display_name|default:"—" }} · {{ req.created_at|date:"j M Y" }}</dd></div>
+          <div><dt>Recruiter</dt><dd>{{ req.hr_owner.display_name|default:"Not assigned yet" }}</dd></div>
+          {% if req.approved_by %}<div><dt>Approved</dt><dd>{{ req.approved_by.display_name }} · {{ req.approved_at|date:"j M Y" }}</dd></div>{% endif %}
+          {% if req.target_start_date %}<div><dt>Target start</dt><dd>{{ req.target_start_date|date:"j M Y" }}</dd></div>{% endif %}
+          {% if req.justification %}<div><dt>Why this hire is needed</dt><dd>{{ req.justification|linebreaksbr }}</dd></div>{% endif %}
+          {% if req.job_description %}<div><dt>Job description</dt><dd>{{ req.job_description|linebreaksbr }}</dd></div>{% endif %}
+        </dl>
+      </div>
+    </section>
   </div>
+</div>
 
-  <!-- Interviews -->
-  <div class="tab-pane fade" id="tab-interviews">
-    <div class="card"><div class="table-responsive"><table class="table align-middle">
+{# ======================= Interviews ======================= #}
+<div role="tabpanel" id="interviews" aria-labelledby="t-interviews" class="tab-body" hidden>
+  <section class="sheet" aria-label="Interviews">
+    {% if interviews %}
+    <div class="table-wrap stack-sm"><table class="table">
       <thead><tr><th>When</th><th>Candidate</th><th>Phase</th><th>Where</th><th>Panel</th><th>Status</th></tr></thead>
       <tbody>
       {% for i in interviews %}
-        <tr><td class="small fw-semibold">{{ i.scheduled_at|date:"D d M Y, H:i" }}</td><td><a href="{{ i.application.get_absolute_url }}">{{ i.application.candidate.full_name }}</a></td><td class="small">{{ i.get_round_display }}</td><td class="small">{{ i.get_mode_display }}{% if i.mode == 'video' %} · <a href="{{ i.meeting_link }}" target="_blank">link</a>{% elif i.location %} · {{ i.location }}{% endif %}</td>
-          <td class="small">{% for p in i.panel.all %}{{ p.display_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
-          <td><span class="badge text-bg-{{ i.status_color }}">{{ i.get_status_display }}</span>{% if i.candidate_response %} <span class="badge text-bg-light">{{ i.get_candidate_response_display }}</span>{% endif %}</td></tr>
-      {% empty %}<tr><td colspan="6">{% include "partials/_empty.html" with icon="bi-calendar" text="No interviews scheduled yet." %}</td></tr>{% endfor %}
-      </tbody></table></div></div>
-  </div>
-
-  <!-- Messages -->
-  <div class="tab-pane fade" id="tab-messages">
-    <div class="card" style="max-width:820px"><div class="card-body">
-      <p class="small text-muted">Messages here are shared between the hiring team and {{ req.department }}. Everyone involved gets a notification.</p>
-      {% for n in notes %}
-        <div class="d-flex gap-2 mb-3"><span class="avatar">{{ n.author|initials }}</span><div class="flex-grow-1 p-2 rounded {% if n.author.is_hr %}bg-light{% else %}border{% endif %}"><div class="small"><strong>{{ n.author.display_name }}</strong> <span class="text-muted">· {{ n.author.get_role_display }} · {{ n.created_at|naturaltime }}</span></div><div>{{ n.message|linebreaksbr }}</div></div></div>
-      {% empty %}<p class="text-muted small">No messages yet.</p>{% endfor %}
-      <form method="post" action="{% url 'requisitions:note' req.pk %}" class="d-flex gap-2">{% csrf_token %}<textarea name="message" rows="2" class="form-control" placeholder="Write a message to {% if u.is_hr %}the department{% else %}the hiring team{% endif %}…" required></textarea><button class="btn btn-primary align-self-end"><i class="bi bi-send"></i></button></form>
-    </div></div>
-  </div>
-
-  <!-- Activity -->
-  <div class="tab-pane fade" id="tab-activity">
-    <div class="card"><div class="card-body"><ul class="timeline">
-      {% for a in activity %}<li>{% if a.application %}<a class="fw-semibold" href="{{ a.application.get_absolute_url }}">{{ a.application.candidate.full_name }}</a> — {% endif %}{{ a.message }}<div class="when">{{ a.created_at|date:"d M Y H:i" }}{% if a.actor %} · {{ a.actor.display_name }}{% endif %}</div></li>{% empty %}<li class="text-muted">No activity yet.</li>{% endfor %}
-    </ul></div></div>
-  </div>
+        <tr><td data-label="When"><b class="num">{{ i.scheduled_at|date:"D j M" }}</b><div class="small muted num">{{ i.scheduled_at|date:"H:i" }} · {{ i.duration_minutes }} min</div></td>
+          <td><div class="who">{% avatar i.application.candidate "sm" %}<div><b><a href="{{ i.application.get_absolute_url }}#interviews-tab">{{ i.application.candidate.full_name }}</a></b></div></div></td>
+          <td data-label="Phase">{{ i.get_round_display }}</td>
+          <td data-label="Where">{{ i.get_mode_display }}{% if i.mode == 'video' and i.meeting_link %} · <a href="{{ i.meeting_link }}" target="_blank" rel="noopener">Join link</a>{% elif i.location %}<div class="small muted">{{ i.location }}</div>{% endif %}</td>
+          <td data-label="Panel">{% with panel=i.panel.all %}{% if panel %}{% avatar_stack panel 4 "xs" %}{% else %}<span class="muted">—</span>{% endif %}{% endwith %}</td>
+          <td data-label="Status"><span class="chip {{ i.status|tone:'interview' }}">{{ i.get_status_display }}</span>{% if i.candidate_response %}<div class="small muted">{{ i.get_candidate_response_display }}</div>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody></table></div>
+    {% else %}{% empty_state "No interviews yet" "Interviews you schedule from a candidate's page show up here." object_name="Desk calendar with a pen" %}{% endif %}
+  </section>
 </div>
 
-<!-- Modals -->
-<div class="modal fade" id="approveModal" tabindex="-1"><div class="modal-dialog"><form class="modal-content" method="post" action="{% url 'requisitions:action' req.pk 'approve' %}">{% csrf_token %}
-  <div class="modal-header"><h5 class="modal-title">Approve requisition</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">{% include "partials/_form_fields.html" with form=approve_form %}</div>
-  <div class="modal-footer"><button class="btn btn-success">Approve</button></div></form></div></div>
-<div class="modal fade" id="returnModal" tabindex="-1"><div class="modal-dialog"><form class="modal-content" method="post" action="{% url 'requisitions:action' req.pk 'return' %}">{% csrf_token %}
-  <div class="modal-header"><h5 class="modal-title">Return for changes</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">{% include "partials/_form_fields.html" with form=return_form %}</div>
-  <div class="modal-footer"><button class="btn btn-danger">Return to department</button></div></form></div></div>
-<div class="modal fade" id="publishModal" tabindex="-1"><div class="modal-dialog"><form class="modal-content" method="post" action="{% url 'requisitions:action' req.pk 'publish' %}">{% csrf_token %}
-  <div class="modal-header"><h5 class="modal-title">Publish on the careers page</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">{% include "partials/_form_fields.html" with form=publish_form %}<p class="small text-muted mb-0">{% if req.advert %}The saved job advert will be shown.{% else %}Tip: <a href="{% url 'requisitions:advert' req.pk %}">write or generate a job advert</a> first; otherwise the requirements are shown.{% endif %}</p></div>
-  <div class="modal-footer"><button class="btn btn-success">Publish</button></div></form></div></div>
+{# ======================= Messages ======================= #}
+<div role="tabpanel" id="messages" aria-labelledby="t-messages" class="tab-body" hidden>
+  <section class="sheet thread" aria-labelledby="msg-h">
+    <div class="sheet-h"><h2 class="title" id="msg-h">Messages</h2><span class="spacer"></span><span class="small muted">Shared between the hiring team and {{ req.department }}. Everyone involved is notified.</span></div>
+    <div class="sheet-b">
+      <ol class="msgs">
+      {% for n in notes %}
+        <li class="msg{% if n.author_id == u.pk %} mine{% endif %}">{% avatar n.author "sm" %}
+          <div class="bubble"><div class="by"><b>{{ n.author.display_name }}</b><span>{{ n.author.get_role_display }} · {{ n.created_at|naturaltime }}</span></div><p>{{ n.message|linebreaksbr }}</p></div></li>
+      {% empty %}<li class="msgs-empty small muted">{% icon "messages-square" "ico-18" %} No messages yet. Start the conversation below.</li>{% endfor %}
+      </ol>
+      <form method="post" action="{% url 'requisitions:note' req.pk %}" class="composer">{% csrf_token %}
+        <textarea name="message" rows="2" class="textarea" placeholder="Write a message to {% if u.is_hr %}the department{% else %}the hiring team{% endif %}…" aria-label="Message" required></textarea>
+        <button class="btn btn-primary" type="submit">{% icon "send" "ico-18" %} Send</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+{# ======================= Activity ======================= #}
+<div role="tabpanel" id="activity" aria-labelledby="t-activity" class="tab-body" hidden>
+  <section class="sheet" aria-label="Activity">
+    <div class="sheet-b pad-top">
+      <ul class="feed">
+      {% for a in activity %}<li>{% if a.actor %}{% avatar a.actor "sm" %}{% else %}<span class="tile sm">{% icon "sparkles" "ico-16" %}</span>{% endif %}
+        <div class="feed-t">{% if a.application %}<a href="{{ a.application.get_absolute_url }}"><b>{{ a.application.candidate.full_name }}</b></a>{% else %}<b>{{ req.reference }}</b>{% endif %}<span>{{ a.message }}</span></div>
+        <time class="num" datetime="{{ a.created_at|date:'c' }}" title="{{ a.created_at|date:'j M Y, H:i' }}{% if a.actor %} · {{ a.actor.display_name }}{% endif %}">{{ a.created_at|short_since }}</time></li>
+      {% empty %}<li class="small muted">No activity yet.</li>{% endfor %}
+      </ul>
+    </div>
+  </section>
+</div>
+
+{# ======================= Dialogs ======================= #}
+<dialog class="modal" id="approve-dlg" aria-labelledby="approve-h">
+  <form method="post" action="{% url 'requisitions:action' req.pk 'approve' %}">{% csrf_token %}
+    <div class="modal-h"><span class="tile green">{% icon "circle-check" %}</span><h3 id="approve-h">Approve this requisition</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack">{% for f in approve_form %}{% dsfield f %}{% endfor %}<p class="help">The department and the recruiter are notified straight away.</p></div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">{% icon "check" "ico-18" %} Approve</button></div>
+  </form>
+</dialog>
+<dialog class="modal" id="return-dlg" aria-labelledby="return-h">
+  <form method="post" action="{% url 'requisitions:action' req.pk 'return' %}">{% csrf_token %}
+    <div class="modal-h"><span class="tile amber">{% icon "undo-2" %}</span><h3 id="return-h">Return for changes</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack">{% for f in return_form %}{% dsfield f %}{% endfor %}<p class="help">Your note goes to {{ req.raised_by.display_name|default:"the department" }} in Messages.</p></div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">Return to department</button></div>
+  </form>
+</dialog>
+<dialog class="modal" id="publish-dlg" aria-labelledby="publish-h">
+  <form method="post" action="{% url 'requisitions:action' req.pk 'publish' %}">{% csrf_token %}
+    <div class="modal-h"><span class="tile">{% icon "megaphone" %}</span><h3 id="publish-h">Publish on the careers page</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack">{% for f in publish_form %}{% dsfield f %}{% endfor %}
+      <p class="help">{% if req.advert %}The saved job advert will be shown.{% else %}Tip: <a href="{% url 'requisitions:advert' req.pk %}">write or draft a job advert</a> first. Otherwise the requirements are shown.{% endif %}</p></div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">{% icon "megaphone" "ico-18" %} Publish</button></div>
+  </form>
+</dialog>
 {% endwith %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'vendor/sortable/Sortable.min.js' %}"></script>{% endblock %}
+{% block scripts %}{% if request.user.is_hr %}<script src="{% static 'vendor/sortable/Sortable.min.js' %}" defer></script>{% endif %}{% endblock %}

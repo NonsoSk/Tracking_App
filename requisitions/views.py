@@ -12,6 +12,7 @@ from core.models import Employee
 from core.permissions import can_view_requisition, ensure, hr_required, requisitions_for, role_required, safe_next
 from core.text import normalize
 from pipeline.models import STAGE_ICONS, Application, Interview, Stage
+from pipeline.presentation import decorate_cards
 from pipeline.services import WorkflowError, auto_shortlist, move_to_stage, set_status as set_app_status
 
 from . import services
@@ -133,6 +134,7 @@ def requisition_detail(request, pk):
         board[app.stage].append(app)
     for items in board.values():
         items.sort(key=lambda a: -a.match_score)
+    decorate_cards([a for items in board.values() for a in items])
     if requisition.is_trainee_track:
         stages = [s for s in stages if s != Stage.OFFER and (s != Stage.MEDICAL or settings.RECRUITMENT["TRAINEE_REQUIRES_MEDICALS"])]
 

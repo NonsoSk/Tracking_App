@@ -58,11 +58,12 @@
     <section class="sheet" aria-labelledby="week-h">
       <div class="sheet-h"><h2 class="title" id="week-h">{% if hiring %}Interviews this week{% else %}Your interviews this week{% endif %}</h2>
         <span class="spacer"></span><a class="btn btn-tint btn-sm" href="{% url 'pipeline:interviews' %}">All interviews {% icon "arrow-right" "ico-16" %}</a></div>
-      <div class="sheet-b">
+      <div class="sheet-b week-wrap">
         <div class="week">
           {% for d in week %}
-          <div class="day{% if d.today %} today{% endif %}">
-            <div class="dn">{% if d.today %}Today{% else %}{{ d.date|date:"D" }}{% endif %}</div><div class="dd">{{ d.date|date:"j" }}</div>
+          <div class="day{% if d.today %} today{% endif %}{% if not d.events %} is-empty{% endif %}">
+            <div class="day-h"><div class="dn">{% if d.today %}Today{% else %}{{ d.date|date:"D" }}{% endif %}</div><div class="dd">{{ d.date|date:"j" }}</div></div>
+            <div class="day-ev">
             {% for i in d.events %}
             <a class="event p{{ i.cal_phase }}" href="{{ i.application.get_absolute_url }}#interviews">
               <b class="num">{{ i.scheduled_at|time:"H:i" }}</b>
@@ -71,7 +72,9 @@
               {% if i.candidate_response == "confirmed" %}<span class="ev-ok">{% icon "check" "ico-14" %} Confirmed</span>{% elif i.candidate_response == "reschedule" %}<span class="ev-warn">{% icon "clock" "ico-14" %} Wants to move</span>{% endif %}
               {% with panel=i.panel.all %}{% if panel %}{% avatar_stack panel 3 "xs" %}{% endif %}{% endwith %}
             </a>
+            {% empty %}<span class="day-none">No interviews</span>
             {% endfor %}
+            </div>
           </div>
           {% endfor %}
         </div>

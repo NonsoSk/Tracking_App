@@ -1,41 +1,52 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Requisitions{% endblock %}
+{% block crumbs %}<span aria-current="page">Requisitions</span>{% endblock %}
+{% block primary_action %}{% if request.user.can_raise_requisition %}<a class="btn btn-primary btn-sm" href="{% url 'requisitions:create' %}">{% icon "plus" "ico-16" %} Raise requisition</a>{% endif %}{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>Requisitions</h1><div class="subtitle">Requests for new hires and replacements.</div></div>
-  {% if request.user.can_raise_requisition %}<a class="btn btn-primary" href="{% url 'requisitions:create' %}"><i class="bi bi-plus-lg"></i> Raise requisition</a>{% endif %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Roles</div>
+    <h1>Requisitions</h1>
+    <p class="lede">Requests for new hires and replacements, from first draft to filled.</p>
+    <p class="calm">{% calm_note %}</p>
+  </div>
+</header>
+
+<form class="sheet list-filter" method="get" role="search" aria-label="Filter requisitions">
+  <div class="seg" role="group" aria-label="Show">
+    <a href="?{% if q %}q={{ q|urlencode }}{% endif %}" {% if not status %}class="is-on" aria-current="true"{% else %}{% endif %}>All</a>
+    <a href="?status=pending{% if q %}&amp;q={{ q|urlencode }}{% endif %}" {% if status == 'pending' %}class="is-on" aria-current="true"{% else %}{% endif %}>In approval</a>
+    <a href="?status=active{% if q %}&amp;q={{ q|urlencode }}{% endif %}" {% if status == 'active' %}class="is-on" aria-current="true"{% else %}{% endif %}>Active</a>
+    <a href="?status=filled{% if q %}&amp;q={{ q|urlencode }}{% endif %}" {% if status == 'filled' %}class="is-on" aria-current="true"{% else %}{% endif %}>Filled</a>
+  </div>
+  <input type="hidden" name="status" value="{{ status }}">
+  <div class="input-icon lf-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Title, reference or department" aria-label="Search requisitions"></div>
+  <button class="btn btn-secondary" type="submit">Search</button>
+</form>
+
+{% if requisitions %}
+<div class="role-grid">
+  {% for r in requisitions %}
+  <a class="card role-card" href="{{ r.get_absolute_url }}">
+    <div class="rc-top"><span class="chip {{ r.status|tone:'requisition' }}">{% if r.status == 'open' %}Open{% else %}{{ r.get_status_display }}{% endif %}</span><span class="spacer"></span><span class="rc-ref">{{ r.reference }}</span></div>
+    <div>
+      <h2 class="rc-title">{{ r.title }}</h2>
+      <p class="rc-meta">{{ r.department }} · {{ r.get_employment_type_display }} · {{ r.get_reason_display }}</p>
+    </div>
+    <dl class="rc-stats">
+      <div><dt>Applicants</dt><dd class="num">{{ r.n_apps }}</dd></div>
+      <div><dt>Interviewing</dt><dd class="num">{{ r.n_interview }}</dd></div>
+      <div><dt>Position{{ r.positions|pluralize }}</dt><dd class="num">{{ r.positions }}{% if r.grade %} <small>{{ r.grade }}</small>{% endif %}</dd></div>
+    </dl>
+    <div class="rc-foot">
+      {% if r.raised_by %}{% avatar r.raised_by "xs" %}{% endif %}<span>Raised {{ r.created_at|date:"j M Y" }}{% if r.raised_by %} by {{ r.raised_by.display_name }}{% endif %}</span>
+      {% if r.closing_date and r.status == 'open' %}<span class="spacer"></span><span class="rc-close">{% icon "calendar-clock" "ico-14" %} Closes {{ r.closing_date|date:"j M" }}</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
 </div>
-<div class="card mb-3"><div class="card-body py-2">
-  <form class="row g-2 align-items-center" method="get">
-    <div class="col-auto"><div class="btn-group">
-      <a class="btn btn-sm {% if not status %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?">All</a>
-      <a class="btn btn-sm {% if status == 'pending' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?status=pending">In approval</a>
-      <a class="btn btn-sm {% if status == 'active' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?status=active">Active</a>
-      <a class="btn btn-sm {% if status == 'filled' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?status=filled">Filled</a>
-    </div></div>
-    <div class="col"><input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search title, reference or department"></div>
-    <input type="hidden" name="status" value="{{ status }}">
-    <div class="col-auto"><button class="btn btn-sm btn-primary">Search</button></div>
-  </form>
-</div></div>
-<div class="card"><div class="table-responsive">
-  <table class="table table-hover align-middle">
-    <thead><tr><th>Reference</th><th>Position</th><th>Department</th><th>Type</th><th>Reason</th><th class="text-center">Applicants</th><th class="text-center">Interviewing</th><th>Status</th><th>Raised</th></tr></thead>
-    <tbody>
-    {% for r in requisitions %}
-      <tr class="cursor-pointer" onclick="location='{{ r.get_absolute_url }}'">
-        <td class="small fw-semibold">{{ r.reference }}</td>
-        <td><a class="fw-semibold" href="{{ r.get_absolute_url }}">{{ r.title }}</a><div class="small text-muted">{{ r.positions }} position{{ r.positions|pluralize }}{% if r.grade %} · {{ r.grade }}{% endif %}</div></td>
-        <td>{{ r.department }}</td>
-        <td class="small">{{ r.get_employment_type_display }}</td>
-        <td class="small">{{ r.get_reason_display }}</td>
-        <td class="text-center">{{ r.n_apps }}</td>
-        <td class="text-center">{{ r.n_interview }}</td>
-        <td><span class="badge text-bg-{{ r.status_color }}">{{ r.get_status_display }}</span>{% if r.closing_date and r.status == 'open' %}<div class="small text-muted">closes {{ r.closing_date|date:"d M" }}</div>{% endif %}</td>
-        <td class="small text-muted">{{ r.created_at|date:"d M Y" }}<br>{{ r.raised_by.display_name }}</td>
-      </tr>
-    {% empty %}<tr><td colspan="9">{% include "partials/_empty.html" with icon="bi-clipboard" text="No requisitions yet." %}</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div></div>
+{% else %}
+<div class="sheet">{% if request.user.can_raise_requisition %}{% url 'requisitions:create' as new_url %}{% empty_state "No requisitions here yet" "When a department needs someone, the request starts here." new_url "Raise requisition" "Clipboard with a hard hat" %}{% else %}{% empty_state "No requisitions here yet" "Try another filter, or clear the search." object_name="Clipboard with a hard hat" %}{% endif %}</div>
+{% endif %}
 {% endblock %}

@@ -1,6 +1,23 @@
-{% extends "public_base.html" %}
+{% extends "ds/public_base.html" %}
+{% load ds %}
 {% block title %}Track your application{% endblock %}
 {% block content %}
-<div class="mx-auto" style="max-width:480px"><h1 class="h4 fw-bold">Track your application</h1><p class="text-muted">Use the reference from your confirmation email.</p>
-<div class="card"><div class="card-body"><form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary w-100">Find my application</button></form></div></div></div>
+<div class="narrow lookup">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Track</div>
+      <h1>Track your application</h1>
+      <p class="lede">Use the reference from your confirmation email and the email address you applied with.</p>
+    </div>
+  </header>
+  <form method="post" class="sheet" novalidate aria-label="Find my application">{% csrf_token %}
+    <div class="sheet-b stack pad-top-24">
+      {% if form.non_field_errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>{{ form.non_field_errors|join:" " }}</b></div></div>{% endif %}
+      {% dsfield form.reference %}
+      {% dsfield form.email %}
+      <button class="btn btn-primary btn-lg btn-block" type="submit">{% icon "search" "ico-18" %} Find my application</button>
+    </div>
+  </form>
+  <p class="foot-note">{% icon "mail" "ico-16" %} Lost your reference? Reply to any email from the HR &amp; A department and we will help.</p>
+</div>
 {% endblock %}

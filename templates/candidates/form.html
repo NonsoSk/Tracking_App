@@ -1,21 +1,68 @@
-{% extends "base.html" %}
-{% load portal %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}{% if c %}Edit {{ c.full_name }}{% else %}New candidate{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-14" %}{% if c %}<a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Edit</span>{% else %}<span aria-current="page">New candidate</span>{% endif %}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{% if c %}Edit {{ c.full_name }}{% else %}Add candidate manually{% endif %}</h1><div class="subtitle">{% if c %}Saving re-scores all of this candidate's applications.{% else %}Tip: uploading the CV in <a href="{% url 'candidates:intake' %}">CV intake</a> fills this for you.{% endif %}</div></div></div>
-<form method="post">{% csrf_token %}
-<div class="card"><div class="card-body"><div class="row">
-  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-  {% field form.first_name "col-md-4 mb-3" %}{% field form.last_name "col-md-4 mb-3" %}{% field form.gender "col-md-4 mb-3" %}
-  {% field form.email "col-md-4 mb-3" %}{% field form.phone "col-md-4 mb-3" %}{% field form.date_of_birth "col-md-4 mb-3" %}
-  {% field form.location "col-md-6 mb-3" %}{% field form.linkedin_url "col-md-6 mb-3" %}
-  {% field form.highest_qualification "col-md-4 mb-3" %}{% field form.course "col-md-4 mb-3" %}{% field form.institution "col-md-4 mb-3" %}
-  {% field form.graduation_year "col-md-3 mb-3" %}{% field form.degree_class "col-md-3 mb-3" %}{% field form.nysc_status "col-md-3 mb-3" %}{% field form.years_experience "col-md-3 mb-3" %}
-  {% field form.current_employer "col-md-6 mb-3" %}{% field form.current_job_title "col-md-6 mb-3" %}
-  {% field form.skills "col-12 mb-3" %}{% field form.tools "col-12 mb-3" %}{% field form.certifications "col-12 mb-3" %}
-  {% field form.summary "col-12 mb-3" %}
-  {% field form.source "col-md-4 mb-3" %}{% field form.referred_by "col-md-4 mb-3" %}{% field form.referral_note "col-md-4 mb-3" %}
-</div></div></div>
-<div class="sticky-actions d-flex justify-content-end gap-2"><a class="btn btn-light" href="{% if c %}{{ c.get_absolute_url }}{% else %}{% url 'candidates:list' %}{% endif %}">Cancel</a><button class="btn btn-primary">Save</button></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Talent</div>
+    <h1>{% if c %}Edit {{ c.full_name }}{% else %}Add a candidate{% endif %}</h1>
+    <p class="lede">{% if c %}Saving re-scores all of this candidate's applications.{% else %}Tip: uploading the CV in <a href="{% url 'candidates:intake' %}">CV intake</a> fills all of this for you.{% endif %}</p>
+  </div>
+</header>
+
+<form method="post" class="wizard" novalidate>{% csrf_token %}
+  {% if form.errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">{% if form.non_field_errors %}{{ form.non_field_errors|join:" " }}{% else %}They are marked in red below.{% endif %}</span></div></div>{% endif %}
+  <div class="wizard-grid">
+    <aside class="wizard-side">
+      <nav class="sheet wiz-steps" data-steps aria-label="Form sections">
+        <ol>
+          <li class="step"><a href="#s-person"><span class="num">1</span><span>Personal details<small>Name and how to reach them</small></span></a></li>
+          <li class="step"><a href="#s-edu"><span class="num">2</span><span>Education &amp; work<small>Qualification and experience</small></span></a></li>
+          <li class="step"><a href="#s-skills"><span class="num">3</span><span>Skills<small>Used for matching</small></span></a></li>
+          <li class="step"><a href="#s-source"><span class="num">4</span><span>Source<small>Where they came from</small></span></a></li>
+        </ol>
+      </nav>
+    </aside>
+    <div class="wizard-main">
+      <section class="sheet form-sec" id="s-person" aria-labelledby="h-person">
+        <div class="sheet-h"><span class="step-num">1</span><div><h2 class="h3" id="h-person">Personal details</h2></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.first_name "span-2" %}{% dsfield form.last_name "span-2" %}
+          {% dsfield form.email "span-2" %}{% dsfield form.phone "span-2" %}
+          {% dsfield form.gender "span-2" %}{% dsfield form.date_of_birth "span-2" %}
+          {% dsfield form.location "span-2" %}{% dsfield form.linkedin_url "span-2" %}
+        </div>
+      </section>
+      <section class="sheet form-sec" id="s-edu" aria-labelledby="h-edu">
+        <div class="sheet-h"><span class="step-num">2</span><div><h2 class="h3" id="h-edu">Education &amp; work</h2></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.highest_qualification "span-2" %}{% dsfield form.course "span-2" %}
+          {% dsfield form.institution "span-2" %}{% dsfield form.graduation_year %}{% dsfield form.degree_class %}
+          {% dsfield form.nysc_status "span-2" %}{% dsfield form.years_experience "span-2" %}
+          {% dsfield form.current_employer "span-2" %}{% dsfield form.current_job_title "span-2" %}
+        </div>
+      </section>
+      <section class="sheet form-sec" id="s-skills" aria-labelledby="h-skills">
+        <div class="sheet-h"><span class="step-num">3</span><div><h2 class="h3" id="h-skills">Skills</h2><p class="small muted">Type and press Enter. Suggestions appear as you type.</p></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.skills "span-4" %}{% dsfield form.tools "span-4" %}{% dsfield form.certifications "span-4" %}
+          {% dsfield form.summary "span-4" %}
+        </div>
+      </section>
+      <section class="sheet form-sec" id="s-source" aria-labelledby="h-source">
+        <div class="sheet-h"><span class="step-num">4</span><div><h2 class="h3" id="h-source">Source</h2></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.source "span-2" %}{% dsfield form.referred_by "span-2" %}
+          {% dsfield form.referral_note "span-4" %}
+        </div>
+      </section>
+      <div class="form-actions">
+        <a class="btn btn-ghost" href="{% if c %}{{ c.get_absolute_url }}{% else %}{% url 'candidates:list' %}{% endif %}">Cancel</a>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" type="submit">{% icon "save" "ico-18" %} {% if c %}Save changes{% else %}Add candidate{% endif %}</button>
+      </div>
+    </div>
+  </div>
 </form>
 {% endblock %}

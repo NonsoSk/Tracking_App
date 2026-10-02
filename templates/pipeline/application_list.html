@@ -16,8 +16,8 @@
   </div>
   <div class="actions">
     <div class="seg" role="group" aria-label="View">
-      <a href="?{{ query }}{% if query %}&amp;{% endif %}view=board" {% if view == "board" %}aria-pressed="true" class="is-on"{% else %}aria-pressed="false"{% endif %}>{% icon "columns-3" "ico-16" %} Board</a>
-      <a href="?{{ query }}{% if query %}&amp;{% endif %}view=list" {% if view == "list" %}aria-pressed="true" class="is-on"{% else %}aria-pressed="false"{% endif %}>{% icon "layout-list" "ico-16" %} List</a>
+      <a href="?{{ query }}{% if query %}&amp;{% endif %}view=board" {% if view == "board" %}aria-current="true" class="is-on"{% else %}{% endif %}>{% icon "columns-3" "ico-16" %} Board</a>
+      <a href="?{{ query }}{% if query %}&amp;{% endif %}view=list" {% if view == "list" %}aria-current="true" class="is-on"{% else %}{% endif %}>{% icon "layout-list" "ico-16" %} List</a>
     </div>
   </div>
 </header>
@@ -41,12 +41,13 @@
     <div class="kcol-list" data-stage="{{ col.stage }}" data-label="{{ col.label }}">
       {% for a in col.cards %}
       <a class="card kcard" href="{{ a.get_absolute_url }}" data-move-url="{% url 'pipeline:move' a.pk %}" data-name="{{ a.candidate.full_name }}">
-        <div class="nm">{% avatar a.candidate "sm" %}<span>{{ a.candidate.full_name }}</span></div>
-        {% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}
-        <div class="kc-role">{{ a.requisition.title }}</div>
+        <div class="kc-top">
+          {% avatar a.candidate "sm" %}
+          <div class="kc-id"><b>{{ a.candidate.full_name }}</b><span>{{ a.requisition.title }}</span></div>
+          {% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}
+        </div>
         <div class="ft">
-          {% for t in a.key_tags %}<span class="tag">{{ t }}</span>{% endfor %}
-          {% if a.status == "on_hold" %}<span class="chip warning">On hold</span>{% endif %}
+          {% if a.status == "on_hold" %}<span class="chip warning">On hold</span>{% else %}{% for t in a.key_tags|slice:":1" %}<span class="tag" title="Matched: {{ t }}">{{ t }}</span>{% endfor %}{% endif %}
           {% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}" title="Panel score">{{ a.panel.percentage|floatformat:"0" }}%</span>{% endif %}
           <span class="age {{ a.days_tone }}" title="{{ a.days_in_stage }} day{{ a.days_in_stage|pluralize }} in this stage">{{ a.days_in_stage }}d</span>
         </div>
@@ -64,18 +65,18 @@
   <div class="sheet-h"><h2 class="title" id="list-h">Candidates</h2><span class="count">{{ applications|length }}</span><span class="spacer"></span>
     <div class="seg" data-seg role="group" aria-label="Row density"><button type="button" aria-pressed="true" data-set-density="comfortable" data-target="pipe-table">{% icon "rows-2" "ico-16" %}<span class="sr-only">Comfortable</span></button><button type="button" aria-pressed="false" data-set-density="compact" data-target="pipe-table">{% icon "rows-3" "ico-16" %}<span class="sr-only">Compact</span></button></div></div>
   {% if applications %}
-  <div class="table-wrap pipe-table" id="pipe-table" data-density="comfortable"><table class="table">
+  <div class="table-wrap stack-sm pipe-table" id="pipe-table" data-density="comfortable"><table class="table">
     <thead><tr><th>Candidate</th><th>Vacancy</th><th>Match</th><th>Stage</th><th>Panel</th><th class="num">In stage</th><th class="num">Updated</th></tr></thead>
     <tbody>
       {% for a in applications %}
       <tr>
         <td><div class="who">{% avatar a.candidate "sm" %}<div><b><a href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a></b><span>{{ a.reference }}</span></div></div></td>
-        <td>{{ a.requisition.title }}<div class="small muted">{{ a.requisition.department }}</div></td>
-        <td><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}</span></div></td>
-        <td>{% status_chip a %}</td>
-        <td>{% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}">{{ a.panel.percentage|floatformat:"0" }}%</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td class="num"><span class="age {{ a.days_tone }}">{{ a.days_in_stage }}d</span></td>
-        <td class="num small muted" title="{{ a.updated_at|date:'j M Y, H:i' }}">{{ a.updated_at|short_since }}</td>
+        <td data-label="Vacancy">{{ a.requisition.title }}<div class="small muted">{{ a.requisition.department }}</div></td>
+        <td data-label="Match"><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}</span></div></td>
+        <td data-label="Stage">{% status_chip a %}</td>
+        <td data-label="Panel">{% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}">{{ a.panel.percentage|floatformat:"0" }}%</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num" data-label="In stage"><span class="age {{ a.days_tone }}">{{ a.days_in_stage }}d</span></td>
+        <td class="num small muted" title="{{ a.updated_at|date:'j M Y, H:i' }}" data-label="Updated">{{ a.updated_at|short_since }}</td>
       </tr>
       {% endfor %}
     </tbody></table></div>

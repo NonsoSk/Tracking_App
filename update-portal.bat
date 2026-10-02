@@ -43,6 +43,8 @@ if not exist "%SRC%\manage.py" goto badzip
 echo Copying the new code. Your database, settings, uploads and Python environment are kept...
 robocopy "%SRC%" "%PORTAL%." /E /XD .venv media /XF db.sqlite3 .env /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 goto copyfail
+rem Remove screens and styles the new version no longer has (only the templates and static folders; your data is never there)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($d in 'templates','static') { $old = Join-Path $env:PORTAL $d; $new = Join-Path $env:SRC $d; if ((Test-Path -LiteralPath $old) -and (Test-Path -LiteralPath $new)) { Get-ChildItem -LiteralPath $old -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($old.Length); if (-not (Test-Path -LiteralPath (Join-Path $new $rel))) { Remove-Item -LiteralPath $_.FullName -Force } }; Get-ChildItem -LiteralPath $old -Recurse -Directory | Sort-Object { $_.FullName.Length } -Descending | Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force) } | Remove-Item -Force } }" >nul 2>&1
 rmdir /s /q "%WORK%"
 
 echo Checking Python packages...

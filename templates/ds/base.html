@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#0B1224" media="(prefers-color-scheme: dark)">
   {% block head %}{% endblock %}
 </head>
-<body{% block body_attrs %}{% endblock %}>
+<body data-terms-url="{% url 'requisitions:api_terms' %}"{% block body_attrs %}{% endblock %}>
 <a class="skip-link" href="#main">Skip to content</a>
 {% nav_items as nav %}
 {% with u=request.user %}
@@ -32,7 +32,7 @@
       {% block toolbar_start %}<a href="{% url 'core:dashboard' %}" aria-label="My tasks">{% logo %}</a>{% endblock %}
       <nav class="crumbs" aria-label="Breadcrumb">{% block crumbs %}{% endblock %}</nav>
       <span class="spacer"></span>
-      <button class="search-trigger wide-only" type="button" data-open="palette" aria-label="Search or jump to (Ctrl K)">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
+      <button class="search-trigger wide-only" type="button" data-open="palette" aria-keyshortcuts="Control+K">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>
       <button class="icon-btn compact-only" type="button" data-open="palette" aria-label="Search (Ctrl K)">{% icon "search" %}</button>
       <div class="pop-wrap desktop-only">
         <button class="icon-btn" type="button" data-popover="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Theme">
@@ -90,13 +90,9 @@
 </dialog>
 {% endwith %}
 
-<template id="ds-toast-icon-success">{% icon "circle-check" "ico-18" %}</template>
-<template id="ds-toast-icon-warning">{% icon "triangle-alert" "ico-18" %}</template>
-<template id="ds-toast-icon-danger">{% icon "circle-alert" "ico-18" %}</template>
-<template id="ds-toast-icon-info">{% icon "info" "ico-18" %}</template>
-<template id="ds-icon-x">{% icon "x" "ico-18" %}</template>
-<template id="ds-icon-file">{% icon "file-text" "ico-16" %}</template>
+{% include "ds/_icons.html" %}
 <script src="{% static 'ds/ds.js' %}" defer></script>
+<script src="{% static 'ds/app.js' %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

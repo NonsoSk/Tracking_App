@@ -1,10 +1,53 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}My profile{% endblock %}
+{% block crumbs %}<span aria-current="page">My profile</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>My profile</h1><div class="subtitle">{{ request.user.get_role_display }}{% if request.user.department %} · {{ request.user.department }}{% endif %}</div></div></div>
-<div class="card" style="max-width:640px"><div class="card-body">
-  <form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}
-    <button class="btn btn-primary">Save</button> <a class="btn btn-link" href="{% url 'accounts:password_change' %}">Change password</a>
+{% with u=request.user %}
+<header class="page-head">
+  <div class="ph-person">
+    {% avatar u "xl" %}
+    <div>
+      <div class="eyebrow">{{ u.get_role_display }}{% if u.department %} · {{ u.department }}{% endif %}</div>
+      <h1>{{ u.display_name }}</h1>
+      <p class="lede">{{ u.email|default:"No email yet" }}{% if u.job_title %} · {{ u.job_title }}{% endif %}</p>
+    </div>
+  </div>
+</header>
+
+<div class="split">
+  <form method="post" class="sheet" novalidate aria-labelledby="me-h">{% csrf_token %}
+    <div class="sheet-h"><h2 class="title" id="me-h">Your details</h2><span class="spacer"></span><span class="small muted">Shown to colleagues and on emails to candidates</span></div>
+    <div class="sheet-b form-grid">
+      {% dsfield form.first_name "span-2" %}{% dsfield form.last_name "span-2" %}
+      {% dsfield form.email "span-2" %}{% dsfield form.phone "span-2" %}
+      {% dsfield form.job_title "span-4" %}
+    </div>
+    <div class="sheet-f row"><span class="spacer"></span><button class="btn btn-primary" type="submit">{% icon "save" "ico-18" %} Save changes</button></div>
   </form>
-</div></div>
+  <div class="stack-24">
+    <section class="sheet" aria-labelledby="look-h">
+      <div class="sheet-h"><h2 class="title" id="look-h">Appearance</h2></div>
+      <div class="sheet-b stack-8">
+        <div class="seg theme-seg" role="group" aria-label="Theme">
+          <button type="button" data-theme-set="light" aria-pressed="false">{% icon "sun" "ico-16" %} Light</button>
+          <button type="button" data-theme-set="dark" aria-pressed="false">{% icon "moon" "ico-16" %} Dark</button>
+          <button type="button" data-theme-set="auto" aria-pressed="true">{% icon "monitor" "ico-16" %} Auto</button>
+        </div>
+        <p class="help">Auto follows your device. Your choice is remembered on this browser.</p>
+      </div>
+    </section>
+    <section class="sheet" aria-labelledby="sec-h">
+      <div class="sheet-h"><h2 class="title" id="sec-h">Sign-in &amp; security</h2></div>
+      <div class="sheet-b stack">
+        <dl class="facts">
+          <div><dt>Username</dt><dd>{{ u.username }}</dd></div>
+          {% if u.last_login %}<div><dt>Last signed in</dt><dd>{{ u.last_login|date:"j M Y, H:i" }}</dd></div>{% endif %}
+        </dl>
+        <a class="btn btn-secondary" href="{% url 'accounts:password_change' %}">{% icon "key-round" "ico-18" %} Change password</a>
+      </div>
+    </section>
+  </div>
+</div>
+{% endwith %}
 {% endblock %}

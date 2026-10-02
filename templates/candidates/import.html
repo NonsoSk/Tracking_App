@@ -1,14 +1,34 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Import spreadsheet{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Import Excel</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>Import your existing Excel database</h1><div class="subtitle">Move the current recruitment spreadsheet into the portal in one go. Existing candidates (same email or phone) are updated, not duplicated.</div></div></div>
-<div class="row g-3">
-  <div class="col-lg-6"><div class="card"><div class="card-body">
-    <form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary"><i class="bi bi-upload"></i> Import</button></form>
-  </div></div></div>
-  <div class="col-lg-6"><div class="card"><div class="card-header">Recognised column headings</div><div class="card-body small">
-    <p class="text-muted">Headings are matched case-insensitively; unknown columns are kept as searchable text.</p>
-    <table class="table table-sm"><tbody>{% for field, names in header_map.items %}<tr><td class="fw-semibold">{{ field }}</td><td>{{ names|join:", " }}</td></tr>{% endfor %}</tbody></table>
-  </div></div></div>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Talent</div>
+    <h1>Import your Excel database</h1>
+    <p class="lede">Bring the current recruitment spreadsheet in one go. People already in the portal (same email or phone) are updated, never duplicated.</p>
+  </div>
+</header>
+
+<div class="split split-even">
+  <form method="post" enctype="multipart/form-data" class="sheet" data-loading aria-labelledby="up-h">{% csrf_token %}
+    <div class="sheet-h"><h2 class="title" id="up-h">Upload the file</h2></div>
+    <div class="sheet-b stack">
+      {% if form.non_field_errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>{{ form.non_field_errors|join:" " }}</b></div></div>{% endif %}
+      {% include "ds/components/dropzone.html" with f=form.file title="Drop the spreadsheet here or" icon_name="file-spreadsheet" %}
+      {% dsfield form.requisition %}
+    </div>
+    <div class="sheet-f row wrap"><span class="small muted">{% icon "shield-check" "ico-16" %} The file is read once and not kept.</span><span class="spacer"></span><button class="btn btn-primary" type="submit">{% icon "upload" "ico-18" %} Import</button></div>
+  </form>
+  <section class="sheet" aria-labelledby="cols-h">
+    <div class="sheet-h"><h2 class="title" id="cols-h">Column headings we recognise</h2></div>
+    <div class="sheet-b">
+      <p class="small muted">Matched without caring about capitals. Any other column is kept as searchable text.</p>
+      <dl class="colmap">
+        {% for field, names in header_map.items %}<div><dt>{{ field }}</dt><dd><div class="tags">{% for n in names|slice:":4" %}<span class="tag">{{ n }}</span>{% endfor %}{% if names|length > 4 %}<span class="tag dashed">+{{ names|length|add:"-4" }}</span>{% endif %}</div></dd></div>{% endfor %}
+      </dl>
+    </div>
+  </section>
 </div>
 {% endblock %}

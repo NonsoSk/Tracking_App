@@ -1,20 +1,74 @@
-{% extends "base.html" %}
+{% extends "ds/base.html" %}
+{% load ds %}
 {% block title %}Onboarding · {{ app.candidate.full_name }}{% endblock %}
+{% block body_attrs %}{% if celebrate %} data-celebrate{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'pipeline:onboarding_list' %}">Onboarding</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">{{ app.candidate.full_name }}</span>{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>Onboarding — {{ app.candidate.full_name }}</h1><div class="subtitle">{{ app.requisition.title }} · {{ app.requisition.department }} · <a href="{{ app.get_absolute_url }}">application</a></div></div>
-  {% if ob.status != 'completed' %}<form method="post" action="{% url 'pipeline:onboarding_complete' ob.pk %}">{% csrf_token %}<button class="btn btn-success" data-confirm="Mark onboarding complete and record {{ app.candidate.full_name }} as hired?"><i class="bi bi-trophy"></i> Complete onboarding</button></form>{% else %}<span class="badge text-bg-success fs-6">Completed {{ ob.completed_at|date:"d M Y" }}</span>{% endif %}</div>
-<div class="row g-3">
-  <div class="col-lg-7"><div class="card"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-check2-square"></i> Checklist</span><span class="small text-muted">{{ ob.progress }}% done</span></div>
-    <div class="list-group list-group-flush">
-      {% for t in tasks %}<form method="post" action="{% url 'pipeline:onboarding_task' ob.pk t.pk %}" class="list-group-item d-flex align-items-center gap-2">{% csrf_token %}
-        <button class="btn btn-sm {% if t.done %}btn-success{% else %}btn-outline-secondary{% endif %}" style="width:34px"><i class="bi {% if t.done %}bi-check-lg{% else %}bi-square{% endif %}"></i></button>
-        <span class="flex-grow-1 {% if t.done %}text-decoration-line-through text-muted{% endif %}">{{ t.title }}</span>
-        {% if t.done %}<span class="small text-muted">{{ t.done_by.display_name }} · {{ t.done_at|date:"d M" }}</span>{% endif %}</form>{% endfor %}
-      <form method="post" action="{% url 'pipeline:onboarding_add_task' ob.pk %}" class="list-group-item d-flex gap-2">{% csrf_token %}{{ task_form.title }}<button class="btn btn-outline-primary btn-sm">Add</button></form>
-    </div></div></div>
-  <div class="col-lg-5">
-    <div class="card mb-3"><div class="card-header">Details</div><div class="card-body"><form method="post">{% csrf_token %}{% include "partials/_form_fields.html" %}<button class="btn btn-primary" name="save" value="1">Save</button></form></div></div>
-    <div class="card"><div class="card-header">Documents on file</div><div class="list-group list-group-flush">{% for d in documents %}<a class="list-group-item list-group-item-action small" href="{% url 'candidates:document' d.pk %}" target="_blank"><i class="bi {{ d.icon }}"></i> {{ d.get_doc_type_display }} <span class="badge text-bg-{% if d.status == 'verified' %}success{% else %}secondary{% endif %} float-end">{{ d.get_status_display }}</span></a>{% empty %}<div class="list-group-item small text-muted">None</div>{% endfor %}</div></div>
+<header class="page-head">
+  <div class="ph-person">
+    {% avatar app.candidate "lg" %}
+    <div>
+      <div class="eyebrow">Onboarding</div>
+      <h1>{{ app.candidate.full_name }}</h1>
+      <p class="lede">{{ app.requisition.title }} · {{ app.requisition.department }} · <a href="{{ app.get_absolute_url }}">Open the application</a></p>
+    </div>
+  </div>
+  <div class="actions">
+    {% if ob.status != 'completed' %}
+    <form method="post" action="{% url 'pipeline:onboarding_complete' ob.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit" data-confirm="Mark onboarding complete and record {{ app.candidate.full_name }} as hired?" data-confirm-label="Complete onboarding" data-confirm-tone="primary">{% icon "trophy" "ico-18" %} Complete onboarding</button></form>
+    {% else %}<span class="chip gold">{% icon "trophy" "ico-14" %} Completed {{ ob.completed_at|date:"j M Y" }}</span>{% endif %}
+  </div>
+</header>
+
+{% if ob.status == 'completed' %}
+<div class="banner gold"><span class="tile">{% icon "party-popper" "ico-18" %}</span><div><b>Welcome aboard, {{ app.candidate.first_name|default:app.candidate.full_name }}</b><span class="small">Onboarding is complete and the hire is recorded.</span></div></div>
+{% elif ob.progress >= 100 %}
+<div class="banner gold"><span class="tile">{% icon "circle-check" "ico-18" %}</span><div><b>Every task is done</b><span class="small">Complete onboarding to record the hire and close the vacancy position.</span></div></div>
+{% endif %}
+
+<div class="split">
+  <section class="sheet" aria-labelledby="cl-h">
+    <div class="sheet-h cl-head">
+      {% if ob.progress >= 100 %}{% score_ring ob.progress 64 True "" %}{% else %}{% score_ring ob.progress 64 False "" %}{% endif %}
+      <div><h2 class="h3" id="cl-h">Checklist</h2><p class="small muted">{{ ob.progress }}% done · tick each step as it happens</p></div>
+    </div>
+    <div class="sheet-b">
+      <div class="checklist">
+        {% for t in tasks %}
+        <form method="post" action="{% url 'pipeline:onboarding_task' ob.pk t.pk %}" class="check-item{% if t.done %} done{% endif %}">{% csrf_token %}
+          <button class="box" type="submit" aria-label="{% if t.done %}Mark “{{ t.title }}” as not done{% else %}Mark “{{ t.title }}” as done{% endif %}">{% icon "check" "ico-14" %}</button>
+          <span class="t">{{ t.title }}{% if t.done %}<small>{{ t.done_by.display_name }} · {{ t.done_at|date:"j M" }}</small>{% endif %}</span>
+        </form>
+        {% empty %}<p class="small muted">No tasks yet. Add the first one below.</p>{% endfor %}
+      </div>
+      <form method="post" action="{% url 'pipeline:onboarding_add_task' ob.pk %}" class="add-task">{% csrf_token %}
+        <span class="tile sm">{% icon "plus" "ico-16" %}</span>
+        <input type="text" name="{{ task_form.title.html_name }}" maxlength="200" class="input" placeholder="Add a task, e.g. Issue PPE and site induction" aria-label="New task" required>
+        <button class="btn btn-secondary" type="submit">Add</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="stack-24">
+    <form method="post" class="sheet" aria-labelledby="det-h">{% csrf_token %}
+      <div class="sheet-h"><h2 class="title" id="det-h">Details</h2></div>
+      <div class="sheet-b form-grid">
+        {% dsfield form.start_date "span-2" %}{% dsfield form.staff_id "span-2" %}
+        {% dsfield form.officer "span-4" %}{% dsfield form.notes "span-4" %}
+      </div>
+      <div class="sheet-f row"><span class="spacer"></span><button class="btn btn-primary" type="submit" name="save" value="1">{% icon "save" "ico-18" %} Save details</button></div>
+    </form>
+    <section class="sheet" aria-labelledby="docs-h">
+      <div class="sheet-h"><h2 class="title" id="docs-h">Documents on file</h2><span class="count">{{ documents|length }}</span></div>
+      <div class="sheet-b rows">
+        {% for d in documents %}
+        <a class="doc-row doc-compact" href="{% url 'candidates:document' d.pk %}" target="_blank" rel="noopener">
+          {% if d.status == 'verified' %}<span class="tile sm green">{% icon "file-check" "ico-16" %}</span>{% elif d.status == 'rejected' %}<span class="tile sm amber">{% icon "file-x" "ico-16" %}</span>{% else %}<span class="tile sm">{% icon "file-clock" "ico-16" %}</span>{% endif %}
+          <div class="pr-t"><b>{{ d.get_doc_type_display }}</b><span>{{ d.original_name }} · <span class="doc-st {{ d.status|tone:'document' }}">{{ d.get_status_display }}</span></span></div>
+        </a>
+        {% empty %}<p class="small muted">No documents yet.</p>{% endfor %}
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

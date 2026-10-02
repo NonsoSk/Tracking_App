@@ -1,34 +1,75 @@
-{% extends "public_base.html" %}
-{% load portal %}
+{% extends "ds/public_base.html" %}
+{% load ds %}
 {% block title %}Apply · {{ job.title }}{% endblock %}
 {% block content %}
-<a href="{% url 'careers:job' job.reference %}" class="small"><i class="bi bi-arrow-left"></i> {{ job.title }}</a>
-<h1 class="h3 fw-bold mt-2">Apply for {{ job.title }}</h1>
-<p class="text-muted">{{ job.department }} · {{ job.location }}</p>
-<form method="post" enctype="multipart/form-data" id="apply-form" data-parse-url="{% url 'careers:parse_cv' %}" novalidate>{% csrf_token %}
-  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-  <div class="card mb-3 border-success"><div class="card-body">
-    <h2 class="h6 fw-bold"><i class="bi bi-1-circle text-success"></i> Start with your CV</h2>
-    {% field form.cv "mb-2" %}
-    <div id="cv-status" class="small text-muted"><i class="bi bi-magic"></i> Once you choose your CV we read it and fill in the form below — you just check and correct.</div>
-  </div></div>
-  <div class="card mb-3"><div class="card-body"><h2 class="h6 fw-bold"><i class="bi bi-2-circle text-brand"></i> Your details</h2><div class="row">
-    {% field form.first_name "col-md-6 mb-3" %}{% field form.last_name "col-md-6 mb-3" %}
-    {% field form.email "col-md-6 mb-3" %}{% field form.phone "col-md-6 mb-3" %}
-    {% field form.location "col-md-4 mb-3" %}{% field form.gender "col-md-4 mb-3" %}{% field form.date_of_birth "col-md-4 mb-3" %}
-    {% field form.linkedin_url "col-12 mb-3" %}
-  </div></div></div>
-  <div class="card mb-3"><div class="card-body"><h2 class="h6 fw-bold"><i class="bi bi-3-circle text-brand"></i> Education &amp; experience</h2><div class="row">
-    {% field form.highest_qualification "col-md-4 mb-3" %}{% field form.course "col-md-4 mb-3" %}{% field form.institution "col-md-4 mb-3" %}
-    {% field form.graduation_year "col-md-3 mb-3" %}{% field form.degree_class "col-md-3 mb-3" %}{% field form.nysc_status "col-md-3 mb-3" %}{% field form.years_experience "col-md-3 mb-3" %}
-    {% field form.current_employer "col-md-6 mb-3" %}{% field form.current_job_title "col-md-6 mb-3" %}
-    {% field form.skills "col-12 mb-3" %}{% field form.tools "col-12 mb-3" %}{% field form.certifications "col-12 mb-3" %}
-  </div></div></div>
-  <div class="card mb-3"><div class="card-body"><h2 class="h6 fw-bold"><i class="bi bi-4-circle text-brand"></i> Anything else</h2>
-    {% field form.cover_letter %}{% field form.other_documents %}
-    <div style="position:absolute;left:-5000px" aria-hidden="true">{{ form.website }}</div>
-    {% field form.consent %}
-  </div></div>
-  <button class="btn btn-success btn-lg"><i class="bi bi-send"></i> Submit application</button>
+<a class="back-link" href="{% url 'careers:job' job.reference %}">{% icon "arrow-left" "ico-16" %} {{ job.title }}</a>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Apply · {{ job.department }}</div>
+    <h1>Apply for {{ job.title }}</h1>
+    <p class="lede">{% if job.location %}{{ job.location }} · {% endif %}{{ job.get_employment_type_display }}</p>
+    <p class="calm">{% calm_note "candidate" %}</p>
+  </div>
+</header>
+
+<form method="post" enctype="multipart/form-data" id="apply-form" class="wizard" data-parse-url="{% url 'careers:parse_cv' %}" data-loading novalidate>{% csrf_token %}
+  {% if form.errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">{% if form.non_field_errors %}{{ form.non_field_errors|join:" " }}{% else %}They are marked in red below.{% endif %}</span></div></div>{% endif %}
+  <div class="wizard-grid">
+    <aside class="wizard-side">
+      <nav class="sheet wiz-steps" data-steps aria-label="Form sections">
+        <ol>
+          <li class="step"><a href="#s-cv"><span class="num">1</span><span>Your CV<small>We read it for you</small></span></a></li>
+          <li class="step"><a href="#s-you"><span class="num">2</span><span>Your details<small>How to reach you</small></span></a></li>
+          <li class="step"><a href="#s-edu"><span class="num">3</span><span>Education &amp; work<small>What you have done</small></span></a></li>
+          <li class="step"><a href="#s-more"><span class="num">4</span><span>Anything else<small>Letter and consent</small></span></a></li>
+        </ol>
+      </nav>
+      <section class="sheet next-card" aria-labelledby="priv-h">
+        <h2 class="eyebrow" id="priv-h">Your privacy</h2>
+        <p class="small soft">Your details are only used for recruitment at {{ COMPANY_SHORT_NAME }}. Every application is read by a person.</p>
+      </section>
+    </aside>
+    <div class="wizard-main">
+      <section class="sheet form-sec" id="s-cv" aria-labelledby="h-cv">
+        <div class="sheet-h"><span class="step-num">1</span><div><h2 class="h3" id="h-cv">Start with your CV</h2><p class="small muted">Once you choose it, we read it and fill in the form below. You just check and correct.</p></div></div>
+        <div class="sheet-b stack">
+          {% include "ds/components/dropzone.html" with f=form.cv title="Drop your CV here or" hint="PDF, Word, or a clear photo of a paper CV." %}
+          <div class="banner" id="cv-status" aria-live="polite"><span class="tile">{% icon "sparkles" "ico-18" %}</span><div><b>We fill the form from your CV</b><span class="small">Nothing is sent until you press Submit.</span></div></div>
+        </div>
+      </section>
+      <section class="sheet form-sec" id="s-you" aria-labelledby="h-you">
+        <div class="sheet-h"><span class="step-num">2</span><div><h2 class="h3" id="h-you">Your details</h2></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.first_name "span-2" %}{% dsfield form.last_name "span-2" %}
+          {% dsfield form.email "span-2" %}{% dsfield form.phone "span-2" %}
+          {% dsfield form.location "span-2" %}{% dsfield form.gender %}{% dsfield form.date_of_birth %}
+          {% dsfield form.linkedin_url "span-4" %}
+        </div>
+      </section>
+      <section class="sheet form-sec" id="s-edu" aria-labelledby="h-edu">
+        <div class="sheet-h"><span class="step-num">3</span><div><h2 class="h3" id="h-edu">Education &amp; experience</h2></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.highest_qualification "span-2" %}{% dsfield form.course "span-2" %}
+          {% dsfield form.institution "span-2" %}{% dsfield form.graduation_year %}{% dsfield form.degree_class %}
+          {% dsfield form.nysc_status "span-2" %}{% dsfield form.years_experience "span-2" %}
+          {% dsfield form.current_employer "span-2" %}{% dsfield form.current_job_title "span-2" %}
+          {% dsfield form.skills "span-4" %}{% dsfield form.tools "span-4" %}{% dsfield form.certifications "span-4" %}
+        </div>
+      </section>
+      <section class="sheet form-sec" id="s-more" aria-labelledby="h-more">
+        <div class="sheet-h"><span class="step-num">4</span><div><h2 class="h3" id="h-more">Anything else</h2></div></div>
+        <div class="sheet-b form-grid">
+          {% dsfield form.cover_letter "span-4" %}
+          {% dsfield form.other_documents "span-4" %}
+          <div class="hp" aria-hidden="true">{{ form.website }}</div>
+          {% dsfield form.consent "span-4" %}
+        </div>
+      </section>
+      <div class="form-actions">
+        <a class="btn btn-ghost" href="{% url 'careers:job' job.reference %}">Back</a><span class="spacer"></span>
+        <button class="btn btn-primary btn-lg" type="submit">{% icon "send" "ico-18" %} Submit application</button>
+      </div>
+    </div>
+  </div>
 </form>
 {% endblock %}

@@ -1,3 +1,15 @@
-{% extends "base.html" %}
-{% block title %}Not allowed{% endblock %}
-{% block content %}<div class="empty-state"><i class="bi bi-shield-lock"></i><h2 class="h5">You don't have access to this page</h2><p>If you think this is a mistake, contact the HR &amp; A department.</p><a class="btn btn-primary" href="/">Back to dashboard</a></div>{% endblock %}
+{% extends "ds/public_base.html" %}
+{% load ds %}
+{% block title %}No access{% endblock %}
+{% block content %}
+<div class="error-page">
+  {% ph3d "Padlock on a clipboard" 220 160 %}
+  <div class="eyebrow">Error 403</div>
+  <h1>This page isn't open to you</h1>
+  <p class="lede">Your role doesn't include this page. If you think it should, ask the HR admin to check your access.</p>
+  <div class="row wrap">
+    {% if request.user.is_authenticated %}<a class="btn btn-primary" href="{% url 'core:dashboard' %}">{% icon "list-checks" "ico-18" %} Go to My tasks</a>{% else %}<a class="btn btn-primary" href="{% url 'accounts:login' %}">Sign in</a>{% endif %}
+    <a class="btn btn-ghost" href="{% url 'careers:jobs' %}">Careers page</a>
+  </div>
+</div>
+{% endblock %}
