@@ -1,0 +1,33 @@
+name: Job search
+
+on:
+  schedule:
+    - cron: "0 7 * * *"  # every day at 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test
+        run: python -m unittest
+      - name: Search job boards
+        run: python -m jobsearch
+      - name: Commit new matches
+        run: |
+          git config user.name "job-search-bot"
+          git config user.email "job-search-bot@users.noreply.github.com"
+          git add data/jobs.csv JOBS.md
+          if git diff --cached --quiet; then
+            echo "No new matches today."
+          else
+            git commit -m "Job search: new matches $(date -u +%F)"
+            git push
+          fi

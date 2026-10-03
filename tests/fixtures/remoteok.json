@@ -1,0 +1,5 @@
+[{"legal": "API terms"},
+ {"id": "201", "position": "Analytics Engineer", "company": "Deel-ish", "location": "Worldwide", "url": "https://remoteok.com/remote-jobs/201", "date": "2026-10-02T00:00:00+00:00", "salary_min": 70000, "salary_max": 95000, "tags": ["dbt"], "description": "x"},
+ {"id": "202", "position": "Data Analyst Intern", "company": "Student Co", "location": "Worldwide", "url": "https://remoteok.com/remote-jobs/202", "date": "2026-10-02", "salary_min": 90000, "salary_max": 100000, "tags": [], "description": "x"},
+ {"id": "203", "position": "Senior Data Analyst", "company": "Paystack Labs", "location": "", "url": "https://remotive.com/remote-jobs/data/senior-data-analyst-101", "date": "2026-10-02", "salary_min": 80000, "salary_max": 100000, "tags": [], "description": "duplicate URL"}
+]
