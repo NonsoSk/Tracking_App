@@ -44,5 +44,6 @@
     "INR": 0.012,
     "NGN": 0.00065
   },
-  "hours_per_month": 160
+  "hours_per_month": 160,
+  "max_drafts_per_run": 10
 }

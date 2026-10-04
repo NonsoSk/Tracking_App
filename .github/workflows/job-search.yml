@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: tracker
+  cancel-in-progress: false
+
 jobs:
   search:
     runs-on: ubuntu-latest
@@ -16,18 +20,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install
+        run: pip install -r requirements.txt
       - name: Test
         run: python -m unittest
-      - name: Search job boards
+      - name: Search job boards and draft applications
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESUME_TEXT: ${{ secrets.RESUME_TEXT }}
         run: python -m jobsearch
-      - name: Commit new matches
+      - name: Send approved applications
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: python -m jobsearch send || true
+      - name: Commit results
         run: |
           git config user.name "job-search-bot"
           git config user.email "job-search-bot@users.noreply.github.com"
-          git add data/jobs.csv JOBS.md
+          git add data/jobs.csv JOBS.md applications
           if git diff --cached --quiet; then
-            echo "No new matches today."
+            echo "Nothing new today."
           else
-            git commit -m "Job search: new matches $(date -u +%F)"
+            git commit -m "Job search: $(date -u +%F)"
             git push
           fi

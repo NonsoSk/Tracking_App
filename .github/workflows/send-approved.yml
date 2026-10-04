@@ -1,0 +1,38 @@
+name: Send approved applications
+
+# Runs when you edit data/jobs.csv (for example, set a job to Approved).
+on:
+  push:
+    branches: [main]
+    paths: [data/jobs.csv]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tracker
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Send
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: python -m jobsearch send
+      - name: Commit results
+        run: |
+          git config user.name "job-search-bot"
+          git config user.email "job-search-bot@users.noreply.github.com"
+          git add data/jobs.csv JOBS.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Sent approved applications $(date -u +%F)"
+            git push
+          fi

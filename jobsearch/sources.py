@@ -40,7 +40,8 @@ def job(source, source_id, title, company, location, url, posted="",
         "currency": currency,
         "period": period,
         "tags": tags or [],
-        "description": strip_html(description)[:2000],
+        "description": strip_html(description)[:8000],
+        "raw_description": (description or "")[:20000],
     }
 
 
