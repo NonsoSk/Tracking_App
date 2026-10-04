@@ -1,0 +1,8 @@
+{"jobs": [
+ {"id": 101, "url": "https://remotive.com/remote-jobs/data/senior-data-analyst-101", "title": "Senior Data Analyst", "company_name": "Paystack Labs", "candidate_required_location": "Worldwide", "publication_date": "2026-10-01T10:00:00", "salary": "$80k - $100k", "tags": ["sql"], "description": "<p>Join our startup. Send your CV to <a href=\"mailto:jobs@paystacklabs.io\">jobs@paystacklabs.io</a></p>"},
+ {"id": 102, "url": "https://remotive.com/remote-jobs/data/data-analyst-102", "title": "Data Analyst", "company_name": "LowPay Co", "candidate_required_location": "Worldwide", "publication_date": "2026-10-01", "salary": "$2,000 - $3,000 per month", "tags": [], "description": ""},
+ {"id": 103, "url": "https://remotive.com/remote-jobs/data/data-analyst-103", "title": "Data Analyst", "company_name": "USOnly Inc", "candidate_required_location": "USA Only", "publication_date": "2026-10-01", "salary": "$120,000/year", "tags": [], "description": ""},
+ {"id": 104, "url": "https://remotive.com/remote-jobs/dev/backend-104", "title": "Backend Engineer", "company_name": "Devs", "candidate_required_location": "Worldwide", "publication_date": "2026-10-01", "salary": "$150k", "tags": [], "description": ""},
+ {"id": 105, "url": "https://remotive.com/remote-jobs/data/product-analyst-105", "title": "Product Analyst", "company_name": "EuroStart", "candidate_required_location": "Europe, Africa", "publication_date": "2026-09-30", "salary": "€5,500/month", "tags": [], "description": ""},
+ {"id": 106, "url": "https://remotive.com/remote-jobs/data/data-analyst-106", "title": "Data Analyst", "company_name": "Mystery", "candidate_required_location": "Anywhere", "publication_date": "2026-09-30", "salary": "", "tags": [], "description": ""}
+]}

@@ -1,0 +1,55 @@
+{
+  "title_keywords": [
+    "data analyst",
+    "analytics analyst",
+    "business intelligence analyst",
+    "bi analyst",
+    "product analyst",
+    "marketing analyst",
+    "business analyst",
+    "analytics engineer",
+    "insights analyst",
+    "reporting analyst"
+  ],
+  "title_exclude": [
+    "intern",
+    "internship",
+    "director",
+    "vp ",
+    "head of"
+  ],
+  "min_monthly_usd": 5000,
+  "include_unknown_salary": false,
+  "allowed_locations": [
+    "worldwide",
+    "anywhere",
+    "global",
+    "international",
+    "emea",
+    "europe",
+    "africa",
+    "nigeria",
+    "uk",
+    "gmt",
+    "utc"
+  ],
+  "exclude_companies": [],
+  "usd_rates": {
+    "USD": 1.0,
+    "EUR": 1.08,
+    "GBP": 1.27,
+    "CAD": 0.73,
+    "AUD": 0.66,
+    "CHF": 1.13,
+    "INR": 0.012,
+    "NGN": 0.00065
+  },
+  "hours_per_month": 160,
+  "max_drafts_per_run": 10,
+  "profile": {
+    "linkedin": "https://www.linkedin.com/in/emmanuelibehyacinth/",
+    "github": "https://github.com/NonsoSk"
+  },
+  "research_companies": true,
+  "deal_turnaround": "48 hours"
+}
