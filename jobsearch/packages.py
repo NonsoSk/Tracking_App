@@ -1,7 +1,8 @@
 """Application packages: one folder per job under applications/.
 
 Each folder holds the job post, the tailored resume (Markdown, HTML and PDF),
-the cover letter, and outreach.md, the email that goes out once you approve.
+the cover letter, outreach.md (a formal email) and deal.md (a casual
+"I'll make you a deal" message). One of them goes out once you approve.
 """
 
 import os
@@ -30,8 +31,20 @@ def render(folder, name, markdown, title):
         print(f"  ! PDF for {folder}/{name} failed: {error}")
 
 
-def build(root, item, docs):
+def with_links(markdown, links):
+    """Make sure the resume header carries the LinkedIn (and other) links."""
+    missing = [f"{name}: {url}" for name, url in links.items() if url and url.rstrip("/") not in markdown]
+    if not missing:
+        return markdown
+    lines = markdown.splitlines()
+    at = next((i + 1 for i, line in enumerate(lines) if line.startswith("# ")), 0)
+    lines.insert(at, " | ".join(missing))
+    return "\n".join(lines)
+
+
+def build(root, item, docs, links=None):
     """Write the package for one job. Returns (folder relative to root, contact email)."""
+    docs = dict(docs, resume_markdown=with_links(docs["resume_markdown"], links or {}))
     relative = os.path.join("applications", slug(item))
     folder = os.path.join(root, relative)
     os.makedirs(folder, exist_ok=True)
@@ -52,6 +65,12 @@ def build(root, item, docs):
     render(folder, "cover_letter", docs["cover_letter"], f"Cover letter: {item['title']}")
     write(os.path.join(folder, "outreach.md"),
           f"To: {contact}\nSubject: {docs['email_subject']}\n\n{docs['email_body']}")
+    write(os.path.join(folder, "deal.md"),
+          f"To: {contact}\nSubject: {docs['deal_subject']}\n\n{docs['deal_message']}")
+    write(os.path.join(folder, "deal_notes.md"),
+          f"# Deal message notes\n\n- Problem: {docs['deal_problem']}\n- Source: {docs['deal_source']}\n\n"
+          "deal.md is a casual alternative to outreach.md. It also works as a LinkedIn message.\n"
+          "Check the problem and source above before sending.")
     return relative, contact
 
 

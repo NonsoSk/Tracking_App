@@ -9,7 +9,7 @@ import os
 
 COLUMNS = [
     "status", "title", "company", "monthly_usd_min", "monthly_usd_max",
-    "location", "url", "fit", "contact", "package", "sent",
+    "location", "url", "fit", "style", "contact", "package", "sent",
     "source", "posted", "first_seen", "notes", "id",
 ]
 STATUSES = ["New", "Interested", "Approved", "Applied", "Interviewing", "Offer", "Rejected", "Skipped"]
@@ -39,7 +39,7 @@ def merge(rows, matches, today):
         if item["id"] in known_ids or (item["url"] and item["url"] in known_urls):
             continue
         row = {column: item.get(column, "") for column in COLUMNS}
-        row.update(status="New", first_seen=today, notes="", fit="", contact="", package="", sent="")
+        row.update(status="New", first_seen=today, notes="", fit="", style="", contact="", package="", sent="")
         for key in ("monthly_usd_min", "monthly_usd_max"):
             row[key] = "" if item.get(key) is None else str(item[key])
         rows.append(row)
@@ -68,6 +68,7 @@ def render_markdown(rows, today):
         f"Remote data analyst roles paying at least $5k a month. Last search: {today}.",
         "Edit `status` and `notes` in [data/jobs.csv](data/jobs.csv); the next search keeps your edits.",
         "Set a job's status to `Approved` to send its outreach email with the tailored resume on the next run.",
+        "Set `style` to `deal` first to send the casual deal message (deal.md) instead of the formal email.",
         "",
     ]
     for status in STATUSES:

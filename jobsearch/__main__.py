@@ -40,14 +40,15 @@ def draft_applications(args, config, rows, found, client):
     for row in pending[: config.get("max_drafts_per_run", 10)]:
         item = by_id[row["id"]]
         try:
-            docs = tailor.tailor(client, resume, item)
+            docs = tailor.tailor(client, resume, item, research=config.get("research_companies", False),
+                                 turnaround=config.get("deal_turnaround", "48 hours"))
         except Exception as error:  # one failed draft should not stop the rest
             print(f"  ! drafting {row['title']} at {row['company']} failed: {error}")
             continue
         if docs is None:
             print(f"  ! drafting {row['title']} at {row['company']} was declined")
             continue
-        row["package"], row["contact"] = packages.build(args.root, item, docs)
+        row["package"], row["contact"] = packages.build(args.root, item, docs, config.get("profile"))
         row["fit"] = str(docs["fit_score"])
         print(f"  drafted {row['package']} (fit {row['fit']}/10)")
 
@@ -89,14 +90,14 @@ def send(args, config, sender=outreach.send):
     for row in approved:
         label = f"{row['title']} at {row['company']}"
         folder = os.path.join(args.root, row.get("package") or "")
-        draft = os.path.join(folder, "outreach.md")
+        draft = os.path.join(folder, "deal.md" if row.get("style", "").strip().lower() == "deal" else "outreach.md")
         if not row.get("package") or not os.path.exists(draft):
             print(f"  ! {label}: no drafts yet, apply via {row['url']}")
             continue
         to, subject, body = outreach.read_email_draft(draft)
         if not to:
             print(f"  ! {label}: no contact email in the post. Add one on the To: line of "
-                  f"{row['package']}/outreach.md, or apply via {row['url']}")
+                  f"{os.path.relpath(draft, args.root)}, or apply via {row['url']}")
             continue
         if args.dry_run:
             print(f"  would send to {to}: {subject}")

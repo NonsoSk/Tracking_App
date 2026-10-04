@@ -103,6 +103,10 @@ class FakeClient:
             "email_body": "Hello,\n\nPlease find my resume attached.\n\nAda",
             "fit_score": 8,
             "gaps": ["Looker"],
+            "deal_problem": "Churn reporting is manual",
+            "deal_source": "the job post",
+            "deal_subject": "A small deal",
+            "deal_message": "Hi, I'll make you a deal.",
         }
         response = type("Response", (), {})()
         response.stop_reason = "end_turn"
@@ -136,23 +140,25 @@ class ApplicationTest(unittest.TestCase):
         paystack = next(row for row in rows if row["company"] == "Paystack Labs")
         self.assertEqual((paystack["contact"], paystack["fit"]), ("jobs@paystacklabs.io", "8"))
         package = os.path.join(self.folder, paystack["package"])
-        for name in ("job.md", "resume.md", "resume.html", "cover_letter.md", "outreach.md"):
+        for name in ("job.md", "resume.md", "resume.html", "cover_letter.md", "outreach.md", "deal.md"):
             self.assertTrue(os.path.exists(os.path.join(package, name)), name)
+        with open(os.path.join(package, "resume.md")) as handle:
+            self.assertIn("linkedin.com/in/emmanuelibehyacinth", handle.read())
 
         sent = []
-        sender = lambda settings, to, subject, body, files: sent.append(to)
+        sender = lambda settings, to, subject, body, files: sent.append((to, subject))
         os.environ.update(SMTP_USER="me@gmail.com", SMTP_PASSWORD="x")
         try:
             cli.main(["send", *self.paths], sender=sender)
             self.assertEqual(sent, [])  # nothing is approved yet
 
-            paystack["status"] = "Approved"
+            paystack["status"], paystack["style"] = "Approved", "deal"
             tracker.save(os.path.join(self.folder, "jobs.csv"), rows)
             cli.main(["send", *self.paths], sender=sender)
             cli.main(["send", *self.paths], sender=sender)  # never sends twice
         finally:
             del os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"]
-        self.assertEqual(sent, ["jobs@paystacklabs.io"])
+        self.assertEqual(sent, [("jobs@paystacklabs.io", "A small deal")])
         after = tracker.load(os.path.join(self.folder, "jobs.csv"))
         self.assertEqual(next(r for r in after if r["company"] == "Paystack Labs")["status"], "Applied")
 
@@ -164,6 +170,13 @@ class ApplicationTest(unittest.TestCase):
 
 
 class DocumentTest(unittest.TestCase):
+    def test_links_added_once(self):
+        from jobsearch.packages import with_links
+        links = {"LinkedIn": "https://www.linkedin.com/in/x/"}
+        out = with_links("# Ada\nLagos\n## Skills", links)
+        self.assertEqual(out.splitlines()[1], "LinkedIn: https://www.linkedin.com/in/x/")
+        self.assertEqual(with_links(out, links), out)
+
     def test_markdown_to_html(self):
         from jobsearch.documents import markdown_to_html
         out = markdown_to_html("# Ada\n\n- **SQL** & [site](https://a.io)\nPlain <b>")

@@ -37,14 +37,22 @@ gets a folder under `applications/` with:
 
 - `resume.pdf` (one page), `resume.md` and `resume.html`
 - `cover_letter.pdf` and `cover_letter.md`
-- `outreach.md`: the email, with the recruiter address on the `To:` line
+- `outreach.md`: a formal email, with the recruiter address on the `To:` line
+- `deal.md`: a casual, polite "I'll make you a deal" message built around one
+  public problem the company has (offer: give me the problem, I'll send back a
+  working analysis in 48 hours, and if it helps, that's my interview).
+  `deal_notes.md` says which problem it picked and where that came from.
+  It only uses public information (the post, the company's site, news) and
+  never asks for anything private. It also works as a LinkedIn message.
 - `job.md`: the post, a 1 to 10 fit score, and requirements you don't meet
 
 Claude only rewords and reorders what is in your resume; it never adds
-experience you don't have. Check the gaps in `job.md` before approving.
+experience you don't have. Every resume carries the LinkedIn link from
+`profile` in `config.json`. Check the gaps in `job.md` before approving.
 
 **Nothing is sent without your approval.** To send, set the job's `status` to
-`Approved` in `data/jobs.csv`. Saving that change on GitHub runs the
+`Approved` in `data/jobs.csv`. To send the deal message instead of the formal
+email, also set that job's `style` to `deal`. Saving that change on GitHub runs the
 **Send approved applications** workflow, which emails `outreach.md` to the
 `To:` address with the resume and cover letter attached, then marks the job
 `Applied`. The address comes only from the job post itself; when a post lists

@@ -45,5 +45,11 @@
     "NGN": 0.00065
   },
   "hours_per_month": 160,
-  "max_drafts_per_run": 10
+  "max_drafts_per_run": 10,
+  "profile": {
+    "linkedin": "https://www.linkedin.com/in/emmanuelibehyacinth/",
+    "github": "https://github.com/NonsoSk"
+  },
+  "research_companies": true,
+  "deal_turnaround": "48 hours"
 }
