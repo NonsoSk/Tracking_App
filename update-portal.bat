@@ -11,6 +11,7 @@ if /i not "%~1"=="--run" (
 )
 
 set "PORTAL=%~2"
+set "SELF=%~f0"
 title Update IEFCL Recruitment Portal
 rem Use the folder this file sits in if the portal is set up there; otherwise the usual place, %USERPROFILE%\portal
 if exist "%PORTAL%.venv\Scripts\python.exe" goto found
@@ -26,13 +27,14 @@ if not exist "manage.py" goto notportal
 netstat -ano | findstr /r /c:":8000 .*LISTENING" >nul
 if not errorlevel 1 goto running
 
+set "BRANCH=claude/quirky-lovelace-sv5emz"
 set "URL=https://github.com/NonsoSk/Tracking_App/archive/refs/heads/claude/quirky-lovelace-sv5emz.zip"
 set "WORK=%TEMP%\iefcl-portal-download"
 if exist "%WORK%" rmdir /s /q "%WORK%"
 mkdir "%WORK%"
 
-echo Downloading the latest version...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; if ([Net.WebRequest]::DefaultWebProxy) { [Net.WebRequest]::DefaultWebProxy.Credentials=[Net.CredentialCache]::DefaultNetworkCredentials }; $zip=Join-Path $env:WORK 'portal.zip'; Invoke-WebRequest -UseBasicParsing -Uri $env:URL -OutFile $zip; Expand-Archive -Path $zip -DestinationPath (Join-Path $env:WORK 'files') -Force"
+rem Fetch and unpack the latest code (the steps are in the PowerShell part at the end of this file)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s = Get-Content -LiteralPath $env:SELF -Raw; $m = '#PS-' + 'START#'; Invoke-Expression $s.Substring($s.IndexOf($m) + $m.Length)"
 if errorlevel 1 goto downloadfail
 
 set "SRC="
@@ -73,7 +75,7 @@ pause
 exit /b 1
 
 :downloadfail
-echo The download did not work. Check your internet connection, then try again. Nothing was changed.
+echo Nothing was changed. Send a screenshot of this window if it keeps happening.
 pause
 exit /b 1
 
@@ -86,3 +88,71 @@ exit /b 1
 echo Copying the new files failed. Make sure no file in the portal folder is open, then try again.
 pause
 exit /b 1
+
+rem ===== PowerShell part: everything below is run by PowerShell, never by this batch file =====
+#PS-START#
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$zip = Join-Path $env:WORK 'portal.zip'
+$prefix = 'Tracking_App-' + ($env:BRANCH -replace '/', '-')
+
+function Get-Downloads {
+  if ($env:IEFCL_DOWNLOADS) { return $env:IEFCL_DOWNLOADS }
+  try { $p = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path; if ($p) { return $p } } catch { }
+  return (Join-Path $env:USERPROFILE 'Downloads')
+}
+function Find-Zip([datetime]$since) {
+  # Only a finished download: not empty, no browser part-file beside it, and no longer growing
+  $dir = Get-Downloads
+  $file = Get-ChildItem -LiteralPath $dir -Filter ($prefix + '*.zip') -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -ge $since -and $_.Length -gt 0 } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $file) { return $null }
+  if ((Test-Path -LiteralPath ($file.FullName + '.part')) -or (Get-ChildItem -LiteralPath $dir -Filter '*.crdownload' -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddSeconds(-10) })) { return $null }
+  $size = $file.Length; Start-Sleep -Seconds 1; $file.Refresh()
+  if ($file.Length -ne $size) { return $null }
+  return $file
+}
+
+try {
+  # 1. Direct download. This only works while the repository is public, so a refusal here is expected.
+  Write-Host 'Downloading the latest version...'
+  $direct = $false
+  try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    if ([Net.WebRequest]::DefaultWebProxy) { [Net.WebRequest]::DefaultWebProxy.Credentials = [Net.CredentialCache]::DefaultNetworkCredentials }
+    Invoke-WebRequest -UseBasicParsing -Uri $env:URL -OutFile $zip
+    $direct = $true
+  } catch { }
+
+  if (-not $direct) {
+    # 2. The code is private on GitHub, so the browser (where you are signed in) downloads it.
+    #    A copy downloaded in the last 30 minutes is used straight away.
+    $found = Find-Zip ((Get-Date).AddMinutes(-30))
+    if (-not $found) {
+      $since = (Get-Date).AddSeconds(-5)
+      Write-Host ''
+      Write-Host 'The code is private on GitHub, so your browser will download it for you.'
+      Write-Host 'If the browser asks, choose Save or Keep. You must be signed in to GitHub there.'
+      try { Start-Process $env:URL } catch { Write-Host ('Open this link in your browser: ' + $env:URL) }
+      Write-Host 'Waiting for the download to finish (up to 5 minutes)...'
+      $deadline = (Get-Date).AddMinutes(5)
+      while (-not $found -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2; $found = Find-Zip $since }
+      if (-not $found) {
+        Write-Host ''
+        Write-Host 'The download did not arrive in your Downloads folder.'
+        Write-Host 'If the browser showed "404" or "Page not found", sign in to github.com in that browser, then double-click this file again.'
+        exit 1
+      }
+      Start-Sleep -Seconds 2
+    }
+    Write-Host ('Using ' + $found.Name + ' from your Downloads folder.')
+    Copy-Item -LiteralPath $found.FullName -Destination $zip -Force
+  }
+
+  Expand-Archive -Path $zip -DestinationPath (Join-Path $env:WORK 'files') -Force
+  exit 0
+} catch {
+  Write-Host ''
+  Write-Host ('The download did not work: ' + $_.Exception.Message)
+  exit 1
+}

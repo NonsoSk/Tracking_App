@@ -44,9 +44,11 @@ python manage.py runserver
 > paths exceed Windows' 260-character path limit and `pip install` fails with "No such file or directory" (often on
 > `lxml`).
 
-> **Windows, to get the latest version:** close the portal window and double-click `update-portal.bat`. It downloads
-> the newest code, keeps your database, settings, uploads and Python environment, removes screens and styles the new
-> version no longer uses, installs any new packages and starts the portal.
+> **Windows, to get the latest version:** close the portal window and double-click `update-portal.bat`. Because the
+> repository is private, it asks your browser (signed in to GitHub) to download the code, picks the file up from your
+> Downloads folder, keeps your database, settings, uploads and Python environment, removes screens and styles the new
+> version no longer uses, installs any new packages and starts the portal. A copy of the code downloaded in the last
+> 30 minutes is used straight away.
 >
 > **Windows, every day after that:** double-click `start-portal.bat`. It applies any database updates, starts the
 > portal and opens it in your browser. Keep its window open while you work; close it to stop the portal. To start it
