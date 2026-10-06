@@ -1,5 +1,9 @@
 # AI Recruiter Agent
 
+[![CI](https://github.com/NonsoSk/Ai-Recruiter-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/NonsoSk/Ai-Recruiter-Agent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 An evidence-grounded screening agent for recruiting teams. Give it a job
 description and a resume; it pulls out the job's requirements, finds evidence for
 each one in the resume, judges it, and returns a score, an **advisory**
@@ -63,6 +67,8 @@ Design decisions and the trade-offs behind them are in [docs/DESIGN.md](docs/DES
 ## Quickstart (no model, $0)
 
 ```bash
+git clone https://github.com/NonsoSk/Ai-Recruiter-Agent.git
+cd Ai-Recruiter-Agent
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
