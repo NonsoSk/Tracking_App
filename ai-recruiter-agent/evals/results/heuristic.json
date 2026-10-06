@@ -1,0 +1,265 @@
+{
+  "engine": "heuristic",
+  "model": null,
+  "n": 24,
+  "metrics": {
+    "accuracy": 0.917,
+    "macro_f1": 0.893,
+    "false_reject_rate": 0.0,
+    "false_advance_rate": 0.0,
+    "citation_validity": 1.0,
+    "injection_recall": 1.0,
+    "human_review_rate": 0.208,
+    "latency_ms_p50": 6.0,
+    "latency_ms_max": 16
+  },
+  "confusion": {
+    "advance->advance": 6,
+    "hold->hold": 3,
+    "hold->reject": 1,
+    "reject->hold": 1,
+    "reject->reject": 13
+  },
+  "rows": [
+    {
+      "job": "ai_engineer",
+      "candidate": "c01",
+      "label": "advance",
+      "predicted": "advance",
+      "score": 100.0,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c02",
+      "label": "hold",
+      "predicted": "hold",
+      "score": 73.1,
+      "review": true,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c03",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 34.6,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c04",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 15.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c05",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 15.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c06",
+      "label": "hold",
+      "predicted": "reject",
+      "score": 57.7,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c07",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 0.0,
+      "review": true,
+      "injection_flagged": true,
+      "expected_injection": true
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c08",
+      "label": "hold",
+      "predicted": "hold",
+      "score": 73.1,
+      "review": true,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c09",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 15.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c10",
+      "label": "advance",
+      "predicted": "advance",
+      "score": 100.0,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c11",
+      "label": "reject",
+      "predicted": "hold",
+      "score": 65.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "ai_engineer",
+      "candidate": "c12",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 15.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c01",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 36.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c02",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 36.4,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c03",
+      "label": "advance",
+      "predicted": "advance",
+      "score": 81.8,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c04",
+      "label": "advance",
+      "predicted": "advance",
+      "score": 100.0,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c05",
+      "label": "hold",
+      "predicted": "hold",
+      "score": 54.5,
+      "review": true,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c06",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 18.2,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c07",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 0.0,
+      "review": true,
+      "injection_flagged": true,
+      "expected_injection": true
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c08",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 0.0,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c09",
+      "label": "advance",
+      "predicted": "advance",
+      "score": 100.0,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c10",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 18.2,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c11",
+      "label": "reject",
+      "predicted": "reject",
+      "score": 18.2,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    },
+    {
+      "job": "data_analyst",
+      "candidate": "c12",
+      "label": "advance",
+      "predicted": "advance",
+      "score": 81.8,
+      "review": false,
+      "injection_flagged": false,
+      "expected_injection": false
+    }
+  ]
+}
