@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AI Recruiter Agent - FastAPI on AWS Lambda behind an HTTP API, with screening
+  results in DynamoDB. With the default Engine=heuristic every resource here fits
+  the AWS free tier. Engine=llm calls Amazon Bedrock, which is billed per token.
+
+Parameters:
+  Engine:
+    Type: String
+    AllowedValues: [heuristic, llm]
+    Default: heuristic
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Bedrock model or inference profile id, used when Engine=llm.
+  ApiKey:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Shared secret clients send in the X-API-Key header.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 512
+    Timeout: 29
+
+Resources:
+  ScreeningsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      # Provisioned 5/5 stays inside the always-free 25 RCU / 25 WCU allowance.
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src
+      Handler: recruiter_agent.lambda_handler.handler
+      Environment:
+        Variables:
+          RA_ENGINE: !Ref Engine
+          RA_LLM_PROVIDER: bedrock
+          RA_LLM_MODEL: !Ref BedrockModelId
+          RA_STORE: dynamodb
+          RA_DYNAMODB_TABLE: !Ref ScreeningsTable
+          RA_API_KEY: !Ref ApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ScreeningsTable
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+              Resource: "*"
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ApiFunction}
+      RetentionInDays: 14
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  TableName:
+    Value: !Ref ScreeningsTable

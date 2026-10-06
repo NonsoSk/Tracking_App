@@ -1,0 +1,10 @@
+# Runtime dependencies for the Lambda build (sam build reads this file from CodeUri).
+# The pinned, tested set lives in pyproject.toml.
+fastapi>=0.110
+langchain-core>=0.3
+langgraph>=0.2
+mangum>=0.17
+pydantic>=2.6
+pydantic-settings>=2.2
+rank-bm25>=0.2.2
+langchain-aws>=0.2
