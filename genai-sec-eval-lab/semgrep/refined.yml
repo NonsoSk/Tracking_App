@@ -1,0 +1,45 @@
+# Refined: same sources and sinks, plus the authorization controls observed in the fixed variants.
+rules:
+  - id: refined-request-tenant-into-retrieval
+    languages: [python]
+    severity: ERROR
+    message: Client-supplied tenant_id scopes retrieval without a check against the authenticated tenant.
+    metadata: {owasp-llm: "LLM02:2025 Sensitive Information Disclosure"}
+    patterns:
+      - pattern-inside: |
+          $T = $REQ["tenant_id"]
+          ...
+      - pattern: $IDX.search(..., tenant_id=$T, ...)
+      - pattern-not-inside: |
+          if $T != $CTX.tenant_id:
+              ...
+          ...
+
+  - id: refined-memory-loaded-without-owner-check
+    languages: [python]
+    severity: ERROR
+    message: Conversation loaded by client-supplied id and used without checking its owner.
+    metadata: {owasp-llm: "LLM02:2025 Sensitive Information Disclosure"}
+    patterns:
+      - pattern: $C = $MEM.load($REQ["conversation_id"])
+      - pattern-not-inside: |
+          $C = $MEM.load(...)
+          ...
+          if <... $C.owner_user_id ...>:
+              ...
+          ...
+
+  - id: refined-tool-param-controls-recipient
+    languages: [python]
+    severity: ERROR
+    message: Model-chosen recipient is used with no domain restriction or human approval.
+    metadata: {owasp-llm: "LLM06:2025 Excessive Agency"}
+    patterns:
+      - pattern-inside: |
+          def $TOOL($CTX, ..., $P, ...):
+              ...
+      - pattern: $MAILER.send(..., to=$P, ...)
+      - pattern-not-inside: |
+          if <... approve(...) ...>:
+              ...
+          ...
