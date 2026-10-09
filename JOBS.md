@@ -1,6 +1,6 @@
 # Job matches
 
-Remote data analyst roles paying at least $5k a month. Last search: 2026-10-08.
+Remote data analyst roles paying at least $5k a month. Last search: 2026-10-09.
 Edit `status` and `notes` in [data/jobs.csv](data/jobs.csv); the next search keeps your edits.
 Set a job's status to `Approved` to send its outreach email with the tailored resume on the next run.
 Set `style` to `deal` first to send the casual deal message (deal.md) instead of the formal email.
