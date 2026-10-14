@@ -8,6 +8,11 @@ from django.urls import reverse
 from core.choices import DegreeClass, EducationLevel, NyscStatus
 
 
+class CommunityStatus(models.TextChoices):
+    COMMUNITY = "community", "Host community"
+    NON_COMMUNITY = "non_community", "Non-community"
+
+
 class Candidate(models.Model):
     class Source(models.TextChoices):
         PORTAL = "portal", "Online application (careers page)"
@@ -40,7 +45,7 @@ class Candidate(models.Model):
     degree_class = models.CharField(max_length=10, choices=DegreeClass.choices, blank=True)
     nysc_status = models.CharField("NYSC status", max_length=10, choices=NyscStatus.choices, blank=True)
 
-    years_experience = models.DecimalField(max_digits=4, decimal_places=1, default=0)
+    years_experience = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True, default=0)
     current_employer = models.CharField(max_length=150, blank=True)
     current_job_title = models.CharField(max_length=150, blank=True)
 
@@ -61,6 +66,17 @@ class Candidate(models.Model):
     parse_method = models.CharField(max_length=10, choices=ParseMethod.choices, blank=True)
     parse_notes = models.TextField(blank=True)
     parsed_at = models.DateTimeField(null=True, blank=True)
+
+    # Recorded in IEFCL's recruitment spreadsheets
+    state_of_origin = models.CharField(max_length=80, blank=True)
+    lga = models.CharField("LGA / community", max_length=150, blank=True)
+    community_status = models.CharField(max_length=20, choices=CommunityStatus.choices, blank=True)
+    source_detail = models.CharField("Source as recorded", max_length=80, blank=True,
+                                     help_text="E.g. IFZ website, Internal Portal, PAC, Proten.")
+    relevant_experience = models.BooleanField(null=True, blank=True)
+    other_contacts = models.CharField(max_length=255, blank=True, help_text="Other phone numbers and emails on record.")
+    source_records = models.JSONField(default=list, blank=True, editable=False,
+                                      help_text="The spreadsheet rows this profile was imported from, exactly as recorded.")
 
     consent_given = models.BooleanField(default=False, help_text="Candidate agreed to data processing (NDPA 2023).")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -91,7 +107,15 @@ class Candidate(models.Model):
         return {"first": "1st", "2_1": "2:1", "2_2": "2:2", "third": "3rd", "pass": "Pass"}.get(self.degree_class, "")
 
     @property
+    def experience_label(self) -> str:
+        if self.years_experience is None:
+            return "—"
+        return f"{float(self.years_experience):g} yrs"
+
+    @property
     def source_short(self) -> str:
+        if self.source_detail:
+            return self.source_detail
         return {"portal": "Careers page", "referral": "Referral", "email": "Emailed CV", "hard_copy": "Hard copy",
                 "agency": "Agency", "internal": "Internal", "import": "Spreadsheet"}.get(self.source, self.source)
 
@@ -108,7 +132,7 @@ class Candidate(models.Model):
     def profile_completeness(self) -> int:
         checks = [
             self.first_name, self.last_name, self.email, self.phone, self.highest_qualification,
-            self.course, self.institution, self.skills, self.years_experience is not None, self.location,
+            self.course, self.institution, self.skills, self.years_experience is not None, self.location or self.state_of_origin,
         ]
         return round(100 * sum(1 for c in checks if c) / len(checks))
 
@@ -179,3 +203,28 @@ class CandidateDocument(models.Model):
             "tif": "bi-file-earmark-image",
             "tiff": "bi-file-earmark-image",
         }.get(self.extension, "bi-file-earmark-text")
+
+
+class CBTResult(models.Model):
+    """A computer-based test sat by a candidate, as recorded in the CBT results sheet."""
+
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name="cbt_results")
+    test_date = models.DateField(null=True, blank=True)
+    category = models.CharField(max_length=80, blank=True, help_text="E.g. Process_GET, Lab_DET.")
+    score = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    total = models.DecimalField("Total marks", max_digits=6, decimal_places=1, null=True, blank=True)
+    company = models.CharField(max_length=20, blank=True)
+    source_row = models.PositiveIntegerField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ["-test_date", "-id"]
+        verbose_name = "CBT result"
+
+    def __str__(self):
+        return f"{self.candidate} · {self.category} · {self.score}/{self.total}"
+
+    @property
+    def percent(self):
+        if self.score is None or not self.total:
+            return None
+        return round(float(self.score) / float(self.total) * 100)

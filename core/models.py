@@ -64,6 +64,13 @@ class Employee(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
     date_of_employment = models.DateField(null=True, blank=True)
     retirement_date = models.DateField(null=True, blank=True, editable=False, db_index=True)
+    company = models.CharField(max_length=60, blank=True, help_text="E.g. IEFCL, IEPL.")
+    business_unit = models.CharField(max_length=20, blank=True, db_index=True, help_text="E.g. IFZ, IPL, IFF, MMFZE.")
+    location = models.CharField(max_length=120, blank=True)
+    category = models.CharField(max_length=60, blank=True, help_text="E.g. Staff Regular, Trainee-DET.")
+    work_status = models.CharField(max_length=40, blank=True, help_text="E.g. Confirmed, Probation, Trainee.")
+    source_record = models.JSONField(default=dict, blank=True, editable=False,
+                                     help_text="The staff-list row this record was imported from (salary is never stored).")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     exit_date = models.DateField(null=True, blank=True)
     replacement_notified_at = models.DateTimeField(null=True, blank=True)

@@ -1,5 +1,5 @@
 {% extends "ds/base.html" %}
-{% load ds %}
+{% load ds humanize %}
 {% block title %}Talent database{% endblock %}
 {% block crumbs %}<span aria-current="page">Talent database</span>{% endblock %}
 {% block primary_action %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-16" %} Upload CVs</a>{% endblock %}
@@ -8,7 +8,7 @@
   <div>
     <div class="eyebrow">Talent</div>
     <h1>Talent database</h1>
-    <p class="lede">{{ total }} candidate{{ total|pluralize }}: everyone who applied, was referred, emailed a CV or dropped a hard copy.</p>
+    <p class="lede">{{ total|intcomma }} candidate{{ total|pluralize }}: everyone who applied, sat a CBT, was interviewed, was referred or sent a CV.</p>
     <p class="calm">{% calm_note %}</p>
   </div>
   <div class="actions">
@@ -18,16 +18,20 @@
 </header>
 
 <form class="sheet filters" method="get" role="search" aria-label="Search the talent database">
-  <div class="input-icon f-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Name, email, phone, course or any word in the CV" aria-label="Search"></div>
+  <div class="input-icon f-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Name, email, phone, course, school, state or any word in the CV" aria-label="Search"></div>
   <input class="input" name="skill" value="{{ filters.skill }}" placeholder="Skill, tool or certificate" aria-label="Skill, tool or certificate">
   <select name="highest_qualification" class="select" aria-label="Qualification"><option value="">Any qualification</option>{% for v, l in levels %}<option value="{{ v }}" {% if filters.highest_qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-  <select name="source" class="select" aria-label="Source"><option value="">Any source</option>{% for v, l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="source" class="select" aria-label="Source"><option value="">Any source</option>
+    {% if channels %}<optgroup label="As recorded">{% for v in channels %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ v }}</option>{% endfor %}</optgroup>{% endif %}
+    <optgroup label="Through the portal">{% for v, l in portal_sources %}{% if v != "import" %}<option value="portal:{{ v }}" {% if filters.source == "portal:"|add:v %}selected{% endif %}>{{ l }}</option>{% endif %}{% endfor %}</optgroup></select>
+  <select name="record" class="select" aria-label="History"><option value="">Any history</option><option value="cbt" {% if filters.record == 'cbt' %}selected{% endif %}>Sat a CBT</option><option value="interviewed" {% if filters.record == 'interviewed' %}selected{% endif %}>Interviewed</option><option value="selected" {% if filters.record == 'selected' %}selected{% endif %}>Selected at interview</option><option value="hired" {% if filters.record == 'hired' %}selected{% endif %}>Hired</option></select>
+  <select name="community" class="select" aria-label="Community"><option value="">Any community status</option>{% for v, l in communities %}<option value="{{ v }}" {% if filters.community == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   <input class="input num" name="min_exp" value="{{ filters.min_exp }}" placeholder="Min. years" inputmode="decimal" aria-label="Minimum years of experience">
-  <div class="row"><button class="btn btn-primary" type="submit">{% icon "search" "ico-18" %} Search</button>{% if q or filters.skill or filters.highest_qualification or filters.source or filters.min_exp %}<a class="btn btn-ghost" href="?">Clear</a>{% endif %}</div>
+  <div class="row"><button class="btn btn-primary" type="submit">{% icon "search" "ico-18" %} Search</button>{% if filtered %}<a class="btn btn-ghost" href="?">Clear</a>{% endif %}</div>
 </form>
 
 <section class="sheet" aria-labelledby="tl-h">
-  <div class="sheet-h"><h2 class="title" id="tl-h">Candidates</h2><span class="count">{{ total }}</span>{% if total > 300 %}<span class="small muted">Showing the first 300. Narrow the search to see more.</span>{% endif %}<span class="spacer"></span>
+  <div class="sheet-h"><h2 class="title" id="tl-h">Candidates</h2><span class="count">{{ total|intcomma }}</span>{% if page.paginator.num_pages > 1 %}<span class="small muted">{{ page.start_index|intcomma }}–{{ page.end_index|intcomma }}</span>{% endif %}<span class="spacer"></span>
     <div class="seg" data-seg role="group" aria-label="Row density"><button type="button" aria-pressed="true" data-set-density="comfortable" data-target="talent-table">{% icon "rows-2" "ico-16" %}<span class="sr-only">Comfortable</span></button><button type="button" aria-pressed="false" data-set-density="compact" data-target="talent-table">{% icon "rows-3" "ico-16" %}<span class="sr-only">Compact</span></button></div></div>
   {% if candidates %}
   <div class="table-wrap stack-sm pipe-table" id="talent-table" data-density="comfortable"><table class="table">
@@ -37,13 +41,20 @@
       <tr>
         <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a></b><span>{{ c.email|default:c.phone }}</span></div></div></td>
         <td class="nowrap" data-label="Qualification">{{ c.qualification_short }}<div class="small muted ellip">{{ c.course }}</div></td>
-        <td class="num nowrap" data-label="Experience">{{ c.years_experience|floatformat:"-1" }} yrs</td>
+        <td class="num nowrap" data-label="Experience">{{ c.experience_label }}</td>
         <td data-label="Top skills"><div class="tags">{% for s in c.skills|slice:":2" %}<span class="tag">{{ s }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</div></td>
-        <td data-label="Source"><span class="src-cell">{% icon c.source|source_icon "ico-16" %} {{ c.source_short }}{% if c.parse_method == 'ai' %}<span class="ai-mark" data-tip="Read by AI">{% icon "sparkles" "ico-14" label="Read by AI" %}</span>{% endif %}</span><div class="small muted" title="{{ c.created_at|date:'j M Y' }}">Added {{ c.created_at|date:"j M" }}</div></td>
+        <td data-label="Source"><span class="src-cell">{% icon c.source|source_icon "ico-16" %} {{ c.source_short }}{% if c.parse_method == 'ai' %}<span class="ai-mark" data-tip="Read by AI">{% icon "sparkles" "ico-14" label="Read by AI" %}</span>{% endif %}</span><div class="small muted" title="{{ c.created_at|date:'j M Y' }}">Added {{ c.created_at|date:"j M Y" }}</div></td>
         <td class="num" data-label="Vacancies">{{ c.n_apps }}</td>
       </tr>
     {% endfor %}
     </tbody></table></div>
+  {% if page.paginator.num_pages > 1 %}
+  <nav class="sheet-f pager" aria-label="Pages">
+    {% if page.has_previous %}<a class="btn btn-secondary btn-sm" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">{% icon "chevron-left" "ico-16" %} Previous</a>{% endif %}
+    <span class="small muted">Page {{ page.number }} of {{ page.paginator.num_pages|intcomma }}</span>
+    {% if page.has_next %}<a class="btn btn-secondary btn-sm" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.next_page_number }}">Next {% icon "chevron-right" "ico-16" %}</a>{% endif %}
+  </nav>
+  {% endif %}
   {% else %}{% url 'candidates:intake' as intake_url %}{% empty_state "No candidates found" "Try fewer words, or upload CVs to grow the database." intake_url "Upload CVs" "Lab beaker of polymer pellets" "cloud-upload" %}{% endif %}
 </section>
 {% endblock %}

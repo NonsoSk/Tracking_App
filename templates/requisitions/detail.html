@@ -6,9 +6,9 @@
 {% with u=request.user %}
 <header class="page-head">
   <div>
-    <div class="eyebrow">{{ req.reference }} · {{ req.department }}</div>
+    <div class="eyebrow">{{ req.reference }} · {{ req.department }}{% if req.business_unit %} · {{ req.business_unit }}{% endif %}</div>
     <div class="title-row"><h1>{{ req.title }}</h1><span class="chip {{ req.status|tone:'requisition' }}">{{ req.get_status_display }}</span></div>
-    <p class="lede">{{ req.get_employment_type_display }} · {{ req.positions }} position{{ req.positions|pluralize }} · {{ req.get_reason_display }}{% if req.replacing_employee %} ({{ req.replacing_employee.full_name }}){% endif %}</p>
+    <p class="lede">{{ req.classification|default:req.get_employment_type_display }} · {{ req.positions }} position{{ req.positions|pluralize }} · {{ req.reason_detail|default:req.get_reason_display }}{% if req.replacing_employee %} ({{ req.replacing_employee.full_name }}){% endif %}</p>
   </div>
   <div class="actions">
     {% if u.is_hr or req.is_editable_by_department %}<a class="btn btn-secondary" href="{% url 'requisitions:edit' req.pk %}">{% icon "pencil" "ico-18" %} Edit</a>{% endif %}
@@ -70,7 +70,7 @@
   <button role="tab" type="button" id="t-candidates" aria-controls="candidates" aria-selected="true">{% icon "list-ordered" "ico-18" %} Ranked candidates <span class="count-badge">{{ applications|length }}</span></button>
   <button role="tab" type="button" id="t-board" aria-controls="board" aria-selected="false" tabindex="-1">{% icon "square-kanban" "ico-18" %} Board</button>
   <button role="tab" type="button" id="t-requirements" aria-controls="requirements" aria-selected="false" tabindex="-1">{% icon "list-checks" "ico-18" %} Requirements</button>
-  <button role="tab" type="button" id="t-interviews" aria-controls="interviews" aria-selected="false" tabindex="-1">{% icon "calendar-days" "ico-18" %} Interviews <span class="count-badge">{{ interviews|length }}</span></button>
+  <button role="tab" type="button" id="t-interviews" aria-controls="interviews" aria-selected="false" tabindex="-1">{% icon "calendar-days" "ico-18" %} Interviews <span class="count-badge">{{ interview_total }}</span></button>
   <button role="tab" type="button" id="t-messages" aria-controls="messages" aria-selected="false" tabindex="-1">{% icon "messages-square" "ico-18" %} Messages <span class="count-badge">{{ notes|length }}</span></button>
   <button role="tab" type="button" id="t-activity" aria-controls="activity" aria-selected="false" tabindex="-1">{% icon "history" "ico-18" %} Activity</button>
 </div>
@@ -81,7 +81,7 @@
     <div class="sheet-h rank-tools">
       <form class="row wrap" method="get" aria-label="Filter candidates">
         <select name="stage" class="select select-sm" aria-label="Stage" data-autosubmit><option value="">All stages</option>{% for s in stages %}<option value="{{ s.value }}" {% if stage_filter == s.value %}selected{% endif %}>{{ s.label }} ({{ counts|get_item:s.value|default:0 }})</option>{% endfor %}</select>
-        <select name="status" class="select select-sm" aria-label="Status" data-autosubmit><option value="open" {% if status_filter == 'open' %}selected{% endif %}>Active &amp; on hold</option><option value="" {% if not status_filter %}selected{% endif %}>All statuses</option><option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option><option value="on_hold" {% if status_filter == 'on_hold' %}selected{% endif %}>On hold</option><option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option><option value="withdrawn" {% if status_filter == 'withdrawn' %}selected{% endif %}>Withdrawn</option><option value="hired" {% if status_filter == 'hired' %}selected{% endif %}>Hired</option></select>
+        <select name="status" class="select select-sm" aria-label="Status" data-autosubmit><option value="open" {% if status_filter == 'open' %}selected{% endif %}>Active &amp; on hold</option><option value="" {% if not status_filter %}selected{% endif %}>All statuses</option><option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option><option value="on_hold" {% if status_filter == 'on_hold' %}selected{% endif %}>On hold</option><option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option><option value="withdrawn" {% if status_filter == 'withdrawn' %}selected{% endif %}>Withdrawn</option><option value="not_engaged" {% if status_filter == 'not_engaged' %}selected{% endif %}>Not engaged</option><option value="hired" {% if status_filter == 'hired' %}selected{% endif %}>Hired</option></select>
         <noscript><button class="btn btn-secondary btn-sm" type="submit">Filter</button></noscript>
       </form>
       {% if u.is_hr %}
@@ -106,8 +106,8 @@
           {% if u.is_hr %}<td class="cb"><input type="checkbox" class="form-check-input" name="selected" value="{{ a.pk }}" aria-label="Select {{ c.full_name }}"></td>{% endif %}
           <td class="num muted hide-sm">{{ forloop.counter }}</td>
           <td><div class="who">{% avatar c "sm" %}<div><b><a href="{{ a.get_absolute_url }}">{{ c.full_name }}</a></b><span>{{ c.current_job_title|default:c.email|truncatechars:38 }}</span></div></div></td>
-          <td data-label="Match"><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}{% if a.match_breakdown.flags %}<span class="flag" title="{{ a.match_breakdown.flags|join:'; ' }}">{% icon "flag" "ico-14" %} {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</span>{% endif %}</span></div></td>
-          <td data-label="Background">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %} · {{ c.years_experience|floatformat:"-1" }} yrs<div class="small muted">{{ c.course|truncatechars:30 }}</div></td>
+          <td data-label="Match"><div class="row">{% if not a.matched_at %}<span class="small muted" title="Imported from the interview records; not scored against requirements">Not scored</span>{% elif a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}{% if a.match_breakdown.flags %}<span class="flag" title="{{ a.match_breakdown.flags|join:'; ' }}">{% icon "flag" "ico-14" %} {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</span>{% endif %}</span></div></td>
+          <td data-label="Background">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %} · {{ c.experience_label }}<div class="small muted">{{ c.course|truncatechars:30 }}</div></td>
           <td class="small" data-label="Skills matched">{% with sk=comps.skills %}{% if sk %}{{ sk.detail }}{% else %}<span class="muted">—</span>{% endif %}{% endwith %}</td>
           <td data-label="Stage">{% status_chip a %}<div class="small muted src">{% icon c.source|source_icon "ico-14" %} {{ c.source_short }}</div></td>
         </tr>
@@ -159,14 +159,14 @@
 </div>
 
 {# ======================= Requirements ======================= #}
-<div role="tabpanel" id="requirements" aria-labelledby="t-requirements" class="tab-body" hidden>
+<div role="tabpanel" id="requirements" aria-labelledby="t-requirements" class="tab-body stack-24" hidden>
   <div class="split">
     <section class="sheet" aria-labelledby="rq-h">
       <div class="sheet-h"><h2 class="title" id="rq-h">What we are looking for</h2><span class="spacer"></span><span class="small muted">{% icon "info" "ico-14" %} Every applicant is scored against these</span></div>
       <div class="sheet-b stack-24">
         <dl class="facts facts-grid">
           <div><dt>Experience</dt><dd>{{ req.min_experience_years }}{% if req.max_experience_years %}–{{ req.max_experience_years }}{% else %}+{% endif %} years</dd></div>
-          <div><dt>Minimum qualification</dt><dd>{{ req.get_education_level_display }}</dd></div>
+          <div><dt>Minimum qualification</dt><dd>{{ req.get_education_level_display|default:"Not specified" }}</dd></div>
           <div><dt>Location</dt><dd>{{ req.location|default:"—" }}</dd></div>
           {% if req.min_degree_class %}<div><dt>Minimum class</dt><dd>{{ req.get_min_degree_class_display }}</dd></div>{% endif %}
           {% if req.requires_nysc %}<div><dt>NYSC</dt><dd>Completed or exempted</dd></div>{% endif %}
@@ -184,8 +184,13 @@
       <div class="sheet-h"><h2 class="title" id="ab-h">About this request</h2></div>
       <div class="sheet-b">
         <dl class="facts">
-          <div><dt>Raised by</dt><dd>{{ req.raised_by.display_name|default:"—" }} · {{ req.created_at|date:"j M Y" }}</dd></div>
-          <div><dt>Recruiter</dt><dd>{{ req.hr_owner.display_name|default:"Not assigned yet" }}</dd></div>
+          <div><dt>Raised by</dt><dd>{{ req.requester_label|default:"—" }} · {{ req.created_at|date:"j M Y" }}</dd></div>
+          <div><dt>Recruiter</dt><dd>{% if req.hr_owner %}{{ req.hr_owner.display_name }}{% else %}{{ req.coordinator_name|default:"Not assigned yet" }}{% endif %}</dd></div>
+          {% if req.business_unit %}<div><dt>Company / business unit</dt><dd>{{ req.business_unit }}</dd></div>{% endif %}
+          {% if req.functional_band %}<div><dt>Functional band</dt><dd>{{ req.functional_band }}</dd></div>{% endif %}
+          {% if req.staff_category %}<div><dt>Trainee / experienced band</dt><dd>{{ req.staff_category }}</dd></div>{% endif %}
+          {% if req.classification %}<div><dt>Employee classification</dt><dd>{{ req.classification }}</dd></div>{% endif %}
+          {% if req.reason_detail %}<div><dt>Recruitment reason</dt><dd>{{ req.reason_detail }}</dd></div>{% endif %}
           {% if req.approved_by %}<div><dt>Approved</dt><dd>{{ req.approved_by.display_name }} · {{ req.approved_at|date:"j M Y" }}</dd></div>{% endif %}
           {% if req.target_start_date %}<div><dt>Target start</dt><dd>{{ req.target_start_date|date:"j M Y" }}</dd></div>{% endif %}
           {% if req.justification %}<div><dt>Why this hire is needed</dt><dd>{{ req.justification|linebreaksbr }}</dd></div>{% endif %}
@@ -194,10 +199,19 @@
       </div>
     </section>
   </div>
+  {% with facts=req.tracker_facts %}{% if facts %}
+  <section class="sheet tracker-sheet" aria-labelledby="tr-h">
+      <div class="sheet-h"><h2 class="title" id="tr-h">From the recruitment tracker</h2><span class="spacer"></span><span class="small muted">{{ req.source_record.sheet }}, row {{ req.source_record.row }}</span></div>
+      <div class="sheet-b">
+        <dl class="facts facts-grid">{% for label, value in facts %}<div><dt>{{ label }}</dt><dd class="num">{{ value|tracker_value }}</dd></div>{% endfor %}</dl>
+      </div>
+  </section>
+  {% endif %}{% endwith %}
 </div>
 
 {# ======================= Interviews ======================= #}
-<div role="tabpanel" id="interviews" aria-labelledby="t-interviews" class="tab-body" hidden>
+<div role="tabpanel" id="interviews" aria-labelledby="t-interviews" class="tab-body stack-24" hidden>
+  {% if interviews or not records %}
   <section class="sheet" aria-label="Interviews">
     {% if interviews %}
     <div class="table-wrap stack-sm"><table class="table">
@@ -214,6 +228,8 @@
       </tbody></table></div>
     {% else %}{% empty_state "No interviews yet" "Interviews you schedule from a candidate's page show up here." object_name="Tablet with an interview calendar" %}{% endif %}
   </section>
+  {% endif %}
+  {% if records %}{% include "pipeline/_interview_records.html" with records=records show_candidate=True title="Interview records" %}{% endif %}
 </div>
 
 {# ======================= Messages ======================= #}

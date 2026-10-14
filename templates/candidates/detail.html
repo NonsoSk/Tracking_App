@@ -27,8 +27,8 @@
     </div>
     <div class="readouts">
       <div class="card ro ro-match">{% score_ring c.profile_completeness 64 False "profile" %}
-        <div><div class="ro-l">Profile</div><div class="ro-v">{% if c.profile_completeness >= 100 %}Complete{% else %}Partial{% endif %}</div><div class="ro-s">{% if c.parse_method %}{{ c.get_parse_method_display }}{% else %}Typed in{% endif %}</div></div></div>
-      <div class="card ro"><div class="ro-l">Experience</div><div class="ro-v num">{{ c.years_experience|floatformat:"-1" }}<small> yrs</small></div><div class="ro-s">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}</div></div>
+        <div><div class="ro-l">Profile</div><div class="ro-v">{% if c.profile_completeness >= 100 %}Complete{% else %}Partial{% endif %}</div><div class="ro-s">{% if c.parse_method %}{{ c.get_parse_method_display }}{% elif c.source == "import" %}From spreadsheets{% else %}Typed in{% endif %}</div></div></div>
+      <div class="card ro"><div class="ro-l">Experience</div><div class="ro-v num">{% if c.years_experience is None %}—{% else %}{{ c.years_experience|floatformat:"-1" }}<small> yrs</small>{% endif %}</div><div class="ro-s">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}</div></div>
       <div class="card ro"><div class="ro-l">Applications</div><div class="ro-v num">{{ applications|length }}</div><div class="ro-s">{% with a=applications.first %}{% if a %}Latest: {{ a.get_stage_display }}{% else %}None yet{% endif %}{% endwith %}</div></div>
     </div>
   </div>
@@ -43,6 +43,7 @@
   <button role="tab" type="button" id="t-profile" aria-controls="profile" aria-selected="true">Profile</button>
   <button role="tab" type="button" id="t-cv" aria-controls="cv" aria-selected="false" tabindex="-1">CV &amp; documents <span class="count-badge">{{ documents|length }}</span></button>
   <button role="tab" type="button" id="t-apps" aria-controls="applications" aria-selected="false" tabindex="-1">Applications <span class="count-badge">{{ applications|length }}</span></button>
+  <button role="tab" type="button" id="t-records" aria-controls="records" aria-selected="false" tabindex="-1">CBTs &amp; interviews <span class="count-badge">{{ cbts|length|add:interview_records_count }}</span></button>
   <button role="tab" type="button" id="t-timeline" aria-controls="timeline" aria-selected="false" tabindex="-1">Timeline</button>
 </div>
 
@@ -60,8 +61,13 @@
             <div><dt>Institution</dt><dd>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</dd></div>
             <div><dt>Class of degree</dt><dd>{{ c.get_degree_class_display|default:"—" }}</dd></div>
             <div><dt>NYSC</dt><dd>{{ c.get_nysc_status_display|default:"—" }}</dd></div>
-            <div><dt>Experience</dt><dd>{{ c.years_experience|floatformat:"-1" }} years</dd></div>
-            <div><dt>Source</dt><dd>{{ c.get_source_display }}</dd></div>
+            <div><dt>Experience</dt><dd>{% if c.years_experience is None %}Not recorded{% else %}{{ c.years_experience|floatformat:"-1" }} years{% endif %}</dd></div>
+            <div><dt>Source</dt><dd>{{ c.source_detail|default:c.get_source_display }}</dd></div>
+            {% if c.state_of_origin %}<div><dt>State</dt><dd>{{ c.state_of_origin }}</dd></div>{% endif %}
+            {% if c.lga %}<div><dt>LGA / community</dt><dd>{{ c.lga }}</dd></div>{% endif %}
+            {% if c.community_status %}<div><dt>Community status</dt><dd>{{ c.get_community_status_display }}</dd></div>{% endif %}
+            {% if c.relevant_experience is not None %}<div><dt>Relevant experience</dt><dd>{{ c.relevant_experience|yesno:"Yes,No" }}</dd></div>{% endif %}
+            {% if c.other_contacts %}<div><dt>Other contacts</dt><dd>{{ c.other_contacts }}</dd></div>{% endif %}
             {% if c.gender %}<div><dt>Gender</dt><dd>{{ c.get_gender_display }}</dd></div>{% endif %}
             {% if c.date_of_birth %}<div><dt>Date of birth</dt><dd>{{ c.date_of_birth|date:"j M Y" }}</dd></div>{% endif %}
           </dl>
@@ -165,6 +171,34 @@
       {% endfor %}
     </div>
   </section>
+</div>
+
+{# ----------------------- CBTs & interview records ----------------------- #}
+<div role="tabpanel" id="records" aria-labelledby="t-records" class="tab-body stack-24" hidden>
+  {% if interview_records %}{% include "pipeline/_interview_records.html" with records=interview_records show_candidate=False title="Interview records" %}{% endif %}
+  <section class="sheet" aria-labelledby="cbt-h">
+    <div class="sheet-h"><h2 class="title" id="cbt-h">CBT results</h2><span class="count">{{ cbts|length }}</span><span class="spacer"></span><span class="small muted">{% icon "file-spreadsheet" "ico-14" %} From the CBT results sheet</span></div>
+    {% if cbts %}
+    <div class="table-wrap stack-sm"><table class="table">
+      <thead><tr><th>Date</th><th>Test</th><th class="num">Score</th><th class="num">%</th><th>Company</th></tr></thead>
+      <tbody>{% for r in cbts %}
+        <tr><td class="nowrap tnum" data-label="Date">{{ r.test_date|date:"j M Y"|default:"Not recorded" }}</td><td data-label="Test">{{ r.category|default:"—" }}</td>
+          <td class="num" data-label="Score">{% if r.score is not None %}{{ r.score|floatformat:"-1" }}{% if r.total %} / {{ r.total|floatformat:"-1" }}{% endif %}{% else %}<span class="muted">No score</span>{% endif %}</td>
+          <td class="num" data-label="%">{% if r.percent is not None %}{{ r.percent }}%{% else %}<span class="muted">—</span>{% endif %}</td><td data-label="Company">{{ r.company|default:"—" }}</td></tr>
+      {% endfor %}</tbody></table></div>
+    {% else %}<div class="sheet-b"><p class="small muted">No CBT on record.</p></div>{% endif %}
+  </section>
+  {% if not interview_records %}<section class="sheet"><div class="sheet-b"><p class="small muted">No interview on record.</p></div></section>{% endif %}
+  {% if c.source_records %}
+  <section class="sheet" aria-labelledby="orig-h">
+    <div class="sheet-h"><h2 class="title" id="orig-h">As recorded in the CV list</h2><span class="spacer"></span><span class="small muted">Exactly as typed in the spreadsheet</span></div>
+    {% for rec in c.source_records %}
+    <details class="orig-record"{% if forloop.first %} open{% endif %}><summary>{% icon "chevron-right" "ico-16" %} {{ rec.sheet }}, row {{ rec.row }}</summary>
+      <dl class="facts facts-grid">{% for k, v in rec.values.items %}{% if v is not None and v != "" %}<div><dt>{{ k }}</dt><dd>{{ v|tracker_value }}</dd></div>{% endif %}{% endfor %}</dl>
+    </details>
+    {% endfor %}
+  </section>
+  {% endif %}
 </div>
 
 {# ----------------------- Timeline ----------------------- #}

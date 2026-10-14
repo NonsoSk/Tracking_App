@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -195,14 +196,21 @@ def employees(request):
     department = request.GET.get("department")
     if department and user.sees_all_departments:
         qs = qs.filter(department_id=department)
+    unit = request.GET.get("unit", "")
+    if unit:
+        qs = qs.filter(business_unit=unit)
     q = request.GET.get("q", "").strip()
     if q:
         qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(staff_id__icontains=q) |
                        Q(job_title__icontains=q))
+    page = Paginator(qs, 100).get_page(request.GET.get("page"))
+    params = request.GET.copy()
+    params.pop("page", None)
     open_replacements = set(Requisition.objects.exclude(
         status__in=[Requisition.Status.CANCELLED, Requisition.Status.CLOSED]).values_list("replacing_employee_id", flat=True))
     return render(request, "core/employees.html", {
-        "employees": qs[:300], "view": view, "months": months, "q": q,
+        "employees": page, "page": page, "query": params.urlencode(), "view": view, "months": months, "q": q,
+        "unit": unit, "units": sorted(set(Employee.objects.exclude(business_unit="").values_list("business_unit", flat=True))),
         "departments": Department.objects.all(), "department": department,
         "open_replacements": open_replacements, "today": today,
     })

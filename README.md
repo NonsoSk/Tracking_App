@@ -36,7 +36,7 @@ python -m venv .venv
 pip install -r requirements.txt
 cp .env.example .env            # optional: edit company name, email, AI key…
 python manage.py migrate
-python manage.py seed_demo      # optional: demo departments, users and candidates at every stage
+python manage.py seed_demo      # optional, demo only: never on a database with your real data
 python manage.py runserver
 ```
 
@@ -74,6 +74,37 @@ The public careers page is at http://localhost:8000/careers/. Emails are printed
 For a real installation, skip `seed_demo` and create the first HR admin with `python manage.py createsuperuser`. Then, in
 **Master data & users** (`/admin/`), add departments, users (with a role and department), standard job roles and extra
 skill tags.
+
+## Loading your recruitment workbooks
+
+On Windows, close the portal and double-click `load-my-data.bat` (or drag both workbooks onto it). It asks for the CV
+file and the Recruitment Master workbook, asks you to type YES, saves a backup of the database in `backups\`, removes
+**everything** in the portal (demo data and demo sign-ins included), loads the two workbooks and asks you to create your
+own HR Admin sign-in. Elsewhere: `python manage.py import_workbooks <cv file>.xlsx <master>.xlsx --replace`.
+
+Sheets are recognised by their column headings, so file and sheet names may change. Where each sheet goes:
+
+| Sheet | In the portal |
+|---|---|
+| CV Dump (CV file) | **Talent database**: one profile per person (name, contacts, date of birth, gender, state, LGA/community, experience, qualification, course, institution, year, class of degree, source as recorded). The original row is kept on the profile. |
+| Recruitment_CBTs | **CBT results** on each person's profile (date, test, score out of total, company). |
+| Recruitment_Interview Records | **Interview records** on each person's profile and on the requisition (date, panel, score, result, community status, onboarding, join date). Where the Ref_ID matches a requisition, the person is also added to that requisition with the recorded outcome (hired, onboarding in progress, selected, on hold, rejected, declined, or *not engaged* when the requisition is closed). |
+| Manpower_Requisition_Summary | **Requisitions** (Req_Ref, company/business unit, department, band, category, classification, reason, positions, requester, coordinator, dates). Closed ones are *Filled* when everyone needed was onboarded, otherwise *Closed*; Pending and In Progress ones are *Approved* (not published on the careers page). The tracker's figures are shown on the requisition. |
+| Retirement Forecast_3 Years Pro | **Staff & retirements** (staff number, name, company, business unit, location, department, grade, designation, category, work status, dates). **Salaries are never read or stored.** |
+| Report Weekly Summary, HR Metrics, Analysis, Dashboard | Not imported: they are calculations, not records. Offer records live in Excel's data model (another file), not in a sheet. |
+
+People in several sheets become one profile when they share an email or phone number and their names share a word.
+A contact used by more than three different people (an office number, say) is never used to match anyone. Rows that
+repeat exactly are loaded once. Departments are created from the department names in the two workbooks (QA/QC and
+QAQC, HR and Human Resources, IT and Information Technology count as one). Settings stay: the selection-report
+criteria, document checklists and skill vocabulary. Nothing is sent to AI.
+
+Each run writes a report to `import-reports\`: values that could not be used (dates written as text, impossible
+years, Excel `#REF!` errors), contacts shared by people with different names, names used by more than one person, and
+the duplicates that were merged. Fix the workbook and run it again; the result replaces the previous load.
+
+The workbooks, backups and reports hold personal data. They are kept out of git (`.gitignore`) and must never be
+uploaded to GitHub.
 
 ## Roles and what they see
 
@@ -183,13 +214,15 @@ In the admin you can change, without touching code:
 ```
 config/          settings, URLs
 accounts/        users and roles
-core/            departments, staff/retirements, notifications, dashboard, AI client, scheduled jobs, demo data
+core/            departments, staff/retirements, notifications, dashboard, AI client, scheduled jobs, demo data,
+                 workbook import (core/workbook_import.py)
 requisitions/    requisitions, job roles, skill catalogue, suggestions (knowledge base + AI)
 candidates/      candidate profiles, document folders, CV reader, bulk intake, referrals, Excel import
 pipeline/        applications, matching, interviews, selection reports, decisions, offers, medicals, onboarding
 careers/         public careers site and the candidate's personal application page
 templates/, static/   Design system UI (static/ds), all assets vendored, no CDN needed
 docs/            3D render spec sheets for the designer
+start-portal.bat, update-portal.bat, load-my-data.bat   Windows: start, update, load your workbooks
 ```
 
 The design system and every component are shown at `/styleguide/` (signed in). The seven 3D objects appear as

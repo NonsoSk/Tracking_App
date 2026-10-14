@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -36,6 +37,8 @@ def requisition_list(request):
     status = request.GET.get("status", "")
     if status == "active":
         qs = qs.filter(status__in=[Requisition.Status.OPEN, Requisition.Status.APPROVED, Requisition.Status.ON_HOLD])
+    elif status == "done":
+        qs = qs.filter(status__in=[Requisition.Status.FILLED, Requisition.Status.CLOSED])
     elif status == "pending":
         qs = qs.filter(status__in=[Requisition.Status.SUBMITTED, Requisition.Status.PENDING_MANAGEMENT,
                                    Requisition.Status.RETURNED, Requisition.Status.DRAFT])
@@ -43,9 +46,18 @@ def requisition_list(request):
         qs = qs.filter(status=status)
     q = request.GET.get("q", "").strip()
     if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(reference__icontains=q) | Q(department__name__icontains=q))
+        qs = qs.filter(Q(title__icontains=q) | Q(reference__icontains=q) | Q(department__name__icontains=q) |
+                       Q(requested_by_name__icontains=q) | Q(coordinator_name__icontains=q))
+    unit = request.GET.get("unit", "")
+    units = sorted(set(requisitions_for(request.user).exclude(business_unit="").values_list("business_unit", flat=True)))
+    if unit:
+        qs = qs.filter(business_unit=unit)
+    page = Paginator(qs.order_by("-created_at", "-id"), 24).get_page(request.GET.get("page"))
+    params = request.GET.copy()
+    params.pop("page", None)
     return render(request, "requisitions/list.html", {
-        "requisitions": qs, "status": status, "q": q, "statuses": Requisition.Status.choices,
+        "requisitions": page, "page": page, "query": params.urlencode(), "status": status, "q": q,
+        "statuses": Requisition.Status.choices, "unit": unit, "units": units,
     })
 
 
@@ -118,7 +130,9 @@ def requisition_detail(request, pk):
     ensure(can_view_requisition(request.user, requisition))
     applications = requisition.applications.select_related("candidate").prefetch_related("interviews")
     stage_filter = request.GET.get("stage", "")
-    status_filter = request.GET.get("status", "open")
+    still_hiring = requisition.status not in {Requisition.Status.FILLED, Requisition.Status.CLOSED,
+                                              Requisition.Status.CANCELLED}
+    status_filter = request.GET.get("status", "open" if still_hiring else "")
     listed = applications
     if stage_filter:
         listed = listed.filter(stage=stage_filter)
@@ -143,10 +157,12 @@ def requisition_detail(request, pk):
     grade_counts = {row["match_grade"]: row["n"] for row in applications.order_by().values("match_grade").annotate(n=Count("id"))}
     interviews = Interview.objects.filter(application__requisition=requisition).select_related(
         "application__candidate").prefetch_related("panel").order_by("-scheduled_at")
+    records = list(requisition.interview_records.select_related("candidate", "application"))
     return render(request, "requisitions/detail.html", {
         "req": requisition, "applications": listed, "board": [(s, board[s.value]) for s in stages],
         "stage_filter": stage_filter, "status_filter": status_filter, "counts": counts, "grade_counts": grade_counts,
-        "total_apps": applications.count(), "interviews": interviews, "notes": requisition.notes.select_related("author"),
+        "total_apps": applications.count(), "interviews": interviews,
+        "records": records, "interview_total": interviews.count() + len(records), "notes": requisition.notes.select_related("author"),
         "activity": requisition.activities.select_related("actor", "application__candidate")[:40],
         "note_form": NoteForm(), "return_form": ReturnForm(), "approve_form": ApproveForm(),
         "publish_form": PublishForm(initial={"closing_date": requisition.closing_date}),
@@ -304,7 +320,7 @@ def export_applicants(request, pk):
         summary = app.evaluation_summary()
         ws.append([
             rank, app.reference, c.full_name, c.email, c.phone, c.get_highest_qualification_display(), c.course,
-            c.institution, float(c.years_experience), float(app.match_score), app.match_grade,
+            c.institution, float(c.years_experience) if c.years_experience is not None else None, float(app.match_score), app.match_grade,
             app.get_stage_display(), app.get_status_display(), c.get_source_display(),
             float(summary["percentage"]) if summary else None,
             ", ".join(m["term"] for m in skills.get("matched", [])), ", ".join(skills.get("missing", [])),

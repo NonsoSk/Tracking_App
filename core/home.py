@@ -69,7 +69,13 @@ def build_tasks(user, *, action_requisitions, pending_evaluations, offer_reviews
 
     for a in decisions_needed:
         summary = a.evaluation_summary()
-        meta = f"Panel {summary['percentage']}% · {summary['rating']['label']}" if summary else "Panel scores in"
+        record = None if summary else a.interview_records.exclude(result="").order_by("-interview_date").first()
+        if summary:
+            meta = f"Panel {summary['percentage']}% · {summary['rating']['label']}"
+        elif record:
+            meta = f"{record.get_result_display()} at interview" + (f" · {float(record.score):g}%" if record.score is not None else "")
+        else:
+            meta = "Panel scores in"
         tasks.append({"kind": "decisions", "icon": "scale", "priority": 2, "age": _days_since(a.stage_changed_at),
                       "title": format_html("Decide on <b>{}</b>", a.candidate.full_name), "meta": meta,
                       "context": a.requisition.title, "action": "Decide", "url": a.get_absolute_url()})

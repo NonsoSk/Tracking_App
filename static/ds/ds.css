@@ -1618,3 +1618,16 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
   .app { padding: 0; } body { background: #FFFFFF; }
   .sheet, .card { box-shadow: none; border: 1px solid #D3D9E6; }
 }
+
+/* ---------------------------------------------------------------- imported records */
+.pager { display: flex; align-items: center; justify-content: center; gap: var(--s-16); flex-wrap: wrap; }
+.orig-record { border-top: 1px solid var(--line); }
+.orig-record > summary { cursor: pointer; padding: var(--s-16) var(--s-24); font-weight: 600; list-style: none; display: flex; align-items: center; gap: var(--s-8); }
+.orig-record > summary::-webkit-details-marker { display: none; }
+.orig-record > summary .ico { transition: transform .15s ease; }
+.orig-record[open] > summary .ico { transform: rotate(90deg); }
+.orig-record .facts { padding: 0 var(--s-24) var(--s-24); }
+.orig-record dd { overflow-wrap: anywhere; }
+.tnum { font-variant-numeric: tabular-nums; }
+.tracker-sheet .facts-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.role-grid + .pager { margin-top: var(--s-32, 32px); }

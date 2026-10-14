@@ -3,6 +3,7 @@ import os
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,20 +20,38 @@ from pipeline.services import create_application, log, review_document
 from .forms import (AddToRequisitionForm, CandidateForm, DocumentUploadForm, IntakeForm, ReferralForm,
                     SpreadsheetImportForm)
 from .intake import find_existing, ingest_cv, parse_document, save_document
-from .models import Candidate, CandidateDocument
+from .models import Candidate, CandidateDocument, CommunityStatus
 
 
 @hr_required
 def candidate_list(request):
-    qs = Candidate.objects.annotate(n_apps=Count("applications"))
+    qs = Candidate.objects.annotate(n_apps=Count("applications", distinct=True))
     q = request.GET.get("q", "").strip()
     if q:
-        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(email__icontains=q) |
-                       Q(phone__icontains=q) | Q(course__icontains=q) | Q(cv_text__icontains=q) |
-                       Q(current_job_title__icontains=q))
-    for key in ("source", "highest_qualification"):
-        if request.GET.get(key):
-            qs = qs.filter(**{key: request.GET[key]})
+        for word in q.split()[:6]:
+            qs = qs.filter(Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(email__icontains=word) |
+                           Q(phone__icontains=word) | Q(other_contacts__icontains=word) | Q(course__icontains=word) |
+                           Q(institution__icontains=word) | Q(cv_text__icontains=word) |
+                           Q(current_job_title__icontains=word) | Q(state_of_origin__icontains=word) |
+                           Q(lga__icontains=word))
+    if request.GET.get("highest_qualification"):
+        qs = qs.filter(highest_qualification=request.GET["highest_qualification"])
+    channel = request.GET.get("source", "")
+    if channel.startswith("portal:"):
+        qs = qs.filter(source=channel.split(":", 1)[1])
+    elif channel:
+        qs = qs.filter(source_detail=channel)
+    record = request.GET.get("record", "")
+    if record == "cbt":
+        qs = qs.filter(cbt_results__isnull=False)
+    elif record == "interviewed":
+        qs = qs.filter(interview_records__isnull=False)
+    elif record == "selected":
+        qs = qs.filter(interview_records__result="selected")
+    elif record == "hired":
+        qs = qs.filter(applications__status="hired")
+    if request.GET.get("community"):
+        qs = qs.filter(community_status=request.GET["community"])
     if request.GET.get("min_exp"):
         try:
             qs = qs.filter(years_experience__gte=float(request.GET["min_exp"]))
@@ -41,9 +60,18 @@ def candidate_list(request):
     skill = request.GET.get("skill", "").strip()
     if skill:
         qs = qs.filter(Q(skills__icontains=skill) | Q(tools__icontains=skill) | Q(certifications__icontains=skill))
+    if record:
+        qs = qs.distinct()
+    page = Paginator(qs.order_by("-created_at", "-id"), 100).get_page(request.GET.get("page"))
+    channels = sorted(set(Candidate.objects.exclude(source_detail="").values_list("source_detail", flat=True)))
+    params = request.GET.copy()
+    params.pop("page", None)
     return render(request, "candidates/list.html", {
-        "candidates": qs[:300], "q": q, "sources": Candidate.Source.choices, "levels": EducationLevel.choices,
-        "filters": request.GET, "total": qs.count(),
+        "candidates": page, "page": page, "q": q, "levels": EducationLevel.choices, "filters": request.GET,
+        "total": page.paginator.count, "channels": channels, "portal_sources": Candidate.Source.choices,
+        "communities": CommunityStatus.choices, "query": params.urlencode(),
+        "filtered": any(request.GET.get(k) for k in ("q", "skill", "highest_qualification", "source", "min_exp",
+                                                     "record", "community")),
     })
 
 
@@ -52,12 +80,14 @@ def candidate_detail(request, pk):
     candidate = get_object_or_404(Candidate, pk=pk)
     ensure(can_view_candidate(request.user, candidate))
     applications = candidate.applications.select_related("requisition", "requisition__department")
+    interview_records = list(candidate.interview_records.select_related("requisition"))
     from pipeline import presentation
 
     return render(request, "candidates/detail.html", {
         "cv_fields": presentation.cv_fields(candidate), "cv_terms": presentation.cv_terms(candidate),
         "term_groups": presentation.term_groups(candidate, {}),
-        "c": candidate, "applications": applications,
+        "c": candidate, "applications": applications, "cbts": list(candidate.cbt_results.all()),
+        "interview_records": interview_records, "interview_records_count": len(interview_records),
         "documents": candidate.documents.select_related("uploaded_by", "reviewed_by"),
         "upload_form": DocumentUploadForm(), "add_form": AddToRequisitionForm(),
         "activity": Activity.objects.filter(Q(candidate=candidate) | Q(application__candidate=candidate))

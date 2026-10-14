@@ -24,19 +24,20 @@
   {% if view == 'retiring' %}<select name="months" class="select select-sm lf-sel" aria-label="Time window" data-autosubmit>
     <option value="3" {% if months == 3 %}selected{% endif %}>Next 3 months</option><option value="6" {% if months == 6 %}selected{% endif %}>Next 6 months</option><option value="12" {% if months == 12 %}selected{% endif %}>Next 12 months</option><option value="24" {% if months == 24 %}selected{% endif %}>Next 24 months</option><option value="36" {% if months == 36 %}selected{% endif %}>Next 36 months</option></select>{% endif %}
   {% if u.sees_all_departments %}<select name="department" class="select select-sm lf-sel" aria-label="Department" data-autosubmit><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if department == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+  {% if units %}<select name="unit" class="select select-sm lf-sel" aria-label="Company / business unit" data-autosubmit><option value="">All companies</option>{% for x in units %}<option value="{{ x }}" {% if unit == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select>{% endif %}
   <div class="input-icon lf-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Name, staff ID or job title" aria-label="Search staff"></div>
   <button class="btn btn-secondary" type="submit">Filter</button>
 </form>
 
 <section class="sheet" aria-labelledby="staff-h">
-  <div class="sheet-h"><h2 class="title" id="staff-h">{% if view == 'retiring' %}Retiring in the next {{ months }} months{% elif view == 'exits' %}Recent exits{% else %}All staff{% endif %}</h2><span class="count">{{ employees|length }}</span></div>
+  <div class="sheet-h"><h2 class="title" id="staff-h">{% if view == 'retiring' %}Retiring in the next {{ months }} months{% elif view == 'exits' %}Recent exits{% else %}All staff{% endif %}</h2><span class="count">{{ page.paginator.count }}</span>{% if page.paginator.num_pages > 1 %}<span class="small muted">{{ page.start_index }}–{{ page.end_index }}</span>{% endif %}</div>
   {% if employees %}
   <div class="table-wrap stack-sm pipe-table"><table class="table">
     <thead><tr><th>Employee</th><th>Job title</th><th>Retirement</th><th>Status</th><th class="num">Replacement</th></tr></thead>
     <tbody>
     {% for e in employees %}
       <tr>
-        <td><div class="who">{% avatar e "sm" %}<div class="who-t"><b>{{ e.full_name }}</b><span>{{ e.staff_id }}{% if e.grade %} · {{ e.grade }}{% endif %}{% if e.department %} · {{ e.department }}{% endif %}</span></div></div></td>
+        <td><div class="who">{% avatar e "sm" %}<div class="who-t"><b>{{ e.full_name }}</b><span>{{ e.staff_id }}{% if e.business_unit %} · {{ e.business_unit }}{% endif %}{% if e.grade %} · {{ e.grade }}{% endif %}{% if e.department %} · {{ e.department }}{% endif %}</span></div></div></td>
         <td data-label="Job title">{{ e.job_title|default:"—" }}</td>
         <td class="nowrap" data-label="Retirement">{% if e.retirement_date %}<b class="num">{{ e.retirement_date|date:"j M Y" }}</b>{% if e.status == 'active' %}<div>{% if e.retirement_date < today %}<span class="chip danger">Overdue</span>{% elif e.months_to_retirement <= 6 %}<span class="chip warning">In {{ e.months_to_retirement }} month{{ e.months_to_retirement|pluralize }}</span>{% else %}<span class="small muted">In {{ e.months_to_retirement }} months</span>{% endif %}</div>{% endif %}{% else %}<span class="small muted">Date of birth missing</span>{% endif %}</td>
         <td data-label="Status"><span class="chip {{ e.status|tone:'employee' }}">{{ e.get_status_display }}</span>{% if e.exit_date %}<div class="small muted">{{ e.exit_date|date:"j M Y" }}</div>{% endif %}</td>
@@ -68,6 +69,13 @@
       </tr>
     {% endfor %}
     </tbody></table></div>
+  {% if page.paginator.num_pages > 1 %}
+  <nav class="sheet-f pager" aria-label="Pages">
+    {% if page.has_previous %}<a class="btn btn-secondary btn-sm" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">{% icon "chevron-left" "ico-16" %} Previous</a>{% endif %}
+    <span class="small muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-secondary btn-sm" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.next_page_number }}">Next {% icon "chevron-right" "ico-16" %}</a>{% endif %}
+  </nav>
+  {% endif %}
   {% else %}{% if u.is_hr %}{% url 'core:import_employees' as imp_url %}{% empty_state "No staff in this view" "Import the HR staff list so retirements can be forecast." imp_url "Import staff list" "Lab beaker of polymer pellets" "upload" %}{% else %}{% empty_state "No staff in this view" "Try a longer time window." object_name="Lab beaker of polymer pellets" %}{% endif %}{% endif %}
 </section>
 {% endwith %}

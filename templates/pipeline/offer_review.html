@@ -40,7 +40,7 @@
           {% if app.match_grade == "A" %}{% score_ring app.match_score 72 True "Match" %}{% else %}{% score_ring app.match_score 72 False "Match" %}{% endif %}
           <dl class="facts facts-grid why-facts">
             <div><dt>Qualification</dt><dd>{{ c.get_highest_qualification_display }}{% if c.course %}, {{ c.course }}{% endif %}</dd></div>
-            <div><dt>Experience</dt><dd>{{ c.years_experience|floatformat:"-1" }} years</dd></div>
+            <div><dt>Experience</dt><dd>{% if c.years_experience is None %}Not recorded{% else %}{{ c.years_experience|floatformat:"-1" }} years{% endif %}</dd></div>
             <div><dt>Panel score</dt><dd>{% if summary %}<span class="chip {{ summary.rating.code|rating_tone }}">{{ summary.percentage }}% · {{ summary.rating.label }}</span>{% else %}<span class="muted">Not scored</span>{% endif %}</dd></div>
           </dl>
         </div>

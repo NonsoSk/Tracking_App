@@ -2,6 +2,10 @@
 
 IEFCL recruitment portal (Django). See README.md for setup, features and configuration.
 
+The owner's database holds real recruitment data loaded with `import_workbooks` (README → Loading your recruitment
+workbooks). Never run `seed_demo` on it, and never commit workbooks, databases, backups or import reports: the
+repository has been public.
+
 ## Open items the owner asked to be reminded about
 
 The owner is reviewing the app and making corrections first. They asked **not** to be walked through these now, but to

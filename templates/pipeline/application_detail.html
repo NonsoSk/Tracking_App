@@ -36,7 +36,7 @@
       <div class="card ro"><div class="ro-l">Panel</div>
         {% if summary %}<div class="ro-v num">{{ summary.percentage|floatformat:"-1" }}<small>%</small></div><div class="ro-s">{{ summary.rating.label }}</div>
         {% else %}<div class="ro-v">–</div><div class="ro-s">No scores yet</div>{% endif %}</div>
-      <div class="card ro"><div class="ro-l">Experience</div><div class="ro-v num">{{ c.years_experience|floatformat:"-1" }}<small> yrs</small></div><div class="ro-s">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}</div></div>
+      <div class="card ro"><div class="ro-l">Experience</div><div class="ro-v num">{% if c.years_experience is None %}—{% else %}{{ c.years_experience|floatformat:"-1" }}<small> yrs</small>{% endif %}</div><div class="ro-s">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}</div></div>
       {% with o=active_offer|default:offers.first %}
       {% if o %}<div class="card ro"><div class="ro-l">{% if o.counter_salary %}Asks{% else %}Offer{% endif %}</div>
         <div class="ro-v num">{% if o.counter_salary %}{{ o.counter_salary|naira_short }}{% else %}{{ o.annual_salary|naira_short }}{% endif %}</div>
@@ -70,7 +70,7 @@
 </section>
 
 {# ======================= Status banners ======================= #}
-{% if app.status == "rejected" or app.status == "withdrawn" %}
+{% if app.status == "rejected" or app.status == "withdrawn" or app.status == "not_engaged" %}
 <div class="banner neutral-banner"><span class="tile">{% icon "circle-x" "ico-18" %}</span>
   <div><b>This application is {{ app.get_status_display|lower }}</b><span class="small">{{ app.status_reason|default:"No reason recorded." }}</span></div>
   {% if can_manage %}<form method="post" action="{% url 'pipeline:status' app.pk %}">{% csrf_token %}<input type="hidden" name="status" value="active"><input type="hidden" name="reason" value="Re-activated"><button class="btn btn-secondary btn-sm" type="submit">Re-activate</button></form>{% endif %}
@@ -103,7 +103,7 @@
   <button role="tab" type="button" id="t-overview" aria-controls="overview" aria-selected="true">Overview</button>
   <button role="tab" type="button" id="t-cv" aria-controls="cv" aria-selected="false" tabindex="-1">CV &amp; documents <span class="count-badge">{{ documents|length }}</span></button>
   <button role="tab" type="button" id="t-scores" aria-controls="scores" aria-selected="false" tabindex="-1">Scores</button>
-  <button role="tab" type="button" id="t-interviews" aria-controls="interviews-tab" aria-selected="false" tabindex="-1">Interviews <span class="count-badge">{{ interviews|length }}</span></button>
+  <button role="tab" type="button" id="t-interviews" aria-controls="interviews-tab" aria-selected="false" tabindex="-1">Interviews <span class="count-badge">{{ interview_count }}</span></button>
   {% if offers or medicals or onboarding %}<button role="tab" type="button" id="t-offer" aria-controls="offer-tab" aria-selected="false" tabindex="-1">Offer &amp; joining</button>{% endif %}
   <button role="tab" type="button" id="t-timeline" aria-controls="timeline" aria-selected="false" tabindex="-1">Timeline</button>
 </div>
@@ -252,7 +252,7 @@
           <dl class="facts">
             <div><dt>Qualification</dt><dd>{{ c.get_highest_qualification_display|default:"—" }}{% if c.course %} · {{ c.course }}{% endif %}{% if c.degree_class %} · {{ c.get_degree_class_display }}{% endif %}</dd></div>
             <div><dt>Institution</dt><dd>{{ c.institution|default:"—" }}{% if c.graduation_year %} ({{ c.graduation_year }}){% endif %}</dd></div>
-            <div><dt>Experience</dt><dd>{{ c.years_experience|floatformat:"-1" }} years{% if c.current_job_title %} · {{ c.current_job_title }}{% endif %}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}</dd></div>
+            <div><dt>Experience</dt><dd>{% if c.years_experience is None %}Not recorded{% else %}{{ c.years_experience|floatformat:"-1" }} years{% endif %}{% if c.current_job_title %} · {{ c.current_job_title }}{% endif %}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}</dd></div>
             <div><dt>Contact</dt><dd>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% else %}—{% endif %}{% if c.phone %}<br><a href="tel:{{ c.phone }}">{{ c.phone }}</a>{% endif %}</dd></div>
             {% if c.referred_by %}<div><dt>Referred by</dt><dd>{{ c.referred_by.display_name }}</dd></div>{% endif %}
           </dl>
@@ -369,7 +369,8 @@
 </div>
 
 {# ----------------------- Interviews ----------------------- #}
-<div role="tabpanel" id="interviews-tab" aria-labelledby="t-interviews" class="tab-body" hidden>
+<div role="tabpanel" id="interviews-tab" aria-labelledby="t-interviews" class="tab-body stack-24" hidden>
+  {% if interview_records %}{% include "pipeline/_interview_records.html" with records=interview_records show_candidate=False title="Interview records" %}{% endif %}
   <section class="sheet" id="interviews" aria-labelledby="iv-h">
     <div class="sheet-h"><h2 class="title" id="iv-h">Interviews</h2><span class="count">{{ interviews|length }}</span><span class="spacer"></span>
       {% if can_manage and app.is_open %}<a class="btn btn-primary btn-sm" href="{% url 'pipeline:schedule_interview' app.pk %}">{% icon "calendar-plus" "ico-16" %} Schedule</a>{% endif %}</div>
@@ -396,7 +397,8 @@
         </div>
       </article>
       {% empty %}
-      {% empty_state "No interviews yet" "Schedule the first phase when the candidate is shortlisted. Invites and reminders go out on their own." object_name="Tablet with an interview calendar" %}
+      {% if interview_records %}<p class="small muted">No interviews scheduled in the portal yet.</p>{% else %}
+      {% empty_state "No interviews yet" "Schedule the first phase when the candidate is shortlisted. Invites and reminders go out on their own." object_name="Tablet with an interview calendar" %}{% endif %}
       {% endfor %}
     </div>
   </section>

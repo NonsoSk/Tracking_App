@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import (Activity, Application, DocumentRequirement, Evaluation, EvaluationCriterion, EvaluationScore,
-                     Interview, MedicalCheck, Offer, Onboarding, OnboardingTask)
+                     Interview, InterviewRecord, MedicalCheck, Offer, Onboarding, OnboardingTask)
 
 
 @admin.register(EvaluationCriterion)
@@ -55,6 +55,14 @@ class TaskInline(admin.TabularInline):
 class OnboardingAdmin(admin.ModelAdmin):
     list_display = ("application", "start_date", "officer", "status")
     inlines = [TaskInline]
+
+
+@admin.register(InterviewRecord)
+class InterviewRecordAdmin(admin.ModelAdmin):
+    list_display = ("candidate", "interview_date", "ref_id", "panel_category", "score", "result", "onboarding_status")
+    list_filter = ("result", "onboarding_status")
+    search_fields = ("candidate__first_name", "candidate__last_name", "candidate__email", "ref_id", "panel_category")
+    raw_id_fields = ("candidate", "requisition", "application")
 
 
 admin.site.register(MedicalCheck)

@@ -109,7 +109,7 @@ def stage_rail(application=None, stage=None, status="active", stages=None):
         stages = application.pipeline_stages()
     stages = list(stages or STAGE_SHORT)
     current = stages.index(stage) if stage in stages else 0
-    halted = status in ("rejected", "withdrawn")
+    halted = status in ("rejected", "withdrawn", "not_engaged")
     hired = stage == "hired" or status == "hired"
     items = []
     for i, key in enumerate(stages):
@@ -125,7 +125,7 @@ def stage_rail(application=None, stage=None, status="active", stages=None):
     label = STAGE_SHORT.get(stage, "")
     return {
         "items": items, "position": current + 1, "total": len(stages), "label": label, "halted": halted,
-        "status_label": {"rejected": "Rejected", "withdrawn": "Withdrawn"}.get(status, ""),
+        "status_label": {"rejected": "Rejected", "withdrawn": "Withdrawn", "not_engaged": "Not engaged"}.get(status, ""),
     }
 
 
@@ -140,6 +140,7 @@ CHIP_TONES = {
     "on_hold": ("warning", "On hold"),
     "rejected": ("danger", "Rejected"),
     "withdrawn": ("neutral", "Withdrawn"),
+    "not_engaged": ("neutral", "Not engaged"),
     "offer": ("outline", "Offer"),
     "medical": ("success-outline", "Medicals"),
     "onboarding": ("success", "Onboarding"),
@@ -154,7 +155,7 @@ def status_chip(application=None, stage=None, status=None, key=None):
     if application is not None:
         stage, status = application.stage, application.status
     if key is None:
-        key = status if status in ("on_hold", "rejected", "withdrawn", "hired") else STAGE_CHIP.get(stage, stage)
+        key = status if status in ("on_hold", "rejected", "withdrawn", "not_engaged", "hired") else STAGE_CHIP.get(stage, stage)
     tone, label = CHIP_TONES.get(key, ("neutral", str(key or "").replace("_", " ").capitalize()))
     return format_html('<span class="chip {}">{}</span>', tone, label)
 
@@ -493,3 +494,22 @@ def days_left(day):
     if hasattr(day, "date") and callable(day.date):
         day = timezone.localtime(day).date() if timezone.is_aware(day) else day.date()
     return max(0, (day - timezone.localdate()).days)
+
+
+@register.filter
+def tracker_value(value):
+    """Spreadsheet values for display: ISO dates as '3 Aug 2026', whole numbers without decimals."""
+    import datetime as _dt
+    import re as _re
+
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, float):
+        return f"{value:g}" if value.is_integer() else f"{value:.2f}".rstrip("0")
+    if isinstance(value, str) and _re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        try:
+            d = _dt.date.fromisoformat(value)
+            return f"{d.day} {d:%b %Y}"
+        except ValueError:
+            return value
+    return value

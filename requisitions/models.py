@@ -115,6 +115,20 @@ class Requisition(models.Model):
     target_start_date = models.DateField(null=True, blank=True)
     closing_date = models.DateField("Application closing date", null=True, blank=True)
 
+    # Recorded in IEFCL's manpower requisition tracker
+    business_unit = models.CharField("Company / business unit", max_length=20, blank=True, db_index=True,
+                                     help_text="E.g. IFZ, IPL, IFF, MMFZE.")
+    functional_band = models.CharField(max_length=60, blank=True)
+    staff_category = models.CharField("Trainee / experienced band", max_length=60, blank=True,
+                                      help_text="E.g. Process_GET, Mechanical_DET, Experienced_Role.")
+    classification = models.CharField("Employee classification", max_length=40, blank=True,
+                                      help_text="E.g. Senior Staff, Junior Staff, Trainee, Retainer.")
+    reason_detail = models.CharField("Recruitment reason as recorded", max_length=150, blank=True)
+    requested_by_name = models.CharField("Requested by", max_length=150, blank=True)
+    coordinator_name = models.CharField("Recruitment coordinator", max_length=150, blank=True)
+    source_record = models.JSONField(default=dict, blank=True, editable=False,
+                                     help_text="The tracker row this requisition was imported from, exactly as recorded.")
+
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
     raised_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="requisitions_raised")
     hr_owner = models.ForeignKey(
@@ -157,6 +171,22 @@ class Requisition(models.Model):
     @property
     def is_editable_by_department(self) -> bool:
         return self.status in {self.Status.DRAFT, self.Status.RETURNED}
+
+    @property
+    def requester_label(self) -> str:
+        if self.raised_by:
+            return self.raised_by.display_name
+        return self.requested_by_name
+
+    @property
+    def tracker_facts(self) -> list[tuple[str, object]]:
+        """Key figures from the imported tracker row, under the tracker's own headings."""
+        values = {" ".join(str(k).split()).lower(): (k, v) for k, v in (self.source_record or {}).get("values", {}).items()}
+        keys = ["status", "requisition date", "interview date", "offer date", "offer acceptance date", "closing date",
+                "recruitment cycle (days)", "participants", "shortlisted for interview", "selected", "rejected",
+                "on-hold", "onboarded #", "in progres", "total vacancies"]
+        labels = {"onboarded #": "Onboarded", "in progres": "In progress"}
+        return [(labels.get(k, values[k][0]), values[k][1]) for k in keys if k in values and values[k][1] not in (None, "")]
 
     @property
     def hired_count(self) -> int:

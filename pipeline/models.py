@@ -45,6 +45,7 @@ class Application(models.Model):
         ON_HOLD = "on_hold", "On hold"
         REJECTED = "rejected", "Rejected"
         WITHDRAWN = "withdrawn", "Withdrawn"
+        NOT_ENGAGED = "not_engaged", "Not engaged"
         HIRED = "hired", "Hired"
 
     class Decision(models.TextChoices):
@@ -137,6 +138,7 @@ class Application(models.Model):
             "on_hold": "warning",
             "rejected": "danger",
             "withdrawn": "secondary",
+            "not_engaged": "secondary",
             "hired": "success",
         }.get(self.status, "secondary")
 
@@ -514,3 +516,44 @@ class OnboardingTask(models.Model):
 
     class Meta:
         ordering = ["order", "id"]
+
+
+class InterviewRecord(models.Model):
+    """An interview outcome as recorded in the interview records sheet (before the portal)."""
+
+    class Result(models.TextChoices):
+        SELECTED = "selected", "Selected"
+        REJECTED = "rejected", "Rejected"
+        ON_HOLD = "on_hold", "On hold"
+        RESCHEDULED = "rescheduled", "Rescheduled"
+        NOT_FOUND = "not_found", "Not found"
+        DECLINED = "declined", "Declined"
+
+    candidate = models.ForeignKey("candidates.Candidate", on_delete=models.CASCADE, related_name="interview_records")
+    requisition = models.ForeignKey("requisitions.Requisition", null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="interview_records")
+    application = models.ForeignKey(Application, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="interview_records")
+    ref_id = models.CharField("Requisition reference as recorded", max_length=30, blank=True)
+    interview_date = models.DateField(null=True, blank=True)
+    classification = models.CharField(max_length=40, blank=True, help_text="E.g. Experienced, GET, DET, MT.")
+    panel_category = models.CharField(max_length=80, blank=True)
+    panellists = models.CharField(max_length=255, blank=True)
+    panel_members = models.CharField(max_length=255, blank=True)
+    score = models.DecimalField("Score (%)", max_digits=5, decimal_places=1, null=True, blank=True)
+    result = models.CharField(max_length=20, choices=Result.choices, blank=True)
+    community_status = models.CharField(max_length=20, blank=True)
+    onboarding_status = models.CharField(max_length=40, blank=True, help_text="As recorded, e.g. Onboarded_IFL.")
+    join_date = models.DateField(null=True, blank=True)
+    remark = models.CharField(max_length=60, blank=True)
+    source_row = models.PositiveIntegerField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ["-interview_date", "-id"]
+
+    def __str__(self):
+        return f"{self.candidate} · {self.ref_id or self.panel_category} · {self.get_result_display()}"
+
+    @property
+    def result_tone(self) -> str:
+        return {"selected": "success", "rejected": "danger", "on_hold": "warning", "declined": "neutral"}.get(self.result, "neutral")

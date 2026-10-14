@@ -15,12 +15,13 @@
 
 <form class="sheet list-filter" method="get" role="search" aria-label="Filter requisitions">
   <div class="seg" role="group" aria-label="Show">
-    <a href="?{% if q %}q={{ q|urlencode }}{% endif %}" {% if not status %}class="is-on" aria-current="true"{% else %}{% endif %}>All</a>
-    <a href="?status=pending{% if q %}&amp;q={{ q|urlencode }}{% endif %}" {% if status == 'pending' %}class="is-on" aria-current="true"{% else %}{% endif %}>In approval</a>
-    <a href="?status=active{% if q %}&amp;q={{ q|urlencode }}{% endif %}" {% if status == 'active' %}class="is-on" aria-current="true"{% else %}{% endif %}>Active</a>
-    <a href="?status=filled{% if q %}&amp;q={{ q|urlencode }}{% endif %}" {% if status == 'filled' %}class="is-on" aria-current="true"{% else %}{% endif %}>Filled</a>
+    <a href="?{% if q %}q={{ q|urlencode }}{% endif %}{% if unit %}&amp;unit={{ unit|urlencode }}{% endif %}" {% if not status %}class="is-on" aria-current="true"{% else %}{% endif %}>All</a>
+    <a href="?status=pending{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if unit %}&amp;unit={{ unit|urlencode }}{% endif %}" {% if status == 'pending' %}class="is-on" aria-current="true"{% else %}{% endif %}>In approval</a>
+    <a href="?status=active{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if unit %}&amp;unit={{ unit|urlencode }}{% endif %}" {% if status == 'active' %}class="is-on" aria-current="true"{% else %}{% endif %}>Active</a>
+    <a href="?status=done{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if unit %}&amp;unit={{ unit|urlencode }}{% endif %}" {% if status == 'done' or status == 'filled' %}class="is-on" aria-current="true"{% else %}{% endif %}>Filled &amp; closed</a>
   </div>
   <input type="hidden" name="status" value="{{ status }}">
+  {% if units %}<select name="unit" class="select" aria-label="Company / business unit" data-autosubmit><option value="">All companies</option>{% for x in units %}<option value="{{ x }}" {% if unit == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select>{% endif %}
   <div class="input-icon lf-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Title, reference or department" aria-label="Search requisitions"></div>
   <button class="btn btn-secondary" type="submit">Search</button>
 </form>
@@ -32,7 +33,7 @@
     <div class="rc-top"><span class="chip {{ r.status|tone:'requisition' }}">{% if r.status == 'open' %}Open{% else %}{{ r.get_status_display }}{% endif %}</span><span class="spacer"></span><span class="rc-ref">{{ r.reference }}</span></div>
     <div>
       <h2 class="rc-title">{{ r.title }}</h2>
-      <p class="rc-meta">{{ r.department }} · {{ r.get_employment_type_display }} · {{ r.get_reason_display }}</p>
+      <p class="rc-meta">{% if r.business_unit %}{{ r.business_unit }} · {% endif %}{{ r.department }} · {{ r.classification|default:r.get_employment_type_display }} · {{ r.reason_detail|default:r.get_reason_display }}</p>
     </div>
     <dl class="rc-stats">
       <div><dt>Applicants</dt><dd class="num">{{ r.n_apps }}</dd></div>
@@ -40,12 +41,19 @@
       <div><dt>Position{{ r.positions|pluralize }}</dt><dd class="num">{{ r.positions }}{% if r.grade %} <small>{{ r.grade }}</small>{% endif %}</dd></div>
     </dl>
     <div class="rc-foot">
-      {% if r.raised_by %}{% avatar r.raised_by "xs" %}{% endif %}<span>Raised {{ r.created_at|date:"j M Y" }}{% if r.raised_by %} by {{ r.raised_by.display_name }}{% endif %}</span>
+      {% if r.raised_by %}{% avatar r.raised_by "xs" %}{% endif %}<span>Raised {{ r.created_at|date:"j M Y" }}{% if r.requester_label %} by {{ r.requester_label }}{% endif %}</span>
       {% if r.closing_date and r.status == 'open' %}<span class="spacer"></span><span class="rc-close">{% icon "calendar-clock" "ico-14" %} Closes {{ r.closing_date|date:"j M" }}</span>{% endif %}
     </div>
   </a>
   {% endfor %}
 </div>
+{% if page.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pages">
+  {% if page.has_previous %}<a class="btn btn-secondary btn-sm" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">{% icon "chevron-left" "ico-16" %} Previous</a>{% endif %}
+  <span class="small muted">Page {{ page.number }} of {{ page.paginator.num_pages }} · {{ page.paginator.count }} requisitions</span>
+  {% if page.has_next %}<a class="btn btn-secondary btn-sm" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.next_page_number }}">Next {% icon "chevron-right" "ico-16" %}</a>{% endif %}
+</nav>
+{% endif %}
 {% else %}
 <div class="sheet">{% if request.user.can_raise_requisition %}{% url 'requisitions:create' as new_url %}{% empty_state "No requisitions here yet" "When a department needs someone, the request starts here." new_url "Raise requisition" "Brushed steel valve wheel" %}{% else %}{% empty_state "No requisitions here yet" "Try another filter, or clear the search." object_name="Brushed steel valve wheel" %}{% endif %}</div>
 {% endif %}

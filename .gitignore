@@ -11,3 +11,9 @@ venv/
 .coverage
 htmlcov/
 .DS_Store
+
+# Real recruitment data never goes to GitHub
+*.xlsx
+*.xls
+/backups/
+/import-reports/

@@ -18,7 +18,7 @@
         {% for s in steps %}<li class="hs {{ s.state }}"{% if s.state == 'current' %} aria-current="step"{% endif %}><span class="dot">{% if s.state == 'done' %}{% icon "check" "ico-14" %}{% endif %}</span><span class="hs-l">{{ s.label }}</span></li>{% endfor %}
       </ol>
       <div class="hub-now">
-        <span class="tile {% if app.stage == 'hired' %}gold{% endif %}">{% if app.status == 'rejected' or app.status == 'withdrawn' %}{% icon "circle-x" %}{% elif app.status == 'on_hold' %}{% icon "hourglass" %}{% elif app.stage == 'hired' %}{% icon "trophy" %}{% else %}{% icon "compass" %}{% endif %}</span>
+        <span class="tile {% if app.stage == 'hired' %}gold{% endif %}">{% if app.status == 'rejected' or app.status == 'withdrawn' or app.status == 'not_engaged' %}{% icon "circle-x" %}{% elif app.status == 'on_hold' %}{% icon "hourglass" %}{% elif app.stage == 'hired' %}{% icon "trophy" %}{% else %}{% icon "compass" %}{% endif %}</span>
         <div><h2 class="h3" id="st-h">{{ headline }}</h2><p class="soft">{{ explanation }}</p></div>
       </div>
     </div>

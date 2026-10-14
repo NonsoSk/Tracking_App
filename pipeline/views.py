@@ -78,6 +78,7 @@ def application_detail(request, pk):
     progress = [{"value": s, "label": Stage(s).label, "icon": STAGE_ICONS[s],
                  "state": "done" if i < current else ("current" if i == current else "todo")} for i, s in enumerate(stages)]
     interviews = application.interviews.prefetch_related("panel", "evaluations")
+    interview_records = list(application.interview_records.all())
     evaluations = application.evaluations.select_related("evaluator", "interview").prefetch_related("scores__criterion")
     my_interviews = [i for i in interviews if user in i.panel.all()]
     checklist = services.document_checklist(application) if application.stage in {Stage.DOCUMENTS, Stage.OFFER,
@@ -87,6 +88,7 @@ def application_detail(request, pk):
     context = {
         "app": application, "c": application.candidate, "req": application.requisition, "progress": progress,
         "interviews": interviews, "evaluations": evaluations, "summary": application.evaluation_summary(),
+        "interview_records": interview_records, "interview_count": len(interviews) + len(interview_records),
         "my_interviews": my_interviews, "checklist": checklist, "offers": offers,
         "active_offer": offers.filter(status__in=[Offer.Status.DRAFT, Offer.Status.SENT, Offer.Status.REVIEW_REQUESTED]).first(),
         "medicals": application.medicals.all(), "onboarding": getattr(application, "onboarding", None),
@@ -198,7 +200,7 @@ def ai_summary(request, pk):
         f"Requirements: min {req.get_education_level_display()} in {', '.join(req.courses) or 'any course'}; "
         f"{req.min_experience_years}+ years; skills {', '.join(req.required_skills)}; tools {', '.join(req.tools)}; "
         f"certifications {', '.join(req.certifications)}.\n\n"
-        f"Candidate: {c.get_highest_qualification_display()} {c.course}, {c.institution}; {c.years_experience} years; "
+        f"Candidate: {c.get_highest_qualification_display()} {c.course}, {c.institution}; {c.experience_label}; "
         f"current role {c.current_job_title} at {c.current_employer}.\nSkills: {', '.join(c.skills)}\n"
         f"Tools: {', '.join(c.tools)}\nCertifications: {', '.join(c.certifications)}\n\nCV text:\n{c.cv_text[:12000]}"
     )

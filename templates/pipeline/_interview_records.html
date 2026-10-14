@@ -1,0 +1,22 @@
+{% load ds %}
+<section class="sheet" aria-labelledby="ir-h-{{ show_candidate|yesno:'c,r' }}">
+  <div class="sheet-h"><h2 class="title" id="ir-h-{{ show_candidate|yesno:'c,r' }}">{{ title|default:"Interview records" }}</h2><span class="count">{{ records|length }}</span><span class="spacer"></span><span class="small muted">{% icon "file-spreadsheet" "ico-14" %} From the interview records sheet</span></div>
+  <div class="table-wrap stack-sm"><table class="table">
+    <thead><tr><th>Date</th>{% if show_candidate %}<th>Candidate</th>{% else %}<th>Requisition</th>{% endif %}<th>Panel</th><th class="num">Score</th><th>Result</th><th>Onboarding</th></tr></thead>
+    <tbody>
+    {% for r in records %}
+      <tr>
+        <td class="nowrap tnum" data-label="Date">{{ r.interview_date|date:"j M Y"|default:"—" }}</td>
+        {% if show_candidate %}
+        <td><div class="who">{% avatar r.candidate "sm" %}<div><b><a href="{% if r.application %}{{ r.application.get_absolute_url }}{% else %}{{ r.candidate.get_absolute_url }}{% endif %}">{{ r.candidate.full_name }}</a></b><span>{{ r.classification|default:"" }}{% if r.community_status %}{% if r.classification %} · {% endif %}{{ r.community_status }}{% endif %}</span></div></div></td>
+        {% else %}
+        <td data-label="Requisition">{% if r.requisition %}<a href="{{ r.requisition.get_absolute_url }}">{{ r.requisition.reference }}</a><div class="small muted ellip">{{ r.requisition.title }}</div>{% else %}{{ r.ref_id|default:"—" }}{% if r.ref_id %}<div class="small muted">Not in the tracker</div>{% endif %}{% endif %}</td>
+        {% endif %}
+        <td data-label="Panel">{{ r.panel_category|default:"—" }}{% if r.panellists or r.panel_members %}<div class="small muted ellip" title="{{ r.panellists }}{% if r.panellists and r.panel_members %} · {% endif %}{{ r.panel_members }}">{{ r.panellists|default:r.panel_members }}</div>{% endif %}</td>
+        <td class="num" data-label="Score">{% if r.score is not None %}{{ r.score|floatformat:"-1" }}%{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td data-label="Result">{% if r.result %}<span class="chip {{ r.result_tone }}">{{ r.get_result_display }}</span>{% else %}<span class="muted">—</span>{% endif %}{% if r.remark %}<div class="small muted">{{ r.remark }}</div>{% endif %}</td>
+        <td data-label="Onboarding">{{ r.onboarding_status|default:"—" }}{% if r.join_date %}<div class="small muted">Joined {{ r.join_date|date:"j M Y" }}</div>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
+</section>

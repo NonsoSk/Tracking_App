@@ -164,7 +164,7 @@ def hub(request, token):
     headline, explanation = PUBLIC_STAGE[Stage(application.stage)]
     if application.status == Application.Status.REJECTED:
         headline, explanation = "Application closed", "Thank you for your interest. We will keep your profile for future roles."
-    elif application.status == Application.Status.WITHDRAWN:
+    elif application.status in {Application.Status.WITHDRAWN, Application.Status.NOT_ENGAGED}:
         headline, explanation = "Application closed", "This application is no longer active."
     elif application.status == Application.Status.ON_HOLD:
         headline, explanation = "On hold", "Your application is on hold. We will contact you if the situation changes."
