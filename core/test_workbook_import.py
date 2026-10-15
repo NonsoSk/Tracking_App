@@ -304,3 +304,12 @@ class ParsingTests(TestCase):
         self.assertEqual(phones_in("8160213803, 09044000000"), ["08160213803", "09044000000"])
         self.assertEqual(phones_in("+2348037954529"), ["08037954529"])
         self.assertEqual(phones_in("00000000000"), [])
+
+    def test_mailbox_recognises_tracker_references(self):
+        from core.management.commands.fetch_cv_emails import match_requisition
+        dept = Department.objects.create(name="QA/QC", code="QAQC")
+        req = Requisition.objects.create(department=dept, title="Lab DET", reference="Req_245")
+        self.assertEqual(match_requisition("CV for Req_245 - Lab DET"), req)
+        self.assertEqual(match_requisition("Application (req_245)"), req)
+        self.assertIsNone(match_requisition("Req_2450 unknown"))
+

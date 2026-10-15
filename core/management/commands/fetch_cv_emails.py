@@ -3,7 +3,7 @@ Read CVs sent to the recruitment mailbox and add them to the portal.
 
 Configure CV_INBOX_HOST / CV_INBOX_USER / CV_INBOX_PASSWORD (IMAP) in .env and
 schedule this command (e.g. every 15 minutes). If the email subject or body
-contains a requisition reference (e.g. REQ-2026-0004) or the exact vacancy
+contains a requisition reference (e.g. REQ-2026-0004 or Req_245) or the exact vacancy
 title, the CV is applied to that vacancy and scored straight away.
 """
 
@@ -32,9 +32,9 @@ def _decode(value) -> str:
 
 
 def match_requisition(text: str):
-    ref = re.search(r"REQ-\d{4}-\d{3,}", text or "", re.I)
-    if ref:
-        found = Requisition.objects.filter(reference__iexact=ref.group(0)).first()
+    # The portal's own references (REQ-2026-0004) and the tracker's (Req_245)
+    for ref in re.findall(r"REQ-\d{4}-\d{3,}|\bReq_\d+\b", text or "", re.I):
+        found = Requisition.objects.filter(reference__iexact=ref).first()
         if found:
             return found
     lowered = (text or "").lower()
