@@ -9,7 +9,7 @@
     <header>
       <div class="eyebrow">{{ job.department }} · {{ job.reference }}</div>
       <h1 class="display job-h1">{{ job.title }}</h1>
-      <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span><span class="tag">{{ job.get_education_level_display }}+</span>{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
+      <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span>{% if job.education_level %}<span class="tag">{{ job.get_education_level_display }}+</span>{% endif %}{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
     </header>
     <section class="sheet job-body" aria-label="About this role">
       <div class="sheet-b pad-top-24">
@@ -19,7 +19,7 @@
         {% if job.job_description %}<h2 class="h3">About the role</h2><p class="soft pre">{{ job.job_description }}</p>{% endif %}
         <h2 class="h3">What you need</h2>
         <ul class="req-list">
-          <li>{% icon "graduation-cap" "ico-18" %}<span>Minimum of {{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|join:", " }}{% endif %}{% if job.min_degree_class %} ({{ job.get_min_degree_class_display }} or better){% endif %}</span></li>
+          {% if job.education_level or job.courses %}<li>{% icon "graduation-cap" "ico-18" %}<span>{% if job.education_level %}Minimum of {{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|join:", " }}{% endif %}{% else %}A qualification in {{ job.courses|join:", " }}{% endif %}{% if job.min_degree_class %} ({{ job.get_min_degree_class_display }} or better){% endif %}</span></li>{% endif %}
           {% if job.requires_nysc %}<li>{% icon "badge-check" "ico-18" %}<span>NYSC completed or exempted</span></li>{% endif %}
           {% if job.min_experience_years %}<li>{% icon "briefcase-business" "ico-18" %}<span>At least {{ job.min_experience_years }} years of relevant experience</span></li>{% endif %}
           {% for s in job.required_skills %}<li>{% icon "check" "ico-18" %}<span>{{ s }}</span></li>{% endfor %}

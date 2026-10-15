@@ -47,11 +47,11 @@
   <dialog class="drawer" id="qv-{{ job.pk }}" aria-labelledby="qv-h-{{ job.pk }}">
     <div class="modal-h"><div><div class="eyebrow">{{ job.department }}</div><h3 id="qv-h-{{ job.pk }}" class="h2">{{ job.title }}</h3></div><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
     <div class="modal-b stack-24">
-      <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span><span class="tag">{{ job.get_education_level_display }}+</span>{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
+      <div class="tags">{% if job.location %}<span class="tag">{% icon "map-pin" "ico-14" %} {{ job.location }}</span>{% endif %}<span class="tag">{{ job.get_employment_type_display }}</span>{% if job.education_level %}<span class="tag">{{ job.get_education_level_display }}+</span>{% endif %}{% if job.min_experience_years %}<span class="tag">{{ job.min_experience_years }}+ years</span>{% endif %}</div>
       {% if job.job_description %}<div><div class="eyebrow muted-eyebrow">About the role</div><p class="soft">{{ job.job_description|truncatewords:60 }}</p></div>{% endif %}
       <div><div class="eyebrow muted-eyebrow">What you need</div>
         <ul class="req-list">
-          <li>{% icon "graduation-cap" "ico-16" %}<span>{{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|slice:":3"|join:", " }}{% endif %}</span></li>
+          {% if job.education_level or job.courses %}<li>{% icon "graduation-cap" "ico-16" %}<span>{% if job.education_level %}{{ job.get_education_level_display }}{% if job.courses %} in {{ job.courses|slice:":3"|join:", " }}{% endif %}{% else %}{{ job.courses|slice:":3"|join:", " }}{% endif %}</span></li>{% endif %}
           {% if job.min_experience_years %}<li>{% icon "briefcase-business" "ico-16" %}<span>At least {{ job.min_experience_years }} years of relevant experience</span></li>{% endif %}
           {% for s in job.required_skills|slice:":4" %}<li>{% icon "check" "ico-16" %}<span>{{ s }}</span></li>{% endfor %}
         </ul>

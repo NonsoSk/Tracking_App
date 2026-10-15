@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from core.admin_lists import ListFieldsAdmin
+
 from .models import Candidate, CandidateDocument, CBTResult
 
 
@@ -11,7 +13,8 @@ class DocumentInline(admin.TabularInline):
 
 
 @admin.register(Candidate)
-class CandidateAdmin(admin.ModelAdmin):
+class CandidateAdmin(ListFieldsAdmin, admin.ModelAdmin):
+    list_fields = ("skills", "tools", "certifications")
     list_display = ("full_name", "email", "phone", "highest_qualification", "course", "years_experience", "source_detail")
     list_filter = ("source", "source_detail", "highest_qualification", "community_status")
     search_fields = ("first_name", "last_name", "email", "phone", "other_contacts")
