@@ -1,0 +1,223 @@
+<title>Life.py</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A story game where you live a life with Pip, a little robot who only speaks Python. No coding experience needed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+/*@@STYLE@@*/
+</style>
+
+<div id="app">
+  <header id="topbar" class="topbar" hidden>
+    <div class="topbar-inner">
+      <button class="brand" id="btn-brand" type="button" aria-label="Life map">
+        <span class="brand-pip" id="brand-pip"></span>
+        <span class="wordmark">Life<span>.py</span></span>
+      </button>
+      <div class="stats">
+        <span class="chip" title="Points">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.2l2.4 5 5.4.6-4 3.7 1.1 5.4L10 14.2l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z" fill="currentColor"/></svg>
+          <b id="stat-points">0</b><span class="visually-hidden"> points</span>
+        </span>
+        <span class="chip" title="Days played in a row">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10.5 1.8c.6 3.2 4.7 5 4.7 9.6A5.2 5.2 0 0 1 4.8 12c0-2.2 1.1-3.6 2.4-4.6-.1 1.6.6 2.8 1.6 3.3-.3-3.7 1.1-6.6 1.7-8.9z" fill="currentColor"/></svg>
+          <b id="stat-streak">0</b><span class="visually-hidden"> days in a row</span>
+        </span>
+      </div>
+      <nav class="tools" aria-label="Settings">
+        <button id="btn-notebook" class="tool" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h9a2 2 0 0 1 2 2v12H6a2 2 0 0 1-2-2V4a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 7h5M7.5 10h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="tool-label">Notebook</span>
+        </button>
+        <button id="btn-sound" class="tool toggle" type="button" aria-pressed="true">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-3v10l-4-3H3z" fill="currentColor"/><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5.5a6.5 6.5 0 0 1 0 9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><path class="slash" d="M3 3l14 14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="tool-label">Sound</span>
+        </button>
+        <button id="btn-voice" class="tool toggle" type="button" aria-pressed="false">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9l-4 3v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 8h6M7 11h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path class="slash" d="M3 3l14 14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="tool-label">Read aloud</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="screen-title" class="screen title-screen">
+      <div class="title-pip" id="title-pip"></div>
+      <h1 class="title-word">Life<span>.py</span></h1>
+      <p class="title-tag">Live a whole life with Pip, a little robot who only speaks Python. Learn to code without noticing.</p>
+      <div class="title-actions">
+        <button class="btn primary big" id="btn-continue" type="button" hidden>Continue</button>
+        <button class="btn primary big" id="btn-play" type="button">Play</button>
+      </div>
+      <ul class="title-points">
+        <li>No coding experience needed</li>
+        <li>Real Python from the first minute</li>
+        <li>Works on a phone or a laptop</li>
+      </ul>
+      <button class="link" id="link-results" type="button">For testers: see results</button>
+    </section>
+
+    <section id="screen-stories" class="screen" hidden>
+      <p class="eyebrow">Step 1</p>
+      <h2>Choose your life</h2>
+      <p class="lede">Each story teaches the same Python in a different world. Growing Up is ready to play.</p>
+      <div class="story-list" id="story-list"></div>
+    </section>
+
+    <section id="screen-setup" class="screen narrow" hidden>
+      <p class="eyebrow">Growing Up</p>
+      <h2>Before your 5th birthday…</h2>
+      <form id="setup-form" class="setup" novalidate>
+        <label class="field-label" for="player-name">What should we call you?</label>
+        <input id="player-name" class="text-input" type="text" maxlength="20" autocomplete="given-name" placeholder="Your first name">
+        <p class="field-error" id="setup-error" hidden>Type a name so Pip knows who you are.</p>
+        <fieldset class="packs">
+          <legend class="field-label">Where did you grow up?</legend>
+          <p class="field-help">This changes names, food and games in the story. The Python is the same everywhere.</p>
+          <div class="pack-list" id="pack-list"></div>
+        </fieldset>
+        <label class="check">
+          <input id="setup-voice" type="checkbox">
+          <span>Read the story out loud</span>
+        </label>
+        <div class="form-actions">
+          <button class="btn ghost" id="setup-back" type="button">Back</button>
+          <button class="btn primary" type="submit">Start my life</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="screen-map" class="screen" hidden>
+      <p class="eyebrow">Growing Up · <span id="map-pack"></span></p>
+      <h2>The life of <span id="map-name"></span></h2>
+      <p class="lede">Every chapter is a stage of life. Every level teaches Pip something new.</p>
+      <ol class="map-list" id="map-list"></ol>
+    </section>
+
+    <section id="screen-level" class="screen level" hidden>
+      <div class="level-head">
+        <button class="btn ghost small" id="btn-back-map" type="button">Life map</button>
+        <div class="level-name">
+          <p class="eyebrow" id="level-chapter"></p>
+          <h2 id="level-title"></h2>
+        </div>
+        <ol class="dots" id="round-dots" aria-label="Steps in this level"></ol>
+      </div>
+      <div class="level-grid" id="level-grid">
+        <div class="stage">
+          <div class="scene" id="scene">
+            <div class="scene-art" id="scene-art"></div>
+            <div class="pip-wrap" id="pip-wrap">
+              <div class="bubble" id="bubble" hidden></div>
+              <div class="pip" id="pip" data-state="idle"></div>
+            </div>
+          </div>
+          <div class="story" id="story" aria-live="polite"></div>
+        </div>
+        <div class="workbench" id="workbench">
+          <p class="task" id="task"></p>
+          <div class="laptop">
+            <div class="tabbar"><span class="tab" id="file-tab">birthday.py</span></div>
+            <div class="code-host" id="code-host"></div>
+          </div>
+          <div class="symbolbar" id="symbolbar" hidden aria-label="Symbol keys">
+            <button type="button" data-key="(" aria-label="Open bracket">(</button>
+            <button type="button" data-key=")" aria-label="Close bracket">)</button>
+            <button type="button" data-key="&quot;" aria-label="Quote mark">"</button>
+            <button type="button" data-key=":" aria-label="Colon">:</button>
+            <button type="button" data-key="=" aria-label="Equals">=</button>
+            <button type="button" data-key="+" aria-label="Plus">+</button>
+            <button type="button" data-key="-" aria-label="Minus">-</button>
+            <button type="button" data-key="indent" class="wide" aria-label="Push in 4 spaces">⇥ push in</button>
+          </div>
+          <p class="keytip" id="keytip" hidden>On most keyboards, ( is Shift + 9 and ) is Shift + 0. Or tap the keys above.</p>
+          <div class="controls">
+            <button class="btn primary run" id="btn-run" type="button">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Run
+            </button>
+            <button class="btn ghost" id="btn-hint" type="button">Hint</button>
+            <button class="btn ghost" id="btn-ask" type="button" hidden>Ask Pip</button>
+            <button class="btn ghost" id="btn-reset" type="button">Start again</button>
+          </div>
+          <div class="helpbox" id="helpbox" hidden></div>
+          <div class="feedback" id="feedback" aria-live="polite"></div>
+          <div class="panels">
+            <section class="trans" aria-labelledby="trans-h">
+              <h3 id="trans-h">Pip's translation</h3>
+              <ol id="trans-list"></ol>
+            </section>
+            <section class="console" aria-labelledby="console-h">
+              <h3 id="console-h">Output</h3>
+              <pre id="console-out"></pre>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-notebook" class="screen narrow" hidden>
+      <p class="eyebrow">Pip's notebook</p>
+      <h2>Everything you've learned</h2>
+      <h3 class="nb-h">Words</h3>
+      <ul class="nb-words" id="nb-words"></ul>
+      <h3 class="nb-h">Rules Pip taught you</h3>
+      <ul class="nb-rules" id="nb-rules"></ul>
+      <h3 class="nb-h">Badges</h3>
+      <ul class="nb-badges" id="nb-badges"></ul>
+      <div class="form-actions"><button class="btn ghost" id="nb-back" type="button">Back</button></div>
+    </section>
+
+    <section id="screen-results" class="screen narrow" hidden>
+      <p class="eyebrow">For testers</p>
+      <h2>Playtest results</h2>
+      <p class="lede">These numbers stay on this device. Nothing is sent anywhere unless you copy and share them.</p>
+      <p class="results-who" id="results-who"></p>
+      <div class="table-wrap">
+        <table class="results">
+          <thead><tr><th scope="col">Level</th><th scope="col">Time</th><th scope="col">Runs</th><th scope="col">Mistakes</th><th scope="col">Hints</th><th scope="col">Done</th></tr></thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+      <p class="results-stuck" id="results-stuck"></p>
+      <p><b>Stories they'd play next:</b> <span id="results-votes"></span></p>
+      <label class="field-label" for="results-notes">What was the hardest part? (in the player's words)</label>
+      <textarea id="results-notes" class="text-input" rows="3"></textarea>
+      <div class="form-actions">
+        <button class="btn ghost" id="results-back" type="button">Back</button>
+        <button class="btn primary" id="btn-copy" type="button">Copy results</button>
+      </div>
+      <p class="copy-status" id="copy-status" aria-live="polite"></p>
+      <textarea id="results-text" class="text-input" rows="8" hidden aria-label="Results text to copy"></textarea>
+      <div class="danger">
+        <h3>Next tester?</h3>
+        <p>Clear all progress on this device so a new person can start from the beginning.</p>
+        <button class="btn ghost" id="btn-reset-all" type="button">Start over for a new player</button>
+        <div class="confirm" id="reset-confirm" hidden>
+          <p>This deletes the name, progress and results saved here.</p>
+          <button class="btn danger-btn" id="reset-yes" type="button">Yes, start over</button>
+          <button class="btn ghost" id="reset-no" type="button">Cancel</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="ov-card" id="ov-card" role="dialog" aria-modal="true" aria-labelledby="ov-title"></div>
+  </div>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+</div>
+
+<script>
+/*@@PYTHON@@*/
+</script>
+<script>
+/*@@CONTENT@@*/
+</script>
+<script>
+/*@@SCENES@@*/
+</script>
+<script>
+/*@@GAME@@*/
+</script>
