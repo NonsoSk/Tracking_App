@@ -75,7 +75,7 @@ def search(args, config, client=None):
         draft_applications(args, config, rows, found, client if client is not None else tailor.make_client())
     tracker.save(args.tracker, rows)
     with open(args.report, "w", encoding="utf-8") as handle:
-        handle.write(tracker.render_markdown(rows, today))
+        handle.write(tracker.render_markdown(rows, today, config["min_monthly_usd"]))
     print(f"{len(added)} new matches recorded in {os.path.relpath(args.tracker, args.root)}")
     return 0
 
@@ -112,7 +112,7 @@ def send(args, config, sender=outreach.send):
     if not args.dry_run:
         tracker.save(args.tracker, rows)
         with open(args.report, "w", encoding="utf-8") as handle:
-            handle.write(tracker.render_markdown(rows, today))
+            handle.write(tracker.render_markdown(rows, today, config["min_monthly_usd"]))
     return 0
 
 

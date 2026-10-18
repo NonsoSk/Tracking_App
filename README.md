@@ -1,7 +1,7 @@
 # Tracking_App
 
 Automated job search for remote data analyst roles at international startups
-paying at least $5,000 a month. For every match it drafts a one-page tailored
+paying at least $7,000 a month. For every match it drafts a one-page tailored
 resume, a cover letter and an outreach email, and sends them once you approve.
 
 ## What it does
@@ -18,11 +18,11 @@ that match, and records them in the tracker:
 
 A listing is a match when:
 
-- the title is an analyst role from `title_keywords` (data, BI, product,
-  analytics engineer and similar) and not one in `title_exclude`;
+- the title is an analyst role from `title_keywords` (data, fraud, risk,
+  BI, product, analytics engineer and similar) and not one in `title_exclude`;
 - it is open worldwide or to a region in `allowed_locations` (Europe, EMEA,
   Africa, UK, GMT and so on), so "US only" roles are skipped;
-- its stated pay is at least `min_monthly_usd` ($5,000) a month at the top of
+- its stated pay is at least `min_monthly_usd` ($7,000) a month at the top of
   its range. Yearly, hourly and non-USD pay is converted using `usd_rates`.
   Jobs that don't list pay are skipped unless `include_unknown_salary` is true.
 - it was posted within `max_age_hours` (4). A post that gives only a date, not

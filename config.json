@@ -1,6 +1,8 @@
 {
   "title_keywords": [
     "data analyst",
+    "fraud analyst",
+    "risk analyst",
     "analytics analyst",
     "business intelligence analyst",
     "bi analyst",
@@ -9,7 +11,11 @@
     "business analyst",
     "analytics engineer",
     "insights analyst",
-    "reporting analyst"
+    "reporting analyst",
+    "monitoring analyst",
+    "aml analyst",
+    "credit analyst",
+    "payments analyst"
   ],
   "title_exclude": [
     "intern",
@@ -18,7 +24,7 @@
     "vp ",
     "head of"
   ],
-  "min_monthly_usd": 5000,
+  "min_monthly_usd": 7000,
   "include_unknown_salary": false,
   "max_age_hours": 4,
   "require_signals": false,

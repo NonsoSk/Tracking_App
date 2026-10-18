@@ -61,11 +61,11 @@ def drafts(row):
     return f"[open]({row['package']}){sent}"
 
 
-def render_markdown(rows, today):
+def render_markdown(rows, today, minimum=5000):
     lines = [
         "# Job matches",
         "",
-        f"Remote data analyst roles paying at least $5k a month. Last search: {today}.",
+        f"Remote data analyst roles paying at least {money(minimum)} a month. Last search: {today}.",
         "Edit `status` and `notes` in [data/jobs.csv](data/jobs.csv); the next search keeps your edits.",
         "Set a job's status to `Approved` to send its outreach email with the tailored resume on the next run.",
         "Set `style` to `deal` first to send the casual deal message (deal.md) instead of the formal email.",

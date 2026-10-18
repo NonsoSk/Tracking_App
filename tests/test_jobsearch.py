@@ -16,6 +16,16 @@ FIXTURES = os.path.join(HERE, "fixtures")
 with open(os.path.join(ROOT, "config.json"), encoding="utf-8") as handle:
     CONFIG = json.load(handle)
 RATES = CONFIG["usd_rates"]
+# The fixtures are priced around $5k a month, so the tests pin that floor
+# rather than follow whatever config.json is set to.
+TEST_CONFIG = dict(CONFIG, min_monthly_usd=5000)
+
+
+def write_test_config(folder):
+    path = os.path.join(folder, "config.json")
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(TEST_CONFIG, handle)
+    return path
 
 
 class SalaryTest(unittest.TestCase):
@@ -50,6 +60,8 @@ class FilterTest(unittest.TestCase):
         self.assertTrue(filters.title_matches("Senior Data Analyst", CONFIG))
         self.assertFalse(filters.title_matches("Data Analyst Intern", CONFIG))
         self.assertFalse(filters.title_matches("Data Engineer", CONFIG))
+        self.assertTrue(filters.title_matches("Junior Risk Monitoring Analyst", CONFIG))
+        self.assertTrue(filters.title_matches("Fraud Analyst", CONFIG))
 
 
 class FreshnessTest(unittest.TestCase):
@@ -63,7 +75,7 @@ class FreshnessTest(unittest.TestCase):
         self.assertIsNone(sources.parse_posted(""))
 
     def test_only_recent_posts_match(self):
-        config = dict(CONFIG, max_age_hours=4)
+        config = dict(TEST_CONFIG, max_age_hours=4)
         now = datetime.datetime(2026, 10, 2, 2, 0, tzinfo=datetime.timezone.utc)
         found, rejected = filters.matches(cli.load_fixtures(FIXTURES), config, now)
         self.assertEqual([item["company"] for item in found], ["Deel-ish"])  # posted 2 hours earlier
@@ -96,7 +108,7 @@ class SignalTest(unittest.TestCase):
         self.assertEqual(filters.signals(self.item("Join our analytics team.", "South Africa")), [])
 
     def test_require_signals(self):
-        config = dict(CONFIG, require_signals=True, max_age_hours=0)
+        config = dict(TEST_CONFIG, require_signals=True, max_age_hours=0)
         found, _ = filters.matches(cli.load_fixtures(FIXTURES), config)
         # Paystack Labs' post has an email; EuroStart is open to "Europe, Africa".
         self.assertEqual([item["company"] for item in found], ["Paystack Labs", "EuroStart"])
@@ -106,6 +118,7 @@ class EndToEndTest(unittest.TestCase):
     def run_cli(self, folder):
         csv_path = os.path.join(folder, "jobs.csv")
         cli.main(["--fixtures", FIXTURES, "--no-drafts", "--max-age-hours", "0", "--tracker", csv_path,
+                  "--config", write_test_config(folder),
                   "--report", os.path.join(folder, "JOBS.md")])
         return csv_path
 
@@ -172,7 +185,7 @@ class ApplicationTest(unittest.TestCase):
         os.makedirs(os.path.join(self.folder, "profile"))
         with open(os.path.join(self.folder, "profile", "resume.md"), "w") as handle:
             handle.write("Ada Obi\nAnalyst at Acme, 2021 to now. SQL, Python, Tableau.")
-        self.paths = ["--root", self.folder, "--max-age-hours", "0",
+        self.paths = ["--root", self.folder, "--max-age-hours", "0", "--config", write_test_config(self.folder),
                       "--tracker", os.path.join(self.folder, "jobs.csv"),
                       "--report", os.path.join(self.folder, "JOBS.md")]
 
