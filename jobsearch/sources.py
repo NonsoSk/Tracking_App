@@ -4,6 +4,7 @@ Every source returns a list of dicts with the same keys, so the filter
 and tracker never need to know where a job came from.
 """
 
+import datetime
 import json
 import re
 import urllib.parse
@@ -11,6 +12,8 @@ import urllib.request
 
 USER_AGENT = "Mozilla/5.0 (compatible; TrackingApp-JobSearch/1.0)"
 TIMEOUT = 30
+# Remotive's API shows jobs 24 hours late and asks for at most 4 calls a day.
+DELAY_HOURS = {"remotive": 24}
 
 
 def fetch_json(url):
@@ -23,9 +26,27 @@ def strip_html(text):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
 
 
+def parse_posted(value):
+    """When a job was posted, as a UTC datetime, or None if the board gives only a date."""
+    text = str(value or "").strip()
+    if text.isdigit():  # Unix time, in seconds or milliseconds
+        seconds = int(text) / 1000 if len(text) > 11 else int(text)
+        return datetime.datetime.fromtimestamp(seconds, datetime.timezone.utc)
+    if len(text) <= 10:
+        return None
+    try:
+        moment = datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:  # boards that leave out the offset post in UTC
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    return moment.astimezone(datetime.timezone.utc)
+
+
 def job(source, source_id, title, company, location, url, posted="",
         salary_text="", salary_min=None, salary_max=None, currency=None,
         period=None, tags=None, description=""):
+    posted_at = parse_posted(posted)
     return {
         "id": f"{source}:{source_id}",
         "source": source,
@@ -33,7 +54,8 @@ def job(source, source_id, title, company, location, url, posted="",
         "company": (company or "").strip(),
         "location": (location or "").strip(),
         "url": url or "",
-        "posted": (posted or "")[:10],
+        "posted": posted_at.strftime("%Y-%m-%d %H:%M") if posted_at else str(posted or "")[:10],
+        "posted_at": posted_at,
         "salary_text": salary_text or "",
         "salary_min": salary_min,
         "salary_max": salary_max,
@@ -124,10 +146,13 @@ def sources(keywords):
     yield "jobicy", "https://jobicy.com/api/v2/remote-jobs?count=50&industry=data-science", jobicy
 
 
-def fetch_all(keywords, log=print):
-    """Fetch every source. A failing source is logged and skipped."""
+def fetch_all(keywords, log=print, max_age_hours=None):
+    """Fetch every source. A failing source is logged and skipped, and so is one
+    whose listings arrive later than max_age_hours, since none could be fresh."""
     jobs, seen = [], set()
     for name, url, parser in sources(keywords):
+        if max_age_hours and DELAY_HOURS.get(name, 0) >= max_age_hours:
+            continue
         try:
             found = parser(fetch_json(url))
         except Exception as error:  # one bad board should not stop the run

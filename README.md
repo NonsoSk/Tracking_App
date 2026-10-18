@@ -6,9 +6,9 @@ resume, a cover letter and an outreach email, and sends them once you approve.
 
 ## What it does
 
-Every day a GitHub Action searches public remote job boards (Remotive,
-RemoteOK, Himalayas and Jobicy), keeps the listings that match, and records
-them in the tracker:
+Every 2 hours a GitHub Action searches public remote job boards (Remotive,
+RemoteOK, Himalayas and Jobicy), keeps the listings posted in the last 4 hours
+that match, and records them in the tracker:
 
 - [`data/jobs.csv`](data/jobs.csv) is the tracker. Open it in Excel or Google
   Sheets, or edit it on GitHub. Change `status` (New, Interested, Applied,
@@ -25,6 +25,17 @@ A listing is a match when:
 - its stated pay is at least `min_monthly_usd` ($5,000) a month at the top of
   its range. Yearly, hourly and non-USD pay is converted using `usd_rates`.
   Jobs that don't list pay are skipped unless `include_unknown_salary` is true.
+- it was posted within `max_age_hours` (4). A post that gives only a date, not
+  a time, can't be placed in that window and is skipped. Remotive is not
+  searched while the window is under 24 hours, because its API shows jobs a
+  day late and asks to be called at most 4 times a day. Set `max_age_hours`
+  to 0 to accept any age.
+
+The `signals` column flags posts that are more than a regular listing:
+`urgent` (start ASAP), `early-stage` (founding or first data hire, seed,
+Series A, small team), `names Africa` (Nigeria, Lagos or Africa named, not
+just "worldwide") and `direct email` (an address to write to is in the post).
+Set `require_signals` to true to keep only flagged posts.
 
 All of these live in [`config.json`](config.json). Add companies you don't want
 to see to `exclude_companies`.
@@ -85,6 +96,7 @@ locally with Python 3.10+ after `pip install -r requirements.txt`:
 ```sh
 python -m jobsearch            # search, update the tracker, draft applications
 python -m jobsearch --dry-run  # show what it would add
+python -m jobsearch --max-age-hours 24  # widen the window for one run
 python -m jobsearch send       # send outreach for jobs marked Approved
 python -m unittest             # run the tests
 ```

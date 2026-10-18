@@ -20,6 +20,8 @@
   ],
   "min_monthly_usd": 5000,
   "include_unknown_salary": false,
+  "max_age_hours": 4,
+  "require_signals": false,
   "allowed_locations": [
     "worldwide",
     "anywhere",

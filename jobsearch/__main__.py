@@ -1,6 +1,7 @@
 """Job search automation.
 
 python -m jobsearch              search, record matches, draft applications
+python -m jobsearch --max-age-hours 24   same, for jobs posted in the last 24 hours
 python -m jobsearch send         send outreach for jobs you marked Approved
 """
 
@@ -56,7 +57,10 @@ def draft_applications(args, config, rows, found, client):
 def search(args, config, client=None):
     today = datetime.date.today().isoformat()
     print("Searching job boards...")
-    jobs = load_fixtures(args.fixtures) if args.fixtures else sources.fetch_all(config["title_keywords"])
+    if args.fixtures:
+        jobs = load_fixtures(args.fixtures)
+    else:
+        jobs = sources.fetch_all(config["title_keywords"], max_age_hours=config.get("max_age_hours"))
     found, rejected = filters.matches(jobs, config)
     print(f"{len(jobs)} listings checked, {len(found)} matches. Skipped: {rejected}")
 
@@ -122,10 +126,14 @@ def main(argv=None, client=None, sender=None):
     parser.add_argument("--fixtures", help="read saved API responses from this folder")
     parser.add_argument("--no-drafts", action="store_true", help="search only, skip application drafts")
     parser.add_argument("--dry-run", action="store_true", help="show what would happen, write nothing")
+    parser.add_argument("--max-age-hours", type=float,
+                        help="only jobs posted this recently (overrides config; 0 for any age)")
     args = parser.parse_args(argv)
 
     with open(args.config, encoding="utf-8") as handle:
         config = json.load(handle)
+    if args.max_age_hours is not None:
+        config["max_age_hours"] = args.max_age_hours
     if args.command == "send":
         return send(args, config, sender or outreach.send)
     return search(args, config, client)

@@ -9,7 +9,7 @@ import os
 
 COLUMNS = [
     "status", "title", "company", "monthly_usd_min", "monthly_usd_max",
-    "location", "url", "fit", "style", "contact", "package", "sent",
+    "location", "signals", "url", "fit", "style", "contact", "package", "sent",
     "source", "posted", "first_seen", "notes", "id",
 ]
 STATUSES = ["New", "Interested", "Approved", "Applied", "Interviewing", "Offer", "Rejected", "Skipped"]
@@ -76,15 +76,15 @@ def render_markdown(rows, today):
         if not group:
             continue
         lines += [f"## {status} ({len(group)})", "",
-                  "| Role | Company | Monthly USD | Location | Fit | Drafts | Found |",
-                  "|---|---|---|---|---|---|---|"]
+                  "| Role | Company | Monthly USD | Location | Signals | Fit | Drafts | Posted | Found |",
+                  "|---|---|---|---|---|---|---|---|---|"]
         for row in group:
             pay = f"{money(row['monthly_usd_min'])} to {money(row['monthly_usd_max'])}"
             if row["monthly_usd_min"] == row["monthly_usd_max"]:
                 pay = money(row["monthly_usd_max"])
             title = row["title"].replace("|", "/")
             lines.append(f"| [{title}]({row['url']}) | {row['company'].replace('|', '/')} | "
-                         f"{pay} | {row['location'].replace('|', '/') or 'Remote'} | "
-                         f"{row.get('fit') or ''} | {drafts(row)} | {row['first_seen']} |")
+                         f"{pay} | {row['location'].replace('|', '/') or 'Remote'} | {row.get('signals') or ''} | "
+                         f"{row.get('fit') or ''} | {drafts(row)} | {row['posted']} | {row['first_seen']} |")
         lines.append("")
     return "\n".join(lines)

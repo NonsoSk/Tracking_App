@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import shutil
@@ -5,7 +6,7 @@ import tempfile
 import unittest
 
 from jobsearch import __main__ as cli
-from jobsearch import filters, tracker
+from jobsearch import filters, sources, tracker
 from jobsearch.salary import parse_salary_text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -51,10 +52,60 @@ class FilterTest(unittest.TestCase):
         self.assertFalse(filters.title_matches("Data Engineer", CONFIG))
 
 
+class FreshnessTest(unittest.TestCase):
+    def test_posted_times(self):
+        utc = datetime.timezone.utc
+        self.assertEqual(sources.parse_posted(1760000000), datetime.datetime(2025, 10, 9, 8, 53, 20, tzinfo=utc))
+        self.assertEqual(sources.parse_posted("2026-10-02T03:00:00+02:00"),
+                         datetime.datetime(2026, 10, 2, 1, 0, tzinfo=utc))
+        self.assertEqual(sources.parse_posted("2026-10-01 08:00:00"), datetime.datetime(2026, 10, 1, 8, 0, tzinfo=utc))
+        self.assertIsNone(sources.parse_posted("2026-10-01"))  # a date alone can't be placed in a 4-hour window
+        self.assertIsNone(sources.parse_posted(""))
+
+    def test_only_recent_posts_match(self):
+        config = dict(CONFIG, max_age_hours=4)
+        now = datetime.datetime(2026, 10, 2, 2, 0, tzinfo=datetime.timezone.utc)
+        found, rejected = filters.matches(cli.load_fixtures(FIXTURES), config, now)
+        self.assertEqual([item["company"] for item in found], ["Deel-ish"])  # posted 2 hours earlier
+        self.assertGreater(rejected["too old"], 0)
+
+    def test_delayed_board_skipped_for_short_windows(self):
+        names = []
+        log = lambda line: None
+        original = sources.fetch_json
+        sources.fetch_json = lambda url: names.append(url) or []
+        try:
+            sources.fetch_all(["data analyst"], log, max_age_hours=4)
+            self.assertFalse(any("remotive" in url for url in names))
+            sources.fetch_all(["data analyst"], log, max_age_hours=0)
+            self.assertTrue(any("remotive" in url for url in names))
+        finally:
+            sources.fetch_json = original
+
+
+class SignalTest(unittest.TestCase):
+    def item(self, description, location="Worldwide"):
+        return {"title": "Data Analyst", "location": location, "description": description}
+
+    def test_signals_found(self):
+        text = ("Seed-stage startup hiring our founding data analyst. Urgent, start immediately. "
+                "Candidates in Lagos welcome. Email founder@acme.io")
+        self.assertEqual(filters.signals(self.item(text)), ["urgent", "early-stage", "names Africa", "direct email"])
+
+    def test_regular_post_has_none(self):
+        self.assertEqual(filters.signals(self.item("Join our analytics team.", "South Africa")), [])
+
+    def test_require_signals(self):
+        config = dict(CONFIG, require_signals=True, max_age_hours=0)
+        found, _ = filters.matches(cli.load_fixtures(FIXTURES), config)
+        # Paystack Labs' post has an email; EuroStart is open to "Europe, Africa".
+        self.assertEqual([item["company"] for item in found], ["Paystack Labs", "EuroStart"])
+
+
 class EndToEndTest(unittest.TestCase):
     def run_cli(self, folder):
         csv_path = os.path.join(folder, "jobs.csv")
-        cli.main(["--fixtures", FIXTURES, "--no-drafts", "--tracker", csv_path,
+        cli.main(["--fixtures", FIXTURES, "--no-drafts", "--max-age-hours", "0", "--tracker", csv_path,
                   "--report", os.path.join(folder, "JOBS.md")])
         return csv_path
 
@@ -121,7 +172,7 @@ class ApplicationTest(unittest.TestCase):
         os.makedirs(os.path.join(self.folder, "profile"))
         with open(os.path.join(self.folder, "profile", "resume.md"), "w") as handle:
             handle.write("Ada Obi\nAnalyst at Acme, 2021 to now. SQL, Python, Tableau.")
-        self.paths = ["--root", self.folder,
+        self.paths = ["--root", self.folder, "--max-age-hours", "0",
                       "--tracker", os.path.join(self.folder, "jobs.csv"),
                       "--report", os.path.join(self.folder, "JOBS.md")]
 

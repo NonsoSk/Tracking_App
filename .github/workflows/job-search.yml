@@ -2,7 +2,7 @@ name: Job search
 
 on:
   schedule:
-    - cron: "0 7 * * *"  # every day at 07:00 UTC
+    - cron: "0 */2 * * *"  # every 2 hours, so nothing in the 4-hour window is missed
   workflow_dispatch:
 
 permissions:
@@ -40,8 +40,8 @@ jobs:
           git config user.email "job-search-bot@users.noreply.github.com"
           git add data/jobs.csv JOBS.md applications
           if git diff --cached --quiet; then
-            echo "Nothing new today."
+            echo "Nothing new this run."
           else
-            git commit -m "Job search: $(date -u +%F)"
+            git commit -m "Job search: $(date -u '+%F %H:%M') UTC"
             git push
           fi
