@@ -13,7 +13,7 @@ const parts = {
   STYLE: src('style.css'),
   PYTHON: src('python.js'),
   CONTENT: src('content.js'),
-  SCENES: src('scenes.js'),
+  ART: src('art.js'),
   GAME: src('game.js'),
 };
 

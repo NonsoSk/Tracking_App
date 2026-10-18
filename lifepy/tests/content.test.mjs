@@ -1,4 +1,4 @@
-// Plays every round of every level, in every hometown pack, with the intended
+// Plays every round of every lesson, in every hometown pack, with the intended
 // answer (must pass its check) and with the deliberately broken code (must not),
 // and confirms CPython agrees with PyMini on each program.
 import { test } from 'node:test';
@@ -31,7 +31,10 @@ function fillSlots(template, values) {
 
 function solutionCode(round, x) {
   switch (round.mode) {
-    case 'watch': return x.t(round.code);
+    case 'explain':
+    case 'watch':
+    case 'predict':
+      return x.t(round.code);
     case 'change': return x.t(fillSlots(round.code, round.fill));
     case 'build': {
       const line = C.joinTiles(round.solution.map(x.t));
@@ -42,65 +45,104 @@ function solutionCode(round, x) {
 }
 
 function check(round, r, x, code) {
-  const ctx = { ...x, code };
   if (r.error) return { ok: false };
-  return round.check ? round.check(r, ctx) : { ok: true };
+  return round.check ? round.check(r, { ...x, code }) : { ok: true };
 }
 
 const NAME = 'Ada';
+const levelIds = C.CHAPTERS.filter((c) => !c.locked).flatMap((c) => c.levels);
 
 for (const packId of Object.keys(C.PACKS)) {
-  for (const chapter of C.CHAPTERS.filter((c) => !c.locked)) {
-    for (const levelId of chapter.levels) {
-      const level = C.LEVELS[levelId];
-      level.rounds.forEach((round, i) => {
-        test(`${packId} ${levelId} round ${i + 1} (${round.mode}): the answer works`, () => {
+  for (const levelId of levelIds) {
+    const level = C.LEVELS[levelId];
+    level.rounds.forEach((round, i) => {
+      const name = `${packId} ${levelId} round ${i + 1} (${round.mode})`;
+
+      if (round.mode === 'choice') {
+        test(`${name}: only the right option works`, () => {
           const x = C.makeContext(NAME, packId);
-          const code = solutionCode(round, x);
-          const r = agreesWithCPython(code);
-          const res = check(round, r, x, code);
-          assert.ok(res.ok, `answer failed: ${JSON.stringify(code)} -> ${JSON.stringify(r.lines)} ${res.msg || ''}`);
-          if (round.mode === 'build') {
-            const extra = round.tiles.length - round.solution.length;
-            assert.ok(extra >= 0, 'solution uses more tiles than exist');
-            const pool = round.tiles.map((t) => (Array.isArray(t) ? t[0] : t));
-            for (const piece of round.solution) {
-              const k = pool.indexOf(piece);
-              assert.ok(k >= 0, `tile ${piece} missing`);
-              pool.splice(k, 1);
-            }
-          }
-          if (round.mode === 'guided') {
-            const prefill = x.t(round.code || '');
-            assert.ok(x.t(round.ghost).startsWith(prefill), 'ghost must start with the prefilled code');
-          }
+          assert.ok(round.goal, 'choice rounds need a goal output');
+          round.options.forEach((opt, k) => {
+            const code = (round.context ? x.t(round.context) + '\n' : '') + x.t(opt.code);
+            const r = agreesWithCPython(code);
+            const works = !r.error && r.lines.join('\n') === round.goal.map(x.t).join('\n');
+            assert.equal(works, k === round.answer, `option ${k} ${JSON.stringify(opt.code)} works=${works}`);
+            if (k !== round.answer) assert.ok(round.why && round.why[k], `option ${k} needs a "why"`);
+          });
         });
+        return;
+      }
 
-        if (round.mode === 'fix') {
-          test(`${packId} ${levelId} round ${i + 1}: the broken code really is broken`, () => {
-            const x = C.makeContext(NAME, packId);
-            const code = x.t(round.code);
-            const r = agreesWithCPython(code);
-            const res = check(round, r, x, code);
-            assert.ok(!res.ok, 'broken code passed the check');
+      test(`${name}: the answer works`, () => {
+        const x = C.makeContext(NAME, packId);
+        const code = solutionCode(round, x);
+        const r = agreesWithCPython(code);
+        if (round.mode === 'predict') {
+          const opts = round.options.map((o) => C.optionLines(o).map(x.t));
+          assert.deepEqual(r.lines, opts[round.answer], 'the right prediction must match what Pip shows');
+          opts.forEach((o, k) => {
+            if (k !== round.answer) {
+              assert.notDeepEqual(o, r.lines, `wrong option ${k} matches the output`);
+              assert.ok(round.why && round.why[k], `option ${k} needs a "why"`);
+            }
           });
+          return;
         }
-
-        if (round.mode === 'change') {
-          test(`${packId} ${levelId} round ${i + 1}: the untouched code does not pass`, () => {
-            const x = C.makeContext(NAME, packId);
-            const code = x.t(fillSlots(round.code));
-            const r = agreesWithCPython(code);
-            assert.ok(!check(round, r, x, code).ok, 'unchanged code passed');
-          });
+        if (round.mode === 'explain') {
+          assert.equal(r.error, null);
+          assert.equal(round.pieces.map((p) => p[0]).join(''), x.t(round.code).replace(/\s+/g, ''), 'pieces must spell the code');
+          return;
+        }
+        const res = check(round, r, x, code);
+        assert.ok(res.ok, `answer failed: ${JSON.stringify(code)} -> ${JSON.stringify(r.lines)} ${res.msg || ''}`);
+        if (round.mode === 'build') {
+          const pool = round.tiles.map((t) => (Array.isArray(t) ? t[0] : t));
+          for (const piece of round.solution) {
+            const k = pool.indexOf(piece);
+            assert.ok(k >= 0, `tile ${piece} missing`);
+            pool.splice(k, 1);
+          }
+        }
+        if (round.mode === 'guided') {
+          assert.ok(x.t(round.ghost).startsWith(x.t(round.code || '')), 'ghost must start with the prefilled code');
+        }
+        if (['change', 'build', 'fix', 'guided', 'free'].includes(round.mode)) {
+          assert.ok(round.hints && round.hints.length, 'typing rounds need hints');
         }
       });
-    }
+
+      if (round.mode === 'fix') {
+        test(`${name}: the broken code really is broken`, () => {
+          const x = C.makeContext(NAME, packId);
+          const code = x.t(round.code);
+          const r = agreesWithCPython(code);
+          assert.ok(!check(round, r, x, code).ok, 'broken code passed the check');
+        });
+      }
+
+      if (round.mode === 'change') {
+        test(`${name}: the untouched code does not pass`, () => {
+          const x = C.makeContext(NAME, packId);
+          const code = x.t(fillSlots(round.code));
+          const r = agreesWithCPython(code);
+          assert.ok(!check(round, r, x, code).ok, 'unchanged code passed');
+        });
+      }
+    });
   }
 }
 
+test('every round with a story has lines to show, and every lesson starts gently', () => {
+  for (const id of levelIds) {
+    for (const round of C.LEVELS[id].rounds) {
+      if (round.say) assert.ok(round.say.length >= 1 && round.say.length <= 2, `${id}: keep story screens to 1-2 lines`);
+      if (round.task) assert.ok(round.task.length <= 110, `${id}: task text is too long: ${round.task}`);
+    }
+  }
+});
+
 test('the off-by-one hint fires when counting to 19', () => {
-  const round = C.LEVELS.c2l5.rounds[1];
+  const round = C.LEVELS.c2l5.rounds[2];
   const x = C.makeContext(NAME, 'ukus');
   const code = fillSlots(round.code, ['20']);
   const res = round.check(PyMini.run(code), { ...x, code });
@@ -117,13 +159,13 @@ test('clapping without a loop is gently refused', () => {
   assert.match(res.msg, /for loop/);
 });
 
-test('party check names who is still waiting', () => {
-  const round = C.LEVELS.c1l6.rounds[0];
+test('the two-friend check says who is still waiting', () => {
+  const round = C.LEVELS.c1l6.rounds[1];
   const x = C.makeContext(NAME, 'westafrica');
-  const code = 'print("Welcome Chioma")';
+  const code = 'print("Welcome Tolu")';
   const res = round.check(PyMini.run(code), { ...x, code });
   assert.equal(res.ok, false);
-  assert.match(res.msg, /Still waiting at the door: Tolu and Emeka/);
+  assert.match(res.msg, /Emeka is still waiting/);
 });
 
 test('accents do not matter when checking names', () => {

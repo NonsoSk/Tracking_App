@@ -1,5 +1,7 @@
 // Plays the whole prototype in a real browser the way a beginner would:
-// tapping tiles, typing line by line, running broken code before fixing it.
+// onboarding one question at a time, then every lesson screen by screen,
+// tapping tiles, typing line by line, running broken code before fixing it,
+// and getting some multiple-choice answers wrong first.
 // Fails on any console error. Saves screenshots for review.
 //
 // Run with: node lifepy/build.mjs && node lifepy/tests/playthrough.mjs [screenshot-dir]
@@ -22,232 +24,225 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pageUrl = pathToFileURL(resolve(here, '../dist/lifepy.html')).href;
 const shots = resolve(process.argv[2] || join(here, '../.screenshots'));
 mkdirSync(shots, { recursive: true });
+const C = require(resolve(here, '../src/content.js'));
 
-const launchOpts = process.env.PLAYWRIGHT_BROWSERS_PATH ? {} : {};
-const browser = await chromium.launch(launchOpts).catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }));
-
+const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }));
 const problems = [];
 
 async function newPage(opts) {
   const context = await browser.newContext(opts);
-  // Google Fonts may be unreachable in CI; the page must work with fallbacks.
-  await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
   const page = await context.newPage();
   page.on('console', (msg) => {
-    if (msg.type() === 'error' && !/fonts\.googleapis|ERR_FAILED|net::/.test(msg.text())) problems.push(`console: ${msg.text()}`);
+    if (msg.type() === 'error' && !/fonts\.g|ERR_|net::/.test(msg.text())) problems.push(`console: ${msg.text()}`);
   });
   page.on('pageerror', (err) => problems.push(`page error: ${err.message}`));
   return page;
 }
 
-async function shot(page, name) {
-  await page.screenshot({ path: join(shots, `${name}.png`), fullPage: false });
-}
-
-async function clickOverlayPrimary(page) {
-  const btn = page.locator('#overlay:not([hidden]) .ov-actions .btn.primary');
-  await btn.waitFor({ timeout: 5000 });
-  await btn.click();
-}
+const shot = (page, name) => page.screenshot({ path: join(shots, `${name}.png`) });
+const main = (page) => page.click('#btn-main');
+const waitBar = (page, kind) => page.locator(`#lesson-bar.${kind}`).waitFor({ timeout: 30000 });
 
 async function typeLikeABeginner(page, text) {
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) {
     // After Enter the editor indents by itself, so skip the spaces a person wouldn't type.
-    await page.keyboard.type(i === 0 ? lines[i] : lines[i].replace(/^ +/, ''), { delay: 5 });
+    await page.keyboard.type(i === 0 ? lines[i] : lines[i].replace(/^ +/, ''), { delay: 4 });
     if (i < lines.length - 1) await page.keyboard.press('Enter');
   }
 }
 
-async function waitForWin(page) {
-  await page.locator('#feedback .fb-win').waitFor({ timeout: 30000 });
+async function onboard(page, name, packIndex, label) {
+  await page.waitForSelector('#screen-welcome:not([hidden])');
+  await shot(page, `${label}-01-welcome`);
+  await page.click('#welcome-start');
+  await page.fill('#player-name', name);
+  await shot(page, `${label}-02-name`);
+  await page.click('#name-next');
+  await page.click(`#place-list .choice:nth-child(${packIndex + 1})`);
+  await shot(page, `${label}-03-place`);
+  await page.click('#place-next');
+  await shot(page, `${label}-04-story`);
+  await page.click('#story-next');
+  await page.waitForSelector('#screen-lesson:not([hidden])');
 }
 
-async function playRound(page, round, x, tag, opts) {
-  if (round.pre) {
-    await page.click('#btn-pre');
+async function playStep(page, x, tag, log, opts) {
+  const info = await page.evaluate(() => {
+    const L = LifePyGame.lesson;
+    return { kind: L.kind, step: L.step, round: L.steps[L.step].round };
+  });
+  const R = C.LEVELS[tag.level].rounds[info.round];
+  const name = `${tag.label}-${tag.level}-s${info.step + 1}-${info.kind === 'task' ? R.mode : info.kind}`;
+  if (info.kind !== 'task') {
+    if (opts.shots) await shot(page, name);
+    await main(page);
+    return;
   }
-  const run = () => page.click('#btn-run');
-  switch (round.mode) {
+  switch (R.mode) {
     case 'watch':
-      await run();
+      if (opts.shots) await shot(page, `${name}-before`);
+      await main(page);
       break;
+    case 'predict':
+    case 'choice': {
+      if (R.mode === 'choice' && !opts.wrongDone.has(R.mode)) {
+        // Get one wrong first, the way a beginner might.
+        const wrong = R.options.findIndex((_, i) => i !== R.answer);
+        await page.click(`.options .choice[data-value="${wrong}"]`);
+        await main(page);
+        await waitBar(page, 'bad');
+        log.push(`${tag.level} wrong choice: ${await page.locator('#feedback h3').innerText()}`);
+        if (opts.shots) await shot(page, `${name}-wrong`);
+        await main(page);
+        opts.wrongDone.add(R.mode);
+      }
+      await page.click(`.options .choice[data-value="${R.answer}"]`);
+      if (opts.shots) await shot(page, `${name}-picked`);
+      await main(page);
+      break;
+    }
     case 'change': {
-      const fill = (round.fill || []).map(x.t);
+      const fill = (R.fill || []).map(x.t);
       for (let i = 0; i < fill.length; i++) await page.fill(`#slot-${i}`, fill[i]);
-      await run();
+      await main(page);
       break;
     }
     case 'build': {
-      for (const piece of round.solution.map(x.t)) {
-        await page.locator('.tray .tile', { has: page.locator('.tile-code', { hasText: new RegExp(`^${piece.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) }).first().click();
+      for (const piece of R.solution.map(x.t)) {
+        const esc = piece.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        await page.locator('#tray .tile', { has: page.locator('.tile-code', { hasText: new RegExp(`^${esc}$`) }) }).first().click();
       }
-      if (opts.shots) await shot(page, `${tag}-built`);
-      await run();
+      if (opts.shots) await shot(page, `${name}-built`);
+      await main(page);
       break;
     }
     case 'fix': {
-      await run();
-      await page.locator('#feedback .fb-oops, #feedback .fb-info').waitFor({ timeout: 10000 });
-      const title = await page.locator('#feedback h3').innerText();
-      opts.reactions.push(`${tag}: ${title}`);
-      if (opts.shots) await shot(page, `${tag}-mistake`);
-      await page.fill('#code-input', x.t(round.answer));
-      await run();
+      await main(page);
+      await waitBar(page, 'bad');
+      log.push(`${tag.level} bug: ${await page.locator('#feedback h3').innerText()}`);
+      if (opts.shots) await shot(page, `${name}-mistake`);
+      await main(page); // Try again
+      await page.fill('#code-input', x.t(R.answer));
+      await main(page);
       break;
     }
-    case 'guided':
-    case 'free': {
-      const prefill = x.t(round.code || '');
-      const target = x.t(round.answer || round.ghost);
+    default: {
+      const prefill = x.t(R.code || '');
+      const target = x.t(R.answer || R.ghost);
       await page.click('#code-input');
       await page.keyboard.press('Control+End');
       const rest = target.slice(prefill.length);
-      if (round.mode === 'guided') {
-        const half = Math.floor(rest.length / 2);
-        await typeLikeABeginner(page, rest.slice(0, half));
-        if (opts.shots) await shot(page, `${tag}-typing`);
-        await typeLikeABeginner(page, rest.slice(half));
-        const typed = await page.inputValue('#code-input');
-        if (typed !== target) problems.push(`${tag}: typing produced ${JSON.stringify(typed)}, expected ${JSON.stringify(target)}`);
-      } else {
-        await typeLikeABeginner(page, rest);
-      }
-      await run();
-      break;
+      const half = Math.floor(rest.length / 2);
+      await typeLikeABeginner(page, rest.slice(0, half));
+      if (opts.shots) await shot(page, `${name}-typing`);
+      await typeLikeABeginner(page, rest.slice(half));
+      const typed = await page.inputValue('#code-input');
+      if (typed !== target) problems.push(`${name}: typed ${JSON.stringify(typed)}, expected ${JSON.stringify(target)}`);
+      await main(page);
     }
   }
-  await waitForWin(page);
-  if (opts.shots) await shot(page, `${tag}-win`);
+  await waitBar(page, 'good');
+  if (opts.shots) await shot(page, `${name}-good`);
+  await main(page); // Continue
 }
 
-async function fullPlaythrough(viewport, label, colorScheme) {
-  const page = await newPage({ viewport, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+async function fullPlaythrough(viewport, label, colorScheme, packIndex) {
+  const page = await newPage({ viewport, colorScheme, reducedMotion: 'reduce' });
   await page.goto(pageUrl);
-  await page.waitForSelector('#screen-title:not([hidden])');
-  await shot(page, `${label}-01-title`);
-  await page.click('#btn-play');
-  await shot(page, `${label}-02-stories`);
-  await page.click('[data-story="growingup"]');
-  await page.fill('#player-name', 'Ada');
-  await shot(page, `${label}-03-setup`);
-  await page.click('#setup-form button[type="submit"]');
-  await page.waitForSelector('#screen-level:not([hidden])');
-  await shot(page, `${label}-04-first-level`);
-
-  const { chapters, levels } = await page.evaluate(() => ({
-    chapters: LifePyContent.CHAPTERS.filter((c) => !c.locked).map((c) => c.levels),
-    levels: Object.keys(LifePyContent.LEVELS),
-  }));
-  const C = await import(pathToFileURL(resolve(here, '../src/content.js')).href).then((m) => m.default || m);
-  const x = C.makeContext('Ada', 'westafrica');
-  const reactions = [];
-  const order = chapters.flat();
-  for (let li = 0; li < order.length; li++) {
-    const id = order[li];
-    const level = C.LEVELS[id];
-    const intro = page.locator('#overlay:not([hidden])');
-    if (await intro.count()) await clickOverlayPrimary(page);
-    for (let ri = 0; ri < level.rounds.length; ri++) {
-      const tag = `${label}-${id}-r${ri + 1}`;
-      await playRound(page, level.rounds[ri], x, tag, { shots: label === 'desktop', reactions });
-      await page.click('#btn-next');
-    }
-    if (label === 'desktop' && (id === 'c1l6' || id === 'c2l7')) {
-      await page.waitForTimeout(400);
-      await shot(page, `${label}-${id}-reveal`);
-    }
-    await clickOverlayPrimary(page);
+  await onboard(page, 'Ada', packIndex, label);
+  const x = C.makeContext('Ada', Object.keys(C.PACKS)[packIndex]);
+  const log = [];
+  const opts = { shots: label === 'desktop' || label === 'phone', wrongDone: new Set() };
+  const order = C.CHAPTERS.filter((c) => !c.locked).flatMap((c) => c.levels);
+  for (const id of order) {
+    await page.waitForSelector('#screen-lesson:not([hidden])');
+    const steps = await page.evaluate(() => LifePyGame.lesson.steps.length);
+    for (let s = 0; s < steps; s++) await playStep(page, x, { label, level: id }, log, opts);
+    await page.waitForSelector('#screen-done:not([hidden])');
+    if (opts.shots && (id === 'c1l1' || id === 'c1l6' || id === 'c2l7')) await shot(page, `${label}-${id}-done`);
+    await page.click('#done-buttons .btn.primary');
   }
-  // End of prototype: notes, then results.
-  await page.fill('#ov-notes', 'The brackets were tricky at first.');
-  await page.waitForTimeout(400);
-  await shot(page, `${label}-90-end`);
-  await clickOverlayPrimary(page);
-  await page.waitForSelector('#screen-results:not([hidden])');
-  await shot(page, `${label}-91-results`);
+  // End of the prototype: vote and leave a note, then home.
+  await page.click('#vote-row .choice:first-child');
+  await page.fill('#end-notes', 'The brackets were tricky at first.');
+  if (opts.shots) await shot(page, `${label}-90-end`);
+  await page.click('#done-buttons .btn.primary');
+  await page.waitForSelector('#screen-home:not([hidden])');
+  await shot(page, `${label}-91-home-finished`);
   const state = await page.evaluate(() => LifePyGame.state);
-  const doneCount = Object.keys(state.done).length;
-  if (doneCount !== levels.length) problems.push(`${label}: finished ${doneCount} of ${levels.length} levels`);
+  if (Object.keys(state.done).length !== order.length) problems.push(`${label}: finished ${Object.keys(state.done).length} of ${order.length} lessons`);
   await page.click('#btn-notebook');
   await shot(page, `${label}-92-notebook`);
-  await page.click('#btn-brand');
-  await shot(page, `${label}-93-map`);
-  await page.context().close();
-  return { reactions, points: state.points };
-}
-
-async function phoneSpotChecks() {
-  const page = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce' });
-  await page.goto(pageUrl);
-  await shot(page, 'phone-01-title');
-  await page.click('#btn-play');
-  await page.click('[data-story="growingup"]');
-  await page.fill('#player-name', 'Kemi');
-  await page.click('.pack-option:nth-child(2) .pack-card');
-  await page.click('#setup-form button[type="submit"]');
-  await page.click('#btn-pre');
-  await shot(page, 'phone-02-level');
-  await page.click('#btn-run');
-  await page.locator('#feedback .fb-win').waitFor({ timeout: 10000 });
-  await shot(page, 'phone-03-win');
-  // Jump to the build level and the guided level to see them at phone size.
-  await page.evaluate(() => LifePyGame.startLevel('c1l3'));
-  await shot(page, 'phone-04-build');
-  await page.evaluate(() => LifePyGame.startLevel('c1l5'));
-  await page.click('#code-input');
-  await page.keyboard.type('print(', { delay: 5 });
-  await shot(page, 'phone-05-guided');
-  await page.evaluate(() => LifePyGame.startLevel('c2l5'));
-  await page.click('#btn-run');
-  await page.waitForTimeout(300);
-  await shot(page, 'phone-06-hideseek');
+  await page.click('#screen-notebook [data-go="home"]');
+  await page.click('#btn-settings');
+  await shot(page, `${label}-93-settings`);
+  await page.click('#btn-results');
+  await shot(page, `${label}-94-results`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  if (overflow > 0) problems.push(`phone: page scrolls sideways by ${overflow}px`);
+  if (overflow > 0) problems.push(`${label}: page scrolls sideways by ${overflow}px`);
   await page.context().close();
+  return { log, points: state.points };
 }
 
-async function slowAnimationCheck() {
-  // With normal motion, check that hide-and-seek animates the count and that a
-  // wrong answer, then a mistake, then a fix all behave.
-  const page = await newPage({ viewport: { width: 1280, height: 860 } });
+async function spotChecks() {
+  const page = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   await page.goto(pageUrl);
-  await page.evaluate(() => {
-    localStorage.setItem('lifepy.v1', JSON.stringify({ profile: { name: 'Sam', pack: 'ukus' }, done: {}, settings: { sound: false, voice: false } }));
-  });
+  await page.evaluate(() => localStorage.setItem('lifepy.v1', JSON.stringify({ profile: { name: 'Sam', pack: 'ukus' }, done: { c1l1: true }, points: 15, settings: { sound: false, voice: false } })));
   await page.reload();
-  await page.evaluate(() => LifePyGame.startLevel('c2l5'));
-  await page.click('#btn-run');
-  await page.waitForTimeout(1300);
-  await shot(page, 'motion-01-counting');
-  await page.locator('#feedback .fb-win').waitFor({ timeout: 15000 });
-  await page.click('#btn-next');
+  await page.waitForSelector('#screen-home:not([hidden])');
+  await shot(page, 'spot-01-home');
+
+  // Hints: two hints, then the answer, then "put it in for me".
+  await page.evaluate(() => LifePyGame.startLesson('c1l6'));
+  await page.click('#btn-main'); // story
+  await page.click('#btn-hint');
+  await page.waitForSelector('#lesson-bar.hint');
+  await page.click('#fb-more');
+  await page.click('#btn-main'); // Got it
+  await page.click('#btn-hint');
+  await page.click('#fb-answer');
+  await shot(page, 'spot-02-answer');
+  await page.click('#fb-use');
+  await page.click('#btn-main');
+  await page.waitForSelector('#lesson-bar.good');
+
+  // A wrong prediction shows the right answer and moves on.
+  await page.evaluate(() => LifePyGame.startLesson('c2l5'));
+  await page.click('#btn-main'); // story
+  await page.click('#btn-main'); // run the count
+  await page.waitForSelector('#lesson-bar.good');
+  await page.click('#btn-main');
+  await page.click('.options .choice[data-value="1"]');
+  await page.click('#btn-main');
+  await page.waitForSelector('#lesson-bar.bad');
+  await shot(page, 'spot-03-wrong-predict');
+
+  // The off-by-one message when counting to 20 with range(1, 20).
+  await page.click('#btn-main');
+  await page.click('#btn-main'); // story
   await page.fill('#slot-0', '20');
-  await page.click('#btn-run');
-  await page.locator('#feedback .fb-info').waitFor({ timeout: 15000 });
+  await page.click('#btn-main');
+  await page.waitForSelector('#lesson-bar.bad');
   const msg = await page.locator('#feedback').innerText();
   if (!/stopped at 19/.test(msg)) problems.push(`off-by-one message missing: ${msg}`);
-  await shot(page, 'motion-02-off-by-one');
-  await page.evaluate(() => LifePyGame.startLevel('c1l4'));
-  await page.click('#btn-run');
-  await page.locator('#feedback .fb-oops').waitFor({ timeout: 5000 });
-  await page.waitForTimeout(400);
-  await shot(page, 'motion-03-mouth-open');
-  await page.click('#btn-hint');
-  await page.click('#btn-hint');
-  await page.click('#btn-showme');
-  await shot(page, 'motion-04-hints');
+
+  // Leaving a lesson asks first.
+  await page.click('#lesson-close');
+  await page.waitForSelector('#fb-leave');
+  await shot(page, 'spot-04-leave');
+  await page.click('#fb-leave');
+  await page.waitForSelector('#screen-home:not([hidden])');
   await page.context().close();
 }
 
-const desktop = await fullPlaythrough({ width: 1280, height: 860 }, 'desktop', 'light');
-const phone = await fullPlaythrough({ width: 390, height: 844 }, 'phonefull', 'dark');
-await phoneSpotChecks();
-await slowAnimationCheck();
+const desktop = await fullPlaythrough({ width: 1280, height: 860 }, 'desktop', 'light', 0);
+const phone = await fullPlaythrough({ width: 390, height: 844 }, 'phone', 'dark', 1);
+await spotChecks();
 await browser.close();
 
-console.log('Reactions seen while fixing bugs:');
-for (const r of desktop.reactions) console.log('  ' + r);
+console.log('What beginners saw when they made mistakes:');
+for (const r of desktop.log) console.log('  ' + r);
 console.log(`Points after a full playthrough: ${desktop.points} (desktop), ${phone.points} (phone)`);
 console.log(`Screenshots: ${shots}`);
 if (problems.length) {

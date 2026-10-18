@@ -12,23 +12,26 @@ building it. Anyone adding content (a person or an AI agent) should follow this.
 Players don't "study". They live a life, and Python is how they get things done
 in it. Nobody needs to know what Python is when they start.
 
-## Rules every level follows
+## Rules every lesson follows
 
-1. **Nobody types anything they haven't first watched, changed, built and fixed.**
-   Each new idea climbs the ladder: watch → change → build → fix → type with
-   help → type alone → use it somewhere new.
-2. **Problems come before concepts.** A script for one customer breaks when 60
+1. **One thing at a time.** Each screen has one job and one main button at the
+   bottom. Story screens and task screens are separate. Feedback appears in the
+   bottom bar, never as a pop-up.
+2. **Nobody types anything they haven't first seen, predicted and built.**
+   Each new idea climbs the ladder: explain → watch → "what will Pip show?" →
+   "which one works?" → change → build → fix → type with help → type alone.
+3. **Problems come before concepts.** A script for one customer breaks when 60
    arrive, so the loop shows up as a superpower, not homework.
-3. **Real Python only.** Solutions are plain Python on everyday data (names,
+4. **Real Python only.** Solutions are plain Python on everyday data (names,
    sweets, guests, prices). Avoid game-only commands like `hero.move()`; those
    skills don't carry over to VS Code.
-4. **Mistakes are story, not a red X.** Pip reacts to the mistake (mouth stuck
-   open, hands stuck open, dizzy), and the real Python error message appears
-   underneath it.
-5. **Doing first, naming later.** Jargon ("string", "function", "variable")
+5. **Mistakes are explained, not punished.** A short plain title ("A quote mark
+   is missing"), one sentence on how to fix it, and the real Python error message
+   underneath. Wrong multiple-choice answers say why they're wrong.
+6. **Doing first, naming later.** Jargon ("string", "function", "variable")
    appears only after a chapter, once the player has used the thing many times.
-6. **Short and rewarding.** Levels take 2–5 minutes; every success gives points,
-   a sound and a visible change in the world.
+7. **Short and calm.** Lessons take 3–5 minutes and keep sentences short. Code
+   inside sentences is always shown in code font.
 
 ## The four storylines
 
@@ -81,11 +84,11 @@ CSV files, pandas, charts).
 
 ## Characters in the prototype
 
-- **Pip** — blue robot with a yellow screen face and hands (a nod to Python's
-  colours; named after `pip`). Faces: idle, sleep, talk, happy, confused,
-  mouth stuck open, hands stuck open, dizzy, covering eyes, jump, clap.
-- **Mum, Grandma, an uncle, a cousin, friends** — names, family words and food
-  come from the hometown pack.
+- **Pip** — a small blue screen with a yellow face (a nod to Python's colours;
+  named after `pip`). Faces: idle, asleep, happy, oops, confused.
+- **Mum, Grandma, an uncle, a cousin, friends** — they appear as their initial in
+  a soft colour, speaking in chat bubbles. Names, family words and food come from
+  the hometown pack.
 
 ## Hometown packs
 
@@ -102,22 +105,22 @@ Next packs: East Africa, East Asia, the Middle East. Partner with local writers.
 
 ## Look and feel
 
-- **Everything you press looks like a keyboard key**: thick outline, solid
-  bottom edge, presses down. Build tiles are keycaps too.
-- **The code area is a laptop tab** (`birthday.py`, `playground.py`). Later
-  chapters add VS Code features (tabs, terminal, debugger) until the final
-  chapter is VS Code itself.
-- **Type:** Baloo 2 for headings, Atkinson Hyperlegible for reading (designed
-  for legibility), JetBrains Mono for code.
-- **Colour:** Pip blue and sunshine yellow, coral for mistakes, leaf green for
-  success, with the same token colours used in the editor and on the tiles.
-- **Art grows up with you:** bright, flat, crayon-simple scenes in childhood,
-  more detailed later.
+Calm and grown-up, not cartoonish. Playtesters found the first version (busy
+illustrated scenes, thick outlines, many panels at once) hard to follow.
+
+- **One column**, lots of space, one main button at the bottom.
+- **Type:** Lexend for everything you read (designed to make reading easier),
+  JetBrains Mono for code.
+- **Colour:** a soft grey-green background, one blue accent for actions, green
+  for success, orange for mistakes and hints. The code area is dark, like a real
+  editor, with a file name (`birthday.py`, `playground.py`). Later chapters add
+  VS Code features until the final chapter is VS Code itself.
+- **Pictures:** simple line icons on story screens instead of illustrated scenes.
 - Light and dark themes, works at phone width, respects reduced motion.
 
 ## Ask Pip (AI helper)
 
-On claude.ai the page can ask Claude for a hint. Pip's prompt asks for at most two
+On claude.ai, "Ask Pip" (inside a hint) can ask Claude a question. Pip's prompt asks for at most two
 short sentences in everyday words, one step forward, never the full answer,
 and no jargon. Outside claude.ai the button is hidden and the written hints
 still work.
@@ -125,12 +128,15 @@ still work.
 ## Adding a level
 
 1. Add an entry to `LEVELS` in `src/content.js` and its id to a chapter.
-2. Pick the ladder step for each round (`watch`, `change`, `build`, `fix`,
-   `guided`, `free`) and write the story lines (`say`), the `task`, and a
-   `check(result, x)` that returns `{ ok, msg }`.
-3. Give every round `hints` and an answer (`answer`, `fill` or `solution`).
+2. Pick the ladder step for each round (`explain`, `watch`, `predict`, `choice`,
+   `change`, `build`, `fix`, `guided`, `free`). Write at most two story lines
+   (`say`), a short `task`, and for typing steps a `check(result, x)` that
+   returns `{ ok, msg }`. Put code inside sentences between backticks.
+3. Give every typing round `hints` and an answer (`answer`, `fill` or
+   `solution`); give every wrong multiple-choice option a `why`.
 4. Run `node --test lifepy/tests/*.test.mjs`. It plays every round's answer in
-   every hometown pack and confirms real Python agrees with PyMini.
+   every hometown pack, checks that each "what will Pip show?" answer matches
+   real Python, and confirms real Python agrees with PyMini.
 5. Run `node lifepy/tests/playthrough.mjs` and look at the screenshots.
 
 ## Roadmap
