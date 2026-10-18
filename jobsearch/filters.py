@@ -28,10 +28,14 @@ def title_matches(title, config):
 
 
 def location_ok(location, config):
-    """Open to the candidate: worldwide, or a region listed in allowed_locations."""
+    """Open to the candidate: worldwide, or a region listed in allowed_locations.
+    Phrases in location_ignore ("south africa") don't count as a match for a
+    shorter allowed term inside them ("africa")."""
     lowered = location.lower().strip()
     if lowered in ("", "remote"):
         return True
+    for phrase in config.get("location_ignore", []):
+        lowered = lowered.replace(phrase, " ")
     return any(contains_term(lowered, term) for term in config["allowed_locations"])
 
 

@@ -55,6 +55,9 @@ class FilterTest(unittest.TestCase):
         self.assertTrue(filters.location_ok("Europe, Africa", CONFIG))
         self.assertFalse(filters.location_ok("USA Only", CONFIG))
         self.assertFalse(filters.location_ok("Ukraine", CONFIG))
+        self.assertFalse(filters.location_ok("South Africa", CONFIG))
+        self.assertTrue(filters.location_ok("Kenya, Nigeria, South Africa", CONFIG))
+        self.assertFalse(filters.location_ok("UK", CONFIG))
 
     def test_title(self):
         self.assertTrue(filters.title_matches("Senior Data Analyst", CONFIG))

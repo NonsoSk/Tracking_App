@@ -34,12 +34,15 @@
     "global",
     "international",
     "emea",
-    "europe",
     "africa",
     "nigeria",
-    "uk",
+    "wat",
+    "cet",
     "gmt",
     "utc"
+  ],
+  "location_ignore": [
+    "south africa"
   ],
   "exclude_companies": [],
   "usd_rates": {
