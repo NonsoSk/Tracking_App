@@ -1,6 +1,6 @@
 <title>Life.py</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Learn Python by living a story with Pip, a little robot that only understands Python. No experience needed.">
+<meta name="description" content="A story game that teaches Python. Live a life with Pip, a little robot that only understands Python. No experience needed.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -10,27 +10,32 @@
 
 <div id="app">
 
-  <!-- First visit: one question per screen -->
-  <section id="screen-welcome" class="screen flow" hidden>
-    <div class="flow-body wrap center">
-      <div class="hero-pip" id="hero-pip"></div>
+  <!-- Title screen -->
+  <section id="screen-welcome" class="screen title-screen" hidden>
+    <div class="backdrop" id="title-scene" aria-hidden="true"></div>
+    <div class="title-cast" id="title-cast" aria-hidden="true"></div>
+    <div class="title-card">
+      <div class="title-pip" id="hero-pip"></div>
       <h1 class="brand-title">Life.py</h1>
-      <p class="lede">Learn Python by living a story with Pip, a little robot that only understands Python.</p>
-      <p class="muted">No experience needed. Each lesson takes about 5 minutes.</p>
+      <p class="lede">Live a life. Learn Python on the way.</p>
+      <p class="title-sub">A story game for people who have never written code.</p>
+      <button class="btn primary big" id="welcome-start" type="button">New game</button>
     </div>
-    <div class="actionbar"><div class="wrap bar-buttons">
-      <button class="btn primary wide" id="welcome-start" type="button">Get started</button>
-    </div></div>
   </section>
 
-  <section id="screen-name" class="screen flow" hidden>
+  <!-- First visit: one question per screen -->
+  <section id="screen-name" class="screen flow scene-screen" hidden>
+    <div class="backdrop" data-scene="home" aria-hidden="true"></div>
     <div class="flow-top wrap">
-      <button class="icon-btn" type="button" data-go="welcome" aria-label="Back"><span data-icon="back"></span></button>
+      <button class="icon-btn glass" type="button" data-go="welcome" aria-label="Back"><span data-icon="back"></span></button>
       <div class="progress" aria-hidden="true"><span style="width:33%"></span></div>
     </div>
     <div class="flow-body wrap">
-      <h2><label for="player-name">What's your name?</label></h2>
-      <p class="muted">Pip will call you by it.</p>
+      <div class="intro-pip" id="name-pip" aria-hidden="true"></div>
+      <div class="dialogue">
+        <span class="speaker">Pip</span>
+        <p><label for="player-name">Hi! I'm Pip. What's your name?</label></p>
+      </div>
       <input id="player-name" class="text-input" type="text" maxlength="20" autocomplete="given-name" placeholder="Your first name">
     </div>
     <div class="actionbar"><div class="wrap bar-buttons">
@@ -45,8 +50,8 @@
     </div>
     <div class="flow-body wrap">
       <h2 id="place-h">Where did you grow up?</h2>
-      <p class="muted">The story will use names and food from there. The Python is the same everywhere.</p>
-      <div class="choices" id="place-list" role="radiogroup" aria-labelledby="place-h"></div>
+      <p class="muted">Your family and friends will come from there. The Python is the same everywhere.</p>
+      <div class="place-grid" id="place-list" role="radiogroup" aria-labelledby="place-h"></div>
     </div>
     <div class="actionbar"><div class="wrap bar-buttons">
       <button class="btn primary wide" id="place-next" type="button" disabled>Continue</button>
@@ -64,37 +69,54 @@
       <div class="choices" id="story-list" role="radiogroup" aria-labelledby="story-h"></div>
     </div>
     <div class="actionbar"><div class="wrap bar-buttons">
-      <button class="btn primary wide" id="story-next" type="button">Start my first lesson</button>
+      <button class="btn primary wide" id="story-next" type="button">Begin</button>
     </div></div>
   </section>
 
-  <!-- Home -->
-  <section id="screen-home" class="screen" hidden>
-    <div class="wrap page">
-      <header class="home-head">
-        <span class="home-pip" id="home-pip"></span>
-        <div class="home-hello">
-          <h1 id="home-hello">Hi</h1>
-          <p class="muted" id="home-stats"></p>
+  <!-- The world map: the hub between missions -->
+  <section id="screen-home" class="screen map-screen" hidden>
+    <header class="hud">
+      <div class="hud-inner wrap">
+        <div class="hud-player">
+          <span class="lv-badge" id="hud-level" aria-label="Level">1</span>
+          <div class="hud-text">
+            <b id="hud-name">Hi</b>
+            <div class="xpbar" aria-hidden="true"><span id="hud-xp"></span></div>
+            <span class="hud-sub" id="hud-sub"></span>
+          </div>
         </div>
-        <button class="icon-btn" id="btn-settings" type="button" aria-label="Settings"><span data-icon="settings"></span></button>
-      </header>
-      <div class="next-card" id="next-card"></div>
-      <div class="home-section">
-        <h2 class="section-h" id="home-story"></h2>
-        <ol class="chapters" id="chapter-list"></ol>
+        <button class="icon-btn glass" id="btn-album" type="button" aria-label="Memories"><span data-icon="album"></span></button>
+        <button class="icon-btn glass" id="btn-notebook" type="button" aria-label="Pip's notebook"><span data-icon="book"></span></button>
+        <button class="icon-btn glass" id="btn-settings" type="button" aria-label="Settings"><span data-icon="settings"></span></button>
       </div>
-      <button class="btn quiet" id="btn-notebook" type="button"><span data-icon="book"></span>Pip's notebook</button>
-    </div>
+    </header>
+    <div class="map-wrap"><div class="map" id="map"></div></div>
+    <div class="map-bar" id="map-bar"></div>
+    <div class="sheet-shade" id="sheet-shade" hidden></div>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden></div>
   </section>
 
-  <!-- A lesson: one screen at a time -->
-  <section id="screen-lesson" class="screen flow lesson" hidden>
-    <header class="flow-top wrap">
-      <button class="icon-btn" id="lesson-close" type="button" aria-label="Leave lesson"><span data-icon="close"></span></button>
-      <div class="progress" id="lesson-progress" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+  <!-- A mission: the stage, a dialogue box, Pip's console and one main button -->
+  <section id="screen-lesson" class="screen flow mission" hidden>
+    <header class="mission-hud">
+      <div class="wrap hud-row">
+        <button class="icon-btn" id="lesson-close" type="button" aria-label="Back to the map"><span data-icon="map"></span></button>
+        <div class="mission-meta">
+          <span class="mission-name" id="mission-name"></span>
+          <div class="progress" id="lesson-progress" role="progressbar" aria-label="Mission progress" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+        </div>
+        <span class="xp-chip" id="mission-xp" aria-label="XP earned in this mission"><span data-icon="bolt"></span><b>0</b></span>
+      </div>
     </header>
-    <div class="flow-body wrap" id="lesson-body"></div>
+    <div class="wrap mission-main">
+      <div class="stage stagebox" id="stage" data-size="story" data-cast="0"></div>
+      <div class="dialogue" id="dialogue" aria-live="polite">
+        <span class="speaker" id="speaker"></span>
+        <p id="dialogue-text"></p>
+        <button class="listen" type="button" id="btn-listen" aria-label="Read aloud"><span data-icon="sound"></span></button>
+      </div>
+      <div class="console" id="lesson-body"></div>
+    </div>
     <div class="actionbar" id="lesson-bar">
       <div class="wrap">
         <div class="feedback" id="feedback" aria-live="polite" hidden></div>
@@ -106,10 +128,22 @@
     </div>
   </section>
 
-  <!-- Lesson complete, chapter complete, end of the prototype -->
-  <section id="screen-done" class="screen flow" hidden>
+  <!-- Mission complete, chapter complete, end of the prototype -->
+  <section id="screen-done" class="screen flow done-screen" hidden>
+    <div class="backdrop dim" id="done-scene" aria-hidden="true"></div>
     <div class="flow-body wrap center" id="done-body"></div>
     <div class="actionbar"><div class="wrap bar-buttons" id="done-buttons"></div></div>
+  </section>
+
+  <section id="screen-album" class="screen" hidden>
+    <div class="wrap page">
+      <div class="page-top">
+        <button class="icon-btn" type="button" data-go="home" aria-label="Back"><span data-icon="back"></span></button>
+        <h1>Memories</h1>
+      </div>
+      <p class="muted">Every mission you finish adds a photo to your life.</p>
+      <div class="album" id="album-list"></div>
+    </div>
   </section>
 
   <section id="screen-notebook" class="screen" hidden>
@@ -138,7 +172,7 @@
         <input type="checkbox" id="set-sound" role="switch">
       </label>
       <label class="switch-row">
-        <span><b>Read stories aloud</b><span class="muted">Pip reads each story screen to you.</span></span>
+        <span><b>Read the story aloud</b><span class="muted">Each line of the story is read to you.</span></span>
         <input type="checkbox" id="set-voice" role="switch">
       </label>
       <div class="settings-block">
@@ -170,7 +204,7 @@
       <p class="results-who" id="results-who"></p>
       <div class="table-wrap">
         <table class="results">
-          <thead><tr><th scope="col">Lesson</th><th scope="col">Time</th><th scope="col">Tries</th><th scope="col">Mistakes</th><th scope="col">Hints</th><th scope="col">Done</th></tr></thead>
+          <thead><tr><th scope="col">Mission</th><th scope="col">Time</th><th scope="col">Tries</th><th scope="col">Mistakes</th><th scope="col">Hints</th><th scope="col">Stars</th></tr></thead>
           <tbody id="results-body"></tbody>
         </table>
       </div>

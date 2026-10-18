@@ -36,6 +36,15 @@
       friends: ['Tolu', 'Emeka', 'Amina', 'Kofi', 'Zainab'],
       food: 'jollof rice',
       game: 'suwe',
+      looks: {
+        mum: { age: 'adult', skin: '#7a4a2e', hair: 'gele', wrap: '#d9822b', shirt: '#2f7d6d', pattern: '#e8b04a', earrings: true, lashes: true, eyes: '#2a170e', lips: 1.25 },
+        grandma: { age: 'elder', skin: '#6e4330', hair: 'greyCurly', hairColor: '#cfc8c0', shirt: '#8a3f5c', glasses: true, eyes: '#2a170e', lashes: true, faceW: 1.06, jaw: 0.66, lips: 1.15, nose: 1.1 },
+        uncle: { age: 'adult', skin: '#5e3a26', hair: 'coilyShort', hairColor: '#1a1210', beard: true, shirt: '#3d5a99', collar: 'shirt', eyes: '#24140c', lips: 1.2, nose: 1.15 },
+        cousin: { age: 'child', skin: '#8a5636', hair: 'puffs', hairColor: '#1c1310', shirt: '#e0a43a', lashes: true, eyes: '#2a170e', lips: 1.15 },
+        f1: { age: 'child', skin: '#6a4029', hair: 'coilyShort', hairColor: '#1a1210', shirt: '#c65a46', eyes: '#24140c', lips: 1.15 },
+        f2: { age: 'child', skin: '#7e4c30', hair: 'braids', hairColor: '#1c1310', shirt: '#5b84b8', lashes: true, eyes: '#2a170e', lips: 1.15 },
+        f3: { age: 'child', skin: '#94603e', hair: 'coily', hairColor: '#1c1310', shirt: '#6aa36f', eyes: '#2a170e', faceW: 1.04 },
+      },
     },
     southasia: {
       id: 'southasia',
@@ -50,6 +59,15 @@
       friends: ['Arjun', 'Ayesha', 'Ravi', 'Meera', 'Kabir'],
       food: 'biryani',
       game: 'kho-kho',
+      looks: {
+        mum: { age: 'adult', skin: '#b07a55', hair: 'bun', hairColor: '#1d1512', shirt: '#b8394f', pattern: '#e9b44c', earrings: true, lashes: true, eyes: '#2e1a10', faceW: 0.96, jaw: 0.55 },
+        grandma: { age: 'elder', skin: '#a06d4c', hair: 'bun', hairColor: '#d8d2ca', shirt: '#e3d6bf', glasses: true, eyes: '#2e1a10', lashes: true, jaw: 0.64 },
+        uncle: { age: 'adult', skin: '#9c6a48', hair: 'short', hairColor: '#191311', mustache: true, shirt: '#e8e2d6', collar: 'shirt', eyes: '#2a170e', faceW: 1.04, jaw: 0.8 },
+        cousin: { age: 'child', skin: '#b8835e', hair: 'long', hairColor: '#1d1512', shirt: '#7c5bb0', lashes: true, eyes: '#2e1a10' },
+        f1: { age: 'child', skin: '#a8724f', hair: 'short', hairColor: '#191311', shirt: '#3f8a7a', eyes: '#2a170e' },
+        f2: { age: 'child', skin: '#b17b56', hair: 'braids', hairColor: '#1d1512', shirt: '#e08b3a', lashes: true, eyes: '#2e1a10' },
+        f3: { age: 'child', skin: '#9a6644', hair: 'curly', hairColor: '#1d1512', shirt: '#4b7fa8', eyes: '#2a170e' },
+      },
     },
     latam: {
       id: 'latam',
@@ -64,6 +82,15 @@
       friends: ['Mateo', 'Camila', 'Diego', 'Lucia', 'Valentina'],
       food: 'tamales',
       game: 'rayuela',
+      looks: {
+        mum: { age: 'adult', skin: '#c48d68', hair: 'long', hairColor: '#2b1a12', shirt: '#c25b3f', earrings: true, lashes: true, eyes: '#4a2a17' },
+        grandma: { age: 'elder', skin: '#b07c5a', hair: 'bun', hairColor: '#cfc8c0', shirt: '#4f6f8f', pattern: '#d8c79a', glasses: true, eyes: '#3a2112', lashes: true, faceW: 1.05 },
+        uncle: { age: 'adult', skin: '#a8714c', hair: 'short', hairColor: '#20140e', mustache: true, shirt: '#e9e2d3', collar: 'shirt', eyes: '#3a2112', jaw: 0.78 },
+        cousin: { age: 'child', skin: '#c99470', hair: 'curly', hairColor: '#2b1a12', shirt: '#e6b84a', lashes: true, eyes: '#4a2a17' },
+        f1: { age: 'child', skin: '#b98260', hair: 'short', hairColor: '#20140e', shirt: '#3e7cb1', eyes: '#3a2112' },
+        f2: { age: 'child', skin: '#c28a65', hair: 'long', hairColor: '#24160f', shirt: '#d0607a', lashes: true, eyes: '#4a2a17' },
+        f3: { age: 'child', skin: '#8f5d3e', hair: 'coilyShort', hairColor: '#1a1210', shirt: '#e0a43a', eyes: '#2a170e' },
+      },
     },
     ukus: {
       id: 'ukus',
@@ -78,6 +105,15 @@
       friends: ['Jack', 'Mia', 'Noah', 'Ava', 'Leo'],
       food: 'pizza',
       game: 'hopscotch',
+      looks: {
+        mum: { age: 'adult', skin: '#e8bfa0', hair: 'long', hairColor: '#8a5a32', shirt: '#4b7fa8', earrings: true, lashes: true, eyes: '#4a6a7a' },
+        grandma: { age: 'elder', skin: '#e0b597', hair: 'greyCurly', hairColor: '#e2dcd4', shirt: '#9b6b8e', glasses: true, eyes: '#5b6e5a', lashes: true },
+        uncle: { age: 'adult', skin: '#d9a888', hair: 'short', hairColor: '#4a3020', beard: true, shirt: '#5b7a4a', collar: 'shirt', eyes: '#3d5566' },
+        cousin: { age: 'child', skin: '#efc6a6', hair: 'long', hairColor: '#c49a5a', shirt: '#e07a5f', lashes: true, eyes: '#4a6a7a' },
+        f1: { age: 'child', skin: '#6e4530', hair: 'coilyShort', hairColor: '#1a1210', shirt: '#3e7cb1', eyes: '#24140c', lips: 1.15 },
+        f2: { age: 'child', skin: '#e9bf9c', hair: 'curly', hairColor: '#b0532b', shirt: '#6aa36f', lashes: true, eyes: '#4d6b3d' },
+        f3: { age: 'child', skin: '#c99a74', hair: 'short', hairColor: '#2b1a12', shirt: '#7c5bb0', eyes: '#3a2112' },
+      },
     },
   };
 
@@ -173,6 +209,9 @@
     c1l1: {
       title: 'A present for you',
       icon: 'gift',
+      scene: 'home',
+      cast: ['mum'],
+      memory: 'Your 5th birthday. Pip woke up and said its first word.',
       rounds: [
         {
           mode: 'watch',
@@ -205,6 +244,9 @@
     c1l2: {
       title: 'Say my name',
       icon: 'chat',
+      scene: 'home',
+      cast: ['mum'],
+      memory: 'Pip learned your name, and said hello to {mum}.',
       rounds: [
         {
           mode: 'change',
@@ -237,6 +279,9 @@
     c1l3: {
       title: 'The pieces of a line',
       icon: 'blocks',
+      scene: 'home',
+      cast: ['mum'],
+      memory: 'You put Pip\'s broken line back together.',
       rounds: [
         {
           mode: 'explain',
@@ -270,6 +315,9 @@
     c1l4: {
       title: 'Bug hunt',
       icon: 'bug',
+      scene: 'home',
+      cast: ['mum'],
+      memory: 'Pip caught some bugs. You fixed every one.',
       rounds: [
         {
           mode: 'choice',
@@ -320,9 +368,13 @@
     c1l5: {
       title: 'Guests at the door',
       icon: 'door',
+      scene: 'home',
+      cast: ['grandma', 'uncle'],
+      memory: '{grandma} and {uncle} came to your party.',
       rounds: [
         {
           mode: 'guided',
+          cast: ['grandma'],
           say: [
             { who: 'narrator', text: 'Ding dong! {grandma} is at the door.' },
             { who: 'grandma', text: 'Where is the birthday child?' },
@@ -336,7 +388,11 @@
         },
         {
           mode: 'guided',
-          say: [{ who: 'narrator', text: 'Ding dong! It\'s {uncle}.' }],
+          cast: ['uncle', 'grandma'],
+          say: [
+            { who: 'narrator', text: 'Ding dong! It\'s {uncle}.' },
+            { who: 'uncle', text: 'Where\'s my favourite five-year-old?' },
+          ],
           ghost: 'print("Welcome {uncleSay}")',
           task: 'Type over the grey letters to welcome {uncle}.',
           check: (r, x) => (x.has(r.output, x.P.uncleKey) ? { ok: true } : { ok: false, msg: `${showed(r)} Make sure {uncle} is in the welcome.` }),
@@ -350,10 +406,17 @@
     c1l6: {
       title: 'Party time',
       icon: 'cake',
+      scene: 'home',
+      cast: ['cousin', 'f1'],
+      memory: 'Everyone came to your party. {food} and cake for all!',
       rounds: [
         {
           mode: 'free',
-          say: [{ who: 'narrator', text: 'Ding dong! Your cousin {cousin} is here.' }],
+          cast: ['cousin'],
+          say: [
+            { who: 'narrator', text: 'Ding dong! Your cousin {cousin} is here.' },
+            { who: 'cousin', text: 'Happy birthday! Is there cake? I want cake!' },
+          ],
           task: 'Make Pip welcome {cousin}. No grey letters this time.',
           check: (r, x) => (x.has(r.output, x.P.cousin) ? { ok: true } : { ok: false, msg: `${showed(r)} Make sure {cousin} is in the welcome.` }),
           hints: ['Start with `print` and an open bracket: `print(`', 'Like this: `print("Welcome {cousin}")`'],
@@ -362,7 +425,11 @@
         },
         {
           mode: 'free',
-          say: [{ who: 'narrator', text: '{f1} and {f2} arrive together.' }],
+          cast: ['f1', 'f2'],
+          say: [
+            { who: 'narrator', text: '{f1} and {f2} arrive together.' },
+            { who: 'f1', text: 'Happy birthday, {name}! Can Pip say hi to us too?' },
+          ],
           task: 'Write two lines: one welcome for {f1} and one for {f2}.',
           check: (r, x) => {
             const names = [x.f(1), x.f(2)];
@@ -384,6 +451,9 @@
       title: 'Pip\'s jars',
       icon: 'jar',
       showJars: true,
+      scene: 'kitchen',
+      cast: ['grandma'],
+      memory: '{grandma}\'s jar of sweets, just for you.',
       rounds: [
         {
           mode: 'explain',
@@ -437,6 +507,9 @@
       title: 'Jar mix-ups',
       icon: 'jar',
       showJars: true,
+      scene: 'kitchen',
+      cast: ['grandma'],
+      memory: 'The day you learned a word from a jar.',
       rounds: [
         {
           mode: 'choice',
@@ -466,9 +539,13 @@
       title: 'More sweets',
       icon: 'plus',
       showJars: true,
+      scene: 'kitchen',
+      cast: ['uncle', 'grandma'],
+      memory: '{uncle} and {grandma} filled up your jar.',
       rounds: [
         {
           mode: 'predict',
+          cast: ['uncle'],
           say: [{ who: 'uncle', text: 'Here are 3 more sweets for your jar!' }],
           code: 'sweets = 5\nsweets = sweets + 3\nprint(sweets)',
           task: 'Line 2 adds 3 to the jar.',
@@ -484,6 +561,7 @@
         },
         {
           mode: 'build',
+          cast: ['grandma'],
           say: [{ who: 'grandma', text: 'And 2 more from me.' }],
           code: 'sweets = 8\n{{BUILD}}\nprint(sweets)',
           tiles: [['sweets', 'label'], ['=', 'put in'], ['sweets', 'label'], ['+', 'add'], ['2', 'number']],
@@ -495,6 +573,7 @@
         },
         {
           mode: 'guided',
+          cast: ['grandma'],
           say: [{ who: 'narrator', text: 'You ate 2 sweets. They were delicious.' }],
           code: 'sweets = 10\n',
           ghost: 'sweets = 10\nsweets = sweets - 2\nprint(sweets)',
@@ -511,6 +590,9 @@
       title: 'Share fairly',
       icon: 'people',
       showJars: true,
+      scene: 'park',
+      cast: ['f1', 'f2'],
+      memory: 'You shared your sweets fairly at the playground.',
       rounds: [
         {
           mode: 'watch',
@@ -538,7 +620,7 @@
         },
         {
           mode: 'change',
-          say: [{ who: 'friend', name: '{f1}', text: 'Wait! 4 more of us want sweets too!' }],
+          say: [{ who: 'f1', text: 'Wait! 4 more of us want sweets too!' }],
           code: 'sweets = 17\nfriends = [[5]]\nprint(sweets // friends)\nprint(sweets % friends)',
           fill: ['9'],
           task: 'Now there are 9 friends. Change the number, then tap Run.',
@@ -557,11 +639,14 @@
     c2l5: {
       title: 'Hide and seek',
       icon: 'tree',
+      scene: 'park',
+      cast: ['f2', 'f3'],
+      memory: 'Hide and seek in the park. Pip counted to 20.',
       rounds: [
         {
           mode: 'watch',
           say: [
-            { who: 'friend', name: '{f2}', text: 'Let\'s play hide and seek! {name}, you\'re it!' },
+            { who: 'f2', text: 'Let\'s play hide and seek! {name}, you\'re it!' },
             { who: 'pip', text: 'I\'ll count for you. I can count really fast.' },
           ],
           code: 'for number in range(1, 11):\n    print(number)\nprint("Ready or not, here I come!")',
@@ -585,7 +670,7 @@
         },
         {
           mode: 'change',
-          say: [{ who: 'friend', name: '{f3}', text: 'That was way too fast! Count to 20 this time.' }],
+          say: [{ who: 'f3', text: 'That was way too fast! Count to 20 this time.' }],
           code: 'for number in range(1, [[11]]):\n    print(number)\nprint("Ready or not, here I come!")',
           fill: ['21'],
           task: 'Change the code so Pip counts all the way to 20.',
@@ -607,6 +692,9 @@
     c2l6: {
       title: 'Loop bugs',
       icon: 'bug',
+      scene: 'park',
+      cast: ['f1'],
+      memory: 'Pip learned to count for the little kids.',
       rounds: [
         {
           mode: 'fix',
@@ -633,10 +721,13 @@
     c2l7: {
       title: 'Skip and clap',
       icon: 'loop',
+      scene: 'park',
+      cast: ['f2', 'f1'],
+      memory: 'Five jumps, three claps and a bow.',
       rounds: [
         {
           mode: 'guided',
-          say: [{ who: 'friend', name: '{f2}', text: 'I brought a skipping rope! Can Pip jump 5 times?' }],
+          say: [{ who: 'f2', text: 'I brought a skipping rope! Can Pip jump 5 times?' }],
           ghost: 'for jump in range(5):\n    print("Jump!")',
           task: 'Type over the grey letters. After the colon, press Enter: the next line pushes itself in.',
           check: (r) => {

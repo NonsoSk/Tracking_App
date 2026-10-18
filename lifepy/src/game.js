@@ -1,6 +1,7 @@
 /*
- * Life.py game: onboarding, home, lessons (one screen at a time), the code
- * editor, Pip's reactions, hints, progress and the tester results page.
+ * Life.py game: the title screen, the world map, missions on a stage with
+ * characters and a dialogue box, Pip's console (the code editor), reactions,
+ * hints, XP and stars, memories and the tester results page.
  */
 (function () {
   'use strict';
@@ -31,6 +32,7 @@
       rules: [],
       streak: { last: null, count: 0 },
       stats: {},
+      stars: {},
       votes: {},
       notes: '',
       settings: { sound: true, voice: false },
@@ -135,7 +137,7 @@
 
   // ---------- screens ----------
 
-  const SCREENS = ['welcome', 'name', 'place', 'story', 'home', 'lesson', 'done', 'notebook', 'settings', 'results'];
+  const SCREENS = ['welcome', 'name', 'place', 'story', 'home', 'lesson', 'done', 'album', 'notebook', 'settings', 'results'];
   let currentScreen = null;
 
   function show(name) {
@@ -148,9 +150,16 @@
 
   function go(name) {
     if (name === 'home') return openHome();
+    if (name === 'welcome') { renderTitle(); return show('welcome'); }
     if (name === 'settings') { renderSettings(); return show('settings'); }
-    if (name === 'name') { $('#player-name').value = draft.name; updateNameButton(); return show('name'); }
-    if (name === 'place') { renderPlaces('#place-list', draft.pack); $('#place-next').disabled = !draft.pack; return show('place'); }
+    if (name === 'album') { renderAlbum(); return show('album'); }
+    if (name === 'name') {
+      $('#name-pip').innerHTML = Art.pip('happy');
+      $('#player-name').value = draft.name;
+      updateNameButton();
+      return show('name');
+    }
+    if (name === 'place') { renderPlaces('#place-list', draft.pack, true); $('#place-next').disabled = !draft.pack; return show('place'); }
     return show(name);
   }
 
@@ -158,9 +167,60 @@
     $$('[data-icon]', root).forEach((el) => { el.outerHTML = Art.icon(el.dataset.icon); });
   }
 
-  // ---------- first visit: one question per screen ----------
+  function fillScenes(root) {
+    $$('[data-scene]', root).forEach((el) => { if (!el.firstChild) el.innerHTML = Art.scene(el.dataset.scene); });
+  }
+
+  // ---------- characters ----------
+
+  const PEOPLE = ['mum', 'grandma', 'uncle', 'cousin', 'f1', 'f2', 'f3'];
+  const SPEAKER_KIND = { pip: 'pip', mum: 'family', grandma: 'family', uncle: 'family', cousin: 'family', f1: 'friend', f2: 'friend', f3: 'friend' };
+
+  function nameOf(who) {
+    switch (who) {
+      case 'pip': return 'Pip';
+      case 'mum': return X.P.mum;
+      case 'grandma': return X.P.grandma;
+      case 'uncle': return X.P.uncle;
+      case 'cousin': return X.P.cousin;
+      case 'f1': return X.f(1);
+      case 'f2': return X.f(2);
+      case 'f3': return X.f(3);
+      default: return '';
+    }
+  }
+
+  // One or two people share the stage with Pip: the first on the left, the second on the right.
+  // Each looks towards the middle of the stage.
+  const positions = (n) => (n === 1 ? ['left'] : ['left', 'right']);
+
+  function actorHTML(who, pos, expr) {
+    return `<div class="actor-wrap pos-${pos}" data-who="${who}">${Art.portrait(X.P.looks[who], { look: pos === 'right' ? -1 : 1, expr: expr || 'neutral' })}</div>`;
+  }
+
+  // A still picture of a mission's place and people, for the map and the album.
+  function miniStage(id, mood) {
+    const lv = C.LEVELS[id];
+    const cast = (lv.cast || []).slice(0, 2);
+    const pos = positions(cast.length);
+    return `<div class="stagebox mini" data-cast="${cast.length}">${Art.scene(lv.scene)}${cast.map((w, i) => actorHTML(w, pos[i], mood)).join('')}<div class="pip-spot">${Art.pip(mood === 'happy' ? 'happy' : 'idle')}</div></div>`;
+  }
+
+  function polaroid(id, tilt) {
+    return `<figure class="polaroid" style="--tilt:${tilt == null ? -1.5 : tilt}deg">${miniStage(id, 'happy')}<figcaption>${esc(X.t(C.LEVELS[id].memory || ''))}</figcaption></figure>`;
+  }
+
+  // ---------- title screen and first visit ----------
 
   const draft = { name: '', pack: null };
+
+  function renderTitle() {
+    $('#title-scene').innerHTML = Art.scene('home');
+    $('#hero-pip').innerHTML = Art.pip('happy');
+    const P = C.PACKS;
+    $('#title-cast').innerHTML = `<div class="tc tc-left">${Art.portrait(P.westafrica.looks.mum, { expr: 'smile', look: 1 })}</div>` +
+      `<div class="tc tc-right">${Art.portrait(P.ukus.looks.f2, { expr: 'smile', look: -1 })}</div>`;
+  }
 
   function updateNameButton() {
     $('#name-next').disabled = !$('#player-name').value.trim();
@@ -170,14 +230,16 @@
     return `<button class="choice" type="button" role="radio" aria-checked="${selected ? 'true' : 'false'}" data-value="${esc(value)}" ${disabled ? 'disabled' : ''}>${inner}</button>`;
   }
 
-  function renderPlaces(sel, selected) {
+  // With faces, each hometown shows the player's mum from there.
+  function renderPlaces(sel, selected, faces) {
     $(sel).innerHTML = Object.values(C.PACKS).map((p) => choiceButton(p.id, p.id === selected,
-      `<span class="choice-text"><b>${esc(p.label)}</b><span>${esc(p.places)}</span></span>`)).join('');
+      `${faces ? `<span class="place-face" aria-hidden="true">${Art.portrait(p.looks.mum, { expr: 'smile' })}</span>` : ''}<span class="choice-text"><b>${esc(p.label)}</b><span>${esc(p.places)}</span></span>`)).join('');
+    if (faces) $$('.choice', $(sel)).forEach((b) => b.classList.add('place'));
   }
 
   function renderStoryChoices() {
     $('#story-list').innerHTML = C.STORIES.map((s) => choiceButton(s.id, s.ready,
-      `${Art.icon(s.icon)}<span class="choice-text"><b>${esc(s.title)}</b><span>${esc(s.tagline)}</span></span>${s.ready ? '' : '<span class="tag">Coming soon</span>'}`,
+      `<span class="story-icon">${Art.icon(s.icon)}</span><span class="choice-text"><b>${esc(s.title)}</b><span>${esc(s.tagline)}</span></span>${s.ready ? '' : '<span class="tag">Coming soon</span>'}`,
       !s.ready)).join('');
   }
 
@@ -193,7 +255,26 @@
     startLesson('c1l1');
   }
 
-  // ---------- home ----------
+  // ---------- XP, levels and stars ----------
+
+  const XP_PER_LEVEL = 100;
+
+  function levelOf(xp) {
+    const into = xp % XP_PER_LEVEL;
+    return { level: 1 + Math.floor(xp / XP_PER_LEVEL), into, pct: Math.round((into / XP_PER_LEVEL) * 100) };
+  }
+
+  // Three stars for a clean run. Each hint (or shown answer) counts as two mistakes.
+  function starsFor(mistakes, hints) {
+    const cost = mistakes + hints * 2;
+    return cost <= 1 ? 3 : cost <= 4 ? 2 : 1;
+  }
+
+  function starsHTML(n, cls) {
+    return `<span class="stars${cls ? ' ' + cls : ''}" role="img" aria-label="${n} of 3 stars">${[1, 2, 3].map((i) => `<span class="star${i <= n ? ' on' : ''}" style="--i:${i}">${Art.icon('star')}</span>`).join('')}</span>`;
+  }
+
+  // ---------- the world map ----------
 
   function allLevels() {
     return C.CHAPTERS.filter((c) => !c.locked).flatMap((c) => c.levels);
@@ -213,45 +294,73 @@
   }
 
   function openHome() {
-    if (!S.profile) { $('#hero-pip').innerHTML = Art.pip('happy'); show('welcome'); return; }
+    if (!S.profile) { renderTitle(); show('welcome'); return; }
     renderHome();
     show('home');
+    const focus = $('.node.current') || $(`.node[data-mission="${allLevels().slice(-1)[0]}"]`);
+    if (focus) focus.scrollIntoView({ block: 'center' });
   }
 
   function renderHome() {
-    $('#home-pip').innerHTML = Art.pip('idle');
-    $('#home-hello').textContent = `Hi, ${S.profile.name}`;
+    const lv = levelOf(S.points);
     const streak = S.streak.count || 0;
-    $('#home-stats').textContent = S.points
-      ? `${S.points} points${streak ? ` · ${streak}-day streak` : ''}`
-      : 'Your first lesson is ready.';
-    $('#home-story').textContent = `Growing Up · ${C.PACKS[S.profile.pack].label}`;
+    $('#hud-level').textContent = String(lv.level);
+    $('#hud-level').setAttribute('aria-label', `Level ${lv.level}`);
+    $('#hud-name').textContent = S.profile.name;
+    $('#hud-xp').style.width = lv.pct + '%';
+    $('#hud-sub').textContent = `Level ${lv.level} · ${S.points} XP${streak ? ` · ${streak}-day streak` : ''}`;
 
+    const m = Art.worldMap(C.CHAPTERS.map((ch) => ({ id: ch.id, n: ch.n, locked: !!ch.locked, levels: ch.levels || [] })));
     const next = nextLessonId();
+    const at = (x, y) => `left:${((x / 400) * 100).toFixed(2)}%;top:${((y / m.height) * 100).toFixed(2)}%`;
+    const nodes = m.nodes.map((nd) => {
+      const id = nd.id;
+      const state = S.done[id] ? 'done' : id === next ? 'current' : 'locked';
+      const stars = S.stars[id] || 1;
+      const label = `Mission ${lessonNumber(id)}: ${C.LEVELS[id].title}${state === 'done' ? `, ${stars} of 3 stars` : state === 'locked' ? ', locked' : ''}`;
+      return `<button class="node ${state}" type="button" style="${at(nd.x, nd.y)}" data-mission="${id}" aria-label="${esc(label)}" ${state === 'locked' ? 'disabled' : ''}>
+        <span class="node-disc">${state === 'done' ? Art.icon('check') : state === 'locked' ? Art.icon('lock') : lessonNumber(id)}</span>
+        ${state === 'done' ? starsHTML(stars, 'mini') : ''}${state === 'current' ? `<span class="node-pip" aria-hidden="true">${Art.pip('happy')}</span>` : ''}</button>`;
+    }).join('');
+    const signs = m.marks.map((mk) => {
+      const ch = C.CHAPTERS.find((c) => c.id === mk.ch.id);
+      return `<div class="sign${mk.locked ? ' locked' : ''}" style="${at(mk.x, mk.y + 22)}"><b>${ch.n}. ${esc(ch.title)}</b><span>${mk.locked ? 'Coming soon' : esc(ch.age)}</span></div>`;
+    }).join('');
+    const map = $('#map');
+    map.style.aspectRatio = `400 / ${m.height}`;
+    map.innerHTML = m.svg + signs + nodes;
+
     if (next) {
       const ch = chapterOf(next);
-      $('#next-card').innerHTML = `<p class="eyebrow">${S.done[allLevels()[0]] ? 'Up next' : 'Start here'} · Chapter ${ch.n}, lesson ${lessonNumber(next)}</p>
-        <h2>${esc(C.LEVELS[next].title)}</h2>
-        <p class="muted">${esc(X.t(ch.blurb))}</p>
-        <button class="btn primary" type="button" data-start="${next}">${S.done[allLevels()[0]] ? 'Continue' : 'Start'}</button>`;
+      $('#map-bar').innerHTML = `<div class="map-next">
+        <div class="map-next-text"><span class="eyebrow">${S.done[allLevels()[0]] ? 'Next mission' : 'Your first mission'} · Chapter ${ch.n}</span><b>${esc(C.LEVELS[next].title)}</b></div>
+        <button class="btn primary" type="button" data-start="${next}">${Art.icon('play')}Play</button></div>`;
     } else {
-      $('#next-card').innerHTML = `<p class="eyebrow">All done for now</p><h2>You finished this early version</h2>
-        <p class="muted">Chapter 3, Primary School, is coming next. You can replay any lesson below.</p>`;
+      $('#map-bar').innerHTML = `<div class="map-next">
+        <div class="map-next-text"><span class="eyebrow">Every mission done</span><b>Chapter 3 is coming soon</b></div>
+        <button class="btn quiet" type="button" data-go="album">${Art.icon('album')}Memories</button></div>`;
     }
+  }
 
-    $('#chapter-list').innerHTML = C.CHAPTERS.map((ch) => {
-      if (ch.locked) {
-        return `<li class="chapter locked"><div class="chapter-head"><h3>${ch.n}. ${esc(ch.title)}</h3><span class="muted">${esc(ch.age)}</span><span class="chapter-count">Coming soon</span></div></li>`;
-      }
-      const done = ch.levels.filter((l) => S.done[l]).length;
-      const rows = ch.levels.map((id, i) => {
-        const state = S.done[id] ? 'done' : id === next ? 'current' : 'locked';
-        const dot = state === 'done' ? Art.icon('check') : state === 'locked' ? Art.icon('lock') : String(i + 1);
-        return `<li><button class="lesson-row ${state}" type="button" data-start="${id}" ${state === 'locked' ? 'disabled' : ''}>
-          <span class="dot">${dot}</span><span>${esc(C.LEVELS[id].title)}</span></button></li>`;
-      }).join('');
-      return `<li class="chapter"><div class="chapter-head"><h3>${ch.n}. ${esc(ch.title)}</h3><span class="muted">${esc(ch.age)}</span><span class="chapter-count">${done} of ${ch.levels.length}</span></div><ol class="lessons">${rows}</ol></li>`;
-    }).join('');
+  function openSheet(id) {
+    const lv = C.LEVELS[id];
+    const ch = chapterOf(id);
+    const done = !!S.done[id];
+    const sheet = $('#sheet');
+    sheet.innerHTML = `<div class="sheet-inner">
+      ${done ? polaroid(id, -1) : `<div class="sheet-scene">${miniStage(id, 'smile')}</div>`}
+      <p class="eyebrow">Chapter ${ch.n} · ${esc(ch.title)} · Mission ${lessonNumber(id)}</p>
+      <h2 id="sheet-title">${esc(lv.title)}</h2>
+      ${done ? starsHTML(S.stars[id] || 1) : `<p class="muted">${esc(X.t(ch.blurb))}</p>`}
+      <div class="bar-buttons"><button class="btn quiet" type="button" data-close-sheet>Close</button><button class="btn primary" type="button" data-start="${id}">${done ? 'Play again' : 'Play'}</button></div></div>`;
+    sheet.hidden = false;
+    $('#sheet-shade').hidden = false;
+    $('[data-start]', sheet).focus();
+  }
+
+  function closeSheet() {
+    $('#sheet').hidden = true;
+    $('#sheet-shade').hidden = true;
   }
 
   // ---------- code highlighting ----------
@@ -493,12 +602,13 @@
     }
   }
 
-  // ---------- lessons ----------
+  // ---------- missions ----------
 
+  // Every story line is its own step, so the story plays out one line per tap.
   function buildSteps(level) {
     const steps = [];
     level.rounds.forEach((r, i) => {
-      if (r.say) steps.push({ kind: 'story', round: i });
+      (r.say || []).forEach((line, j) => steps.push({ kind: 'line', round: i, line: j }));
       steps.push({ kind: r.mode === 'explain' ? 'explain' : 'task', round: i });
     });
     return steps;
@@ -507,6 +617,8 @@
   function startLesson(id) {
     const level = C.LEVELS[id];
     if (!level) return;
+    closeSheet();
+    const st = stat(id);
     L = {
       id,
       level,
@@ -516,10 +628,143 @@
       t0: Date.now(),
       points: 0,
       awarded: new Set(),
+      e0: st.errors,
+      h0: st.hints,
+      actors: {},
+      castKey: null,
     };
     show('lesson');
+    $('#mission-name').textContent = `Mission ${lessonNumber(id)} · ${level.title}`;
+    setXpChip();
+    buildStage();
     renderStep();
   }
+
+  // ---------- the stage: a painted place, the people in it, and Pip ----------
+
+  function buildStage() {
+    $('#stage').innerHTML = `${Art.scene(L.level.scene || 'home')}<div class="cast" id="cast"></div>
+      <div class="pip-spot" id="pip-spot">${Art.pip('idle')}</div>
+      <div class="bubble" id="bubble" hidden><pre class="screen-out" id="screen-out"></pre></div>
+      <div class="mission-card" aria-hidden="true"><span>Chapter ${L.chapter.n} · ${esc(L.chapter.age)}</span><b>${esc(L.level.title)}</b></div>`;
+    L.actors = {};
+    L.castKey = null;
+  }
+
+  function castFor(R, speaker) {
+    let list = (R.cast || L.level.cast || []).slice();
+    if (PEOPLE.includes(speaker) && !list.includes(speaker)) list = [speaker].concat(list);
+    return list.slice(0, 2);
+  }
+
+  // People who stay on stage keep their place; newcomers walk in from the side.
+  function setCast(list) {
+    const key = list.join(',');
+    if (L.castKey === key) return;
+    L.castKey = key;
+    const pos = positions(list.length);
+    const next = {};
+    list.forEach((who, i) => {
+      const k = `${who}@${pos[i]}`;
+      if (L.actors[k]) { next[k] = L.actors[k]; return; }
+      const tmp = document.createElement('div');
+      tmp.innerHTML = actorHTML(who, pos[i]);
+      const el = tmp.firstElementChild;
+      el.classList.add('entering');
+      $('#cast').appendChild(el);
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('entering')));
+      next[k] = el;
+    });
+    Object.keys(L.actors).forEach((k) => {
+      if (next[k]) return;
+      const el = L.actors[k];
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 400);
+    });
+    L.actors = next;
+    $('#stage').dataset.cast = String(list.length);
+  }
+
+  function express(expr, who) {
+    Object.values(L.actors).forEach((el) => {
+      if (who && el.dataset.who !== who) return;
+      const svg = $('svg.actor', el);
+      if (svg) svg.dataset.expr = expr;
+    });
+  }
+
+  let calmTimer = null;
+
+  // Everyone on stage reacts; after a moment a big reaction settles down.
+  function react(expr, pipState, settle) {
+    clearTimeout(calmTimer);
+    express(expr);
+    setPip(pipState);
+    if (settle) calmTimer = setTimeout(() => { if (L) express(settle); }, 1800);
+  }
+
+  function setSpeaker(who) {
+    Object.values(L.actors).forEach((el) => {
+      const me = el.dataset.who === who;
+      el.classList.toggle('speaking', me);
+      el.classList.toggle('dim', PEOPLE.includes(who) && !me);
+    });
+    $('#pip-spot').classList.toggle('speaking', who === 'pip');
+  }
+
+  function setPip(state) {
+    const svg = $('#pip-spot svg');
+    if (svg) svg.dataset.state = state;
+  }
+
+  function sayLine(who, text) {
+    const box = $('#dialogue');
+    box.className = `dialogue ${who === 'task' ? 'is-task' : who === 'narrator' ? 'is-narrator' : 'is-' + (SPEAKER_KIND[who] || 'pip')}`;
+    const tag = $('#speaker');
+    tag.textContent = who === 'task' ? 'Your move' : nameOf(who);
+    tag.hidden = who === 'narrator';
+    const p = $('#dialogue-text');
+    p.innerHTML = fmt(text);
+    p.classList.remove('enter');
+    void p.offsetWidth;
+    p.classList.add('enter');
+    L.spoken = plain(text);
+  }
+
+  // Pip's speech bubble shows what the code printed.
+  function hideBubble() {
+    const b = $('#bubble');
+    if (!b) return;
+    b.hidden = true;
+    $('#screen-out').innerHTML = '';
+  }
+
+  function lookAtStage() {
+    const top = $('#stage').getBoundingClientRect().top;
+    const hud = $('.mission-hud').offsetHeight;
+    if (top < hud || top > window.innerHeight * 0.45) {
+      window.scrollTo({ top: Math.max(0, window.scrollY + top - hud - 8), behavior: reducedMotion() ? 'auto' : 'smooth' });
+    }
+  }
+
+  function setXpChip(gained) {
+    $('#mission-xp b').textContent = String(L.points);
+    if (gained) {
+      $('#stage').insertAdjacentHTML('beforeend', `<span class="xp-pop">+${gained} XP</span>`);
+      const pop = $('#stage .xp-pop:last-child');
+      setTimeout(() => pop.remove(), 1500);
+    }
+  }
+
+  function sparkle() {
+    if (reducedMotion()) return;
+    const bits = Array.from({ length: 9 }, (_, i) => `<i style="--a:${i * 40}deg;--d:${(i % 3) * 0.08}s"></i>`).join('');
+    $('#pip-spot').insertAdjacentHTML('beforeend', `<span class="sparkles" aria-hidden="true">${bits}</span>`);
+    const s = $('#pip-spot .sparkles:last-child');
+    setTimeout(() => s.remove(), 1200);
+  }
+
+  // ---------- steps ----------
 
   function setProgress() {
     const pct = Math.round((L.step / L.steps.length) * 100);
@@ -546,19 +791,20 @@
     $('#btn-hint').hidden = !visible;
   }
 
-  function lessonEyebrow() {
-    return L.step === 0 ? `<p class="eyebrow">Chapter ${L.chapter.n} · Lesson ${lessonNumber(L.id)}: ${esc(L.level.title)}</p>` : '';
-  }
-
   function renderStep() {
     cancelRun();
     clearFeedback();
+    clearTimeout(calmTimer);
     const st = L.steps[L.step];
     const R = L.level.rounds[st.round];
     Object.assign(L, { R, kind: st.kind, solved: false, hintIdx: 0, hintsThisStep: 0, editor: null, choice: null, tiles: null, placed: [], lastResult: null });
     setProgress();
     setHintButton(false);
-    if (st.kind === 'story') renderStory(R);
+    hideBubble();
+    if (L.step > 0) $$('#stage .mission-card').forEach((el) => el.remove());
+    const line = st.kind === 'line' ? R.say[st.line] : null;
+    setCast(castFor(R, line && line.who));
+    if (line) renderLine(R, line);
     else if (st.kind === 'explain') renderExplain(R);
     else renderTask(R);
     window.scrollTo(0, 0);
@@ -573,32 +819,26 @@
     }
   }
 
-  function speakerName(line) {
-    switch (line.who) {
-      case 'pip': return 'Pip';
-      case 'mum': return X.P.mum;
-      case 'grandma': return X.P.grandma;
-      case 'uncle': return X.P.uncle;
-      case 'friend': return X.t(line.name || 'Friend');
-      default: return '';
+  // Story lines use the big stage; explanations and tasks make room for Pip's console.
+  function setLayout(story) {
+    $('#stage').dataset.size = story ? 'story' : 'task';
+    $('.mission-main').classList.toggle('is-story', story);
+  }
+
+  function renderLine(R, line) {
+    setLayout(true);
+    $('#lesson-body').innerHTML = '';
+    express('neutral');
+    setPip(R.pip || 'idle');
+    if (PEOPLE.includes(line.who)) express('smile', line.who);
+    if (line.who === 'pip') {
+      setPip('talk');
+      const step = L.step;
+      calmTimer = setTimeout(() => { if (L && L.step === step) setPip('idle'); }, 1600);
     }
-  }
-
-  function messageHTML(line) {
-    const text = fmt(X.t(line.text));
-    if (line.who === 'narrator') return `<li class="msg msg-narrator"><p>${text}</p></li>`;
-    const name = speakerName(line);
-    return `<li class="msg">${Art.avatar(line.who, name)}<div class="msg-body"><b>${esc(name)}</b><p>${text}</p></div></li>`;
-  }
-
-  function renderStory(R) {
-    const lines = R.say.map((l) => plain(X.t(l.text)));
-    $('#lesson-body').innerHTML = `${lessonEyebrow()}
-      <div class="story-icon">${Art.icon(L.level.icon)}</div>
-      <ul class="messages">${R.say.map(messageHTML).join('')}</ul>
-      <button class="link" type="button" id="btn-listen">${Art.icon('sound')}Listen</button>`;
-    $('#btn-listen').addEventListener('click', () => { Voice.stop(); Voice.say(lines.join(' ')); });
-    if (S.settings.voice) Voice.say(lines.join(' '));
+    setSpeaker(line.who);
+    sayLine(line.who, X.t(line.text));
+    if (S.settings.voice) Voice.say(L.spoken);
     setMain('Continue', nextStep);
   }
 
@@ -615,26 +855,17 @@
   }
 
   function renderExplain(R) {
+    setLayout(false);
+    express('neutral');
+    setPip('idle');
+    setSpeaker('pip');
+    sayLine('pip', X.t(R.title));
     const texts = R.pieces.map(([text]) => X.t(text));
     const classes = pieceClasses(X.t(R.code), texts);
     const pieces = R.pieces.map(([, meaning], i) => `<div class="piece"><code class="${classes[i]}">${esc(texts[i])}</code><span>${esc(meaning)}</span></div>`).join('');
-    $('#lesson-body').innerHTML = `${lessonEyebrow()}
-      <h1 class="step-title">${esc(X.t(R.title))}</h1>
-      <div class="code-card"><div class="code-tab">${esc(L.chapter.file)}</div><div class="pieces">${pieces}</div></div>
+    $('#lesson-body').innerHTML = `<div class="code-card"><div class="code-tab">${esc(L.chapter.file)}</div><div class="pieces">${pieces}</div></div>
       <p class="step-text">${fmt(X.t(R.text))}</p>`;
     setMain('Continue', nextStep);
-  }
-
-  function screenPanel(state) {
-    return `<section class="pip-screen-panel" id="pip-screen" aria-live="polite">
-      <div class="panel-head" id="screen-head">${Art.pip(state)}<span>Pip's screen</span></div>
-      <pre class="screen-out" id="screen-out"><span class="empty">${state === 'sleep' ? 'Pip is asleep.' : 'Nothing yet.'}</span></pre>
-      <div class="jars" id="jars" hidden></div></section>`;
-  }
-
-  function setPip(state) {
-    const svg = $('#screen-head .pip');
-    if (svg) svg.dataset.state = state;
   }
 
   function keysFor(R) {
@@ -647,14 +878,18 @@
   function renderTask(R) {
     const mode = R.mode;
     const body = $('#lesson-body');
-    const task = `${lessonEyebrow()}<p class="task">${fmt(X.t(R.task || ''))}</p>`;
+    setLayout(false);
+    express('neutral');
+    setPip(R.pip || 'idle');
+    setSpeaker(null);
+    const asks = mode === 'predict' || mode === 'choice';
+    sayLine('task', `${X.t(R.task || '')}${asks ? ` ${X.t(R.question)}` : ''}`);
     const card = (inner) => `<div class="code-card"><div class="code-tab">${esc(L.chapter.file)}</div><div class="code-host" id="code-host">${inner}</div></div>`;
+    const jars = L.level.showJars ? '<div class="jars" id="jars" hidden></div>' : '';
 
     if (mode === 'choice') {
-      body.innerHTML = `${task}
-        ${R.context ? card(`<pre class="code-view">${codeHTML(X.t(R.context))}</pre>`) : ''}
-        <p class="question" id="q">${esc(X.t(R.question))}</p>
-        <div class="options" role="radiogroup" aria-labelledby="q">${R.options.map((o, i) => choiceButton(i, false,
+      body.innerHTML = `${R.context ? card(`<pre class="code-view">${codeHTML(X.t(R.context))}</pre>`) : ''}
+        <div class="options" role="radiogroup" aria-labelledby="dialogue-text">${R.options.map((o, i) => choiceButton(i, false,
           o.code ? `<code>${codeHTML(X.t(o.code))}</code><span class="mark"></span>` : `<span class="choice-text"><b>${esc(X.t(o.text))}</b></span><span class="mark"></span>`)).join('')}</div>`;
       $$('.options .choice', body).forEach((b) => b.classList.add('option'));
       setMain('Check', checkChoice, true);
@@ -662,26 +897,21 @@
     }
 
     if (mode === 'predict') {
-      body.innerHTML = `${task}
-        ${card(`<pre class="code-view">${codeHTML(X.t(R.code))}</pre>`)}
-        <p class="question" id="q">${esc(X.t(R.question))}</p>
-        <div class="options" role="radiogroup" aria-labelledby="q">${R.options.map((o, i) => choiceButton(i, false,
-          `<span class="screen-lines">${C.optionLines(o).map((l) => esc(X.t(l))).join('\n')}</span><span class="mark"></span>`)).join('')}</div>
-        <div id="screen-slot"></div>`;
+      body.innerHTML = `${card(`<pre class="code-view">${codeHTML(X.t(R.code))}</pre>`)}
+        <div class="options" role="radiogroup" aria-labelledby="dialogue-text">${R.options.map((o, i) => choiceButton(i, false,
+          `<span class="screen-lines">${C.optionLines(o).map((l) => esc(X.t(l))).join('\n')}</span><span class="mark"></span>`)).join('')}</div>${jars}`;
       $$('.options .choice', body).forEach((b) => b.classList.add('option'));
       setMain('Check', checkPredict, true);
       return;
     }
 
     const typing = ['fix', 'guided', 'free'].includes(mode);
-    body.innerHTML = `${task}
-      ${card('')}
+    body.innerHTML = `${card('')}
       ${mode === 'build' ? '<div class="tray" id="tray" aria-label="Pieces"></div>' : ''}
       ${typing ? `<div class="keys" id="keys">${keysFor(R).map((k) => (k === 'indent'
         ? '<button type="button" class="word" data-key="indent">push in ⇥</button>'
         : `<button type="button" data-key="${esc(k)}" aria-label="Type ${esc(k)}">${esc(k)}</button>`)).join('')}</div>` : ''}
-      <div class="plain"><span class="plain-label">In plain words</span><ol id="plain-list"></ol></div>
-      ${screenPanel(R.pip || 'idle')}`;
+      <div class="plain"><span class="plain-label">In plain words</span><ol id="plain-list"></ol></div>${jars}`;
 
     const host = $('#code-host');
     if (mode === 'watch') {
@@ -844,7 +1074,7 @@
     }
   }
 
-  // ---------- plain words and Pip's screen ----------
+  // ---------- plain words, Pip's jars and Pip's speech bubble ----------
 
   let transTimer = null;
   function scheduleTranslation() {
@@ -865,19 +1095,26 @@
     list.innerHTML = items || `<li>${L.R.mode === 'build' ? 'Build the line to see what it means.' : 'Start typing to see what your code means.'}</li>`;
   }
 
+  const jarValue = (v) => (Array.isArray(v) ? JSON.stringify(v) : String(v));
+
   function showJars(r) {
     const box = $('#jars');
     if (!box || !L.level.showJars) return;
     const names = Object.keys(r.vars);
     box.hidden = !names.length;
     box.innerHTML = names.length
-      ? `<span class="jars-label">Pip's jars</span>${names.map((n) => `<span class="jar"><b>${esc(n)}</b><span>${esc(Array.isArray(r.vars[n]) ? JSON.stringify(r.vars[n]) : String(r.vars[n]))}</span></span>`).join('')}`
+      ? `<span class="jars-label">Pip's jars</span>${names.map((n) => `<div class="jar"><div class="jar-glass"><span>${esc(jarValue(r.vars[n]))}</span></div><b>${esc(n)}</b></div>`).join('')}`
       : '';
   }
 
   async function playOutput(r) {
+    const bubble = $('#bubble');
     const out = $('#screen-out');
+    bubble.hidden = false;
+    bubble.classList.remove('is-error');
     out.innerHTML = '';
+    lookAtStage();
+    setPip('talk');
     const token = runToken;
     const per = reducedMotion() ? 30 : r.lines.length > 12 ? 120 : 320;
     for (let i = 0; i < r.lines.length && i < 400; i++) {
@@ -887,8 +1124,13 @@
       await wait(per);
     }
     if (token !== runToken) return false;
-    if (r.error) out.insertAdjacentHTML('beforeend', `<span class="err">Pip got stuck${r.error.line ? ` on line ${r.error.line}` : ''}.</span>`);
-    else if (!r.lines.length) out.innerHTML = '<span class="empty">Pip didn\'t show anything.</span>';
+    if (r.error) {
+      bubble.classList.add('is-error');
+      out.insertAdjacentHTML('beforeend', `<span class="err">Pip got stuck${r.error.line ? ` on line ${r.error.line}` : ''}.</span>`);
+      out.scrollTop = out.scrollHeight;
+    } else if (!r.lines.length) {
+      out.innerHTML = '<span class="empty">Pip didn\'t show anything.</span>';
+    }
     return true;
   }
 
@@ -917,7 +1159,8 @@
     clearFeedback();
     $('#btn-main').disabled = true;
     if (L.editor) L.editor.setError(null);
-    setPip('idle');
+    clearTimeout(calmTimer);
+    express('neutral');
     const finished = await playOutput(r);
     if (!finished) return;
     L.running = false;
@@ -932,7 +1175,7 @@
       st.errors++;
       persist();
       const rx = reaction(r.error);
-      setPip(rx.pip);
+      react('worried', rx.pip);
       Sound.play('bad');
       if (L.editor) L.editor.setError(r.error.line);
       else $$('#code-host .ln').forEach((el, i) => el.classList.toggle('is-error', r.error.line === i + 1));
@@ -945,7 +1188,7 @@
     if (!res.ok) {
       st.errors++;
       persist();
-      setPip('confused');
+      react('worried', 'confused');
       Sound.play('bad');
       feedback({ kind: 'bad', pip: 'confused', title: 'Not quite', text: X.t(res.msg || 'That isn\'t what Pip needed.') });
       setMain('Try again', retry);
@@ -958,6 +1201,7 @@
   function retry() {
     clearFeedback();
     restoreRunButton();
+    react('neutral', 'idle');
     if (L.editor) L.editor.focus();
     else {
       const slot = $('#slot-0');
@@ -974,12 +1218,13 @@
   }
 
   function award() {
-    // Points only the first time a step is solved.
+    // XP only the first time a step is solved.
     if (L.awarded.has(L.step)) return 0;
     L.awarded.add(L.step);
     const pts = 10 + (L.hintsThisStep ? 0 : 5);
     S.points += pts;
     L.points += pts;
+    setXpChip(pts);
     return pts;
   }
 
@@ -992,7 +1237,8 @@
       if (!S.rules.includes(text)) S.rules.push(text);
     }
     persist();
-    setPip('happy');
+    react('happy', 'happy', 'smile');
+    sparkle();
     Sound.play('good');
     feedback({
       kind: 'good',
@@ -1041,9 +1287,10 @@
     stat(L.id).errors++;
     persist();
     lockOptions(null, pick);
+    react('worried', 'confused');
     Sound.play('bad');
     feedback({ kind: 'bad', pip: 'confused', title: 'Not quite', text: X.t(R.why[pick]) });
-    setMain('Try again', () => { clearFeedback(); unlockOptions(); restoreRunButton(); });
+    setMain('Try again', () => { clearFeedback(); unlockOptions(); restoreRunButton(); react('neutral', 'idle'); });
   }
 
   async function checkPredict() {
@@ -1056,7 +1303,6 @@
     runToken++;
     $('#btn-main').disabled = true;
     lockOptions(null, null);
-    $('#screen-slot').innerHTML = screenPanel('idle');
     const r = Py.run(X.t(R.code));
     const finished = await playOutput(r);
     if (!finished) return;
@@ -1070,7 +1316,7 @@
     st.errors++;
     persist();
     lockOptions(R.answer, pick);
-    setPip('confused');
+    react('surprised', 'confused', 'neutral');
     Sound.play('bad');
     feedback({ kind: 'bad', pip: 'confused', title: 'Not quite, but now you know', text: X.t(R.why[pick]) });
     setMain('Continue', nextStep);
@@ -1121,16 +1367,12 @@
     bar.classList.remove('good', 'bad', 'hint');
     bar.classList.add(f.kind);
     const box = $('#feedback');
-    box.innerHTML = `<div class="fb-row">${f.pip ? Art.pip(f.pip) : ''}<div><h3>${fmt(f.title)}</h3>${f.text ? `<p>${fmt(f.text)}</p>` : ''}</div></div>
+    box.innerHTML = `<div class="fb-row">${f.pip ? `<span class="fb-pip">${Art.pip(f.pip)}</span>` : ''}<div><h3>${fmt(f.title)}</h3>${f.text ? `<p>${fmt(f.text)}</p>` : ''}</div></div>
       ${f.err ? `<p class="py-msg"><span>What Python says</span><code>${esc(f.err.text)}</code></p>` : ''}
       ${f.learn ? `<div class="learn"><span class="learn-label">Remember</span><p>${fmt(f.learn.text)}</p></div>` : ''}
       ${f.html || ''}`;
     box.hidden = false;
-    if (f.kind === 'good' || f.kind === 'bad') {
-      $('#btn-main').focus({ preventScroll: true });
-      const panel = $('#pip-screen');
-      if (panel) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' });
-    }
+    if (f.kind === 'good' || f.kind === 'bad') $('#btn-main').focus({ preventScroll: true });
   }
 
   function clearFeedback() {
@@ -1325,7 +1567,8 @@
     return order[order.indexOf(id) + 1] || null;
   }
 
-  function doneScreen(body, buttons) {
+  function doneScreen(scene, body, buttons) {
+    $('#done-scene').innerHTML = Art.scene(scene);
     $('#done-body').innerHTML = body;
     $('#done-buttons').innerHTML = buttons.map((b, i) => `<button class="btn ${b.primary ? 'primary' : 'quiet'}" type="button" data-done="${i}">${esc(b.label)}</button>`).join('');
     $$('[data-done]').forEach((el) => el.addEventListener('click', () => buttons[Number(el.dataset.done)].action()));
@@ -1340,43 +1583,58 @@
     st.ms += Date.now() - L.t0;
     st.done = true;
     S.done[id] = true;
+    const stars = starsFor(st.errors - L.e0, st.hints - L.h0);
+    S.stars[id] = Math.max(S.stars[id] || 0, stars);
     bumpStreak();
     persist();
     Sound.play('done');
     const ch = L.chapter;
     const next = nextLevelAfter(id);
-    const pills = `<div class="done-stats"><span class="stat-pill">${Art.icon('star')}+${L.points} points</span>${S.streak.count ? `<span class="stat-pill">${Art.icon('flame')}${S.streak.count}-day streak</span>` : ''}</div>`;
+    const before = levelOf(S.points - L.points);
+    const after = levelOf(S.points);
+    const up = after.level > before.level;
+    const card = `<div class="done-card">
+        <p class="eyebrow">Mission complete</p>
+        <h1>${esc(L.level.title)}</h1>
+        ${starsHTML(stars, 'big')}
+        ${polaroid(id)}
+        <div class="xp-line">
+          <span class="lv-badge">${after.level}</span>
+          <div class="xp-meta"><span>${up ? `Level up! You reached level ${after.level}` : `Level ${after.level}`}</span>
+            <div class="xpbar"><span style="width:${after.pct}%;--from:${up ? 0 : before.pct}%"></span></div></div>
+          <b class="xp-gain">+${L.points} XP</b>
+        </div>
+        ${S.streak.count > 1 ? `<p class="streak">${Art.icon('flame')}${S.streak.count}-day streak</p>` : ''}
+      </div>`;
     if (ch.levels[ch.levels.length - 1] === id) {
       if (!S.badges.includes(ch.badge)) S.badges.push(ch.badge);
       persist();
       const words = C.NOTEBOOK.filter((w) => w.chapter === ch.id)
         .map((w) => `<li><code>${esc(w.word)}</code> · programmers call this <b>${esc(w.jargon)}</b></li>`).join('');
-      doneScreen(`<div class="done-badge chapter">${ch.n}</div>
-        <p class="eyebrow">Chapter ${ch.n} complete · Badge: ${esc(ch.badge)}</p>
-        <h1>${esc(ch.reveal.title)}</h1>
-        <p class="lede">${esc(ch.reveal.text)}</p>${pills}
-        <p class="muted">The things you've been using have real names:</p>
-        <ul class="words">${words}</ul>`,
+      doneScreen(L.level.scene, `${card}<div class="done-card chapter-card">
+          <p class="eyebrow">Chapter ${ch.n} complete · Badge: ${esc(ch.badge)}</p>
+          <h2>${esc(ch.reveal.title)}</h2>
+          <p>${esc(ch.reveal.text)}</p>
+          <p class="muted">The things you've been using have real names:</p>
+          <ul class="words">${words}</ul></div>`,
       next
-        ? [{ label: 'Home', action: openHome }, { label: `Start chapter ${ch.n + 1}`, primary: true, action: () => startLesson(next) }]
+        ? [{ label: 'Map', action: openHome }, { label: `Start chapter ${ch.n + 1}`, primary: true, action: () => startLesson(next) }]
         : [{ label: 'Continue', primary: true, action: endOfPrototype }]);
       return;
     }
-    doneScreen(`<div class="done-badge">${Art.icon('check')}</div>
-      <h1>Lesson complete</h1>
-      <p class="lede">${esc(L.level.title)}</p>${pills}`,
-    [{ label: 'Home', action: openHome }, { label: 'Next lesson', primary: true, action: () => startLesson(next) }]);
+    doneScreen(L.level.scene, card, [{ label: 'Map', action: openHome }, { label: 'Next mission', primary: true, action: () => startLesson(next) }]);
   }
 
   function endOfPrototype() {
     const options = C.STORIES.filter((s) => !s.ready).map((s) => choiceButton(s.id, !!S.votes[s.id],
       `${Art.icon(s.icon)}<span class="choice-text"><b>${esc(s.title)}</b></span>`)).join('');
-    doneScreen(`<div class="hero-pip">${Art.pip('happy')}</div>
-      <h1>You finished this early version</h1>
-      <p class="lede">Chapter 3, Primary School, is next. Which story should we build after that?</p>
-      <div class="vote-row" id="vote-row">${options}</div>
-      <div class="end-notes"><label class="field-label" for="end-notes">What was the hardest part?</label>
-      <textarea id="end-notes" class="text-input" rows="3" placeholder="Anything that confused you">${esc(S.notes || '')}</textarea></div>`,
+    doneScreen('park', `<div class="done-card">
+        <div class="title-pip">${Art.pip('happy')}</div>
+        <h1>You finished this early version</h1>
+        <p class="lede">Chapter 3, Primary School, is next. Which story should we build after that?</p>
+        <div class="vote-row" id="vote-row">${options}</div>
+        <div class="end-notes"><label class="field-label" for="end-notes">What was the hardest part?</label>
+        <textarea id="end-notes" class="text-input" rows="3" placeholder="Anything that confused you">${esc(S.notes || '')}</textarea></div></div>`,
     [{ label: 'Done', primary: true, action: () => { S.notes = $('#end-notes').value.slice(0, 1000); persist(); openHome(); } }]);
     $$('#vote-row .choice').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.value;
@@ -1386,6 +1644,16 @@
       persist();
       Sound.play('tap');
     }));
+  }
+
+  // ---------- memories ----------
+
+  function renderAlbum() {
+    $('#album-list').innerHTML = allLevels().map((id, i) => {
+      const ch = chapterOf(id);
+      if (S.done[id]) return `<div class="album-item">${polaroid(id, i % 2 ? 1.2 : -1.2)}<span class="album-meta">Chapter ${ch.n} · ${esc(ch.age)}</span></div>`;
+      return `<div class="album-item"><div class="photo-blank">${Art.icon('lock')}<span>${esc(C.LEVELS[id].title)}</span></div><span class="album-meta">Chapter ${ch.n} · ${esc(ch.age)}</span></div>`;
+    }).join('');
   }
 
   // ---------- notebook ----------
@@ -1424,7 +1692,7 @@
     L = null;
     draft.name = '';
     draft.pack = null;
-    $('#hero-pip').innerHTML = Art.pip('happy');
+    renderTitle();
     show('welcome');
   }
 
@@ -1439,16 +1707,16 @@
     return allLevels().map((id) => {
       const st = S.stats[id] || {};
       const ch = chapterOf(id);
-      return { n: `${ch.n}.${lessonNumber(id)}`, title: C.LEVELS[id].title, time: st.ms ? fmtTime(st.ms) : '–', runs: st.runs || 0, errors: st.errors || 0, hints: st.hints || 0, asked: st.asked || 0, done: !!S.done[id] };
+      return { n: `${ch.n}.${lessonNumber(id)}`, title: C.LEVELS[id].title, time: st.ms ? fmtTime(st.ms) : '–', runs: st.runs || 0, errors: st.errors || 0, hints: st.hints || 0, asked: st.asked || 0, done: !!S.done[id], stars: S.stars[id] || 0 };
     });
   }
 
   function renderResults() {
     const rows = resultsRows();
     $('#results-who').textContent = S.profile ? `${S.profile.name} · ${C.PACKS[S.profile.pack].label}` : 'No player yet';
-    $('#results-body').innerHTML = rows.map((r) => `<tr class="${r.done ? '' : 'not-done'}"><th scope="row">${r.n} ${esc(r.title)}</th><td>${r.time}</td><td>${r.runs}</td><td>${r.errors}</td><td>${r.hints}</td><td>${r.done ? 'Yes' : 'No'}</td></tr>`).join('');
+    $('#results-body').innerHTML = rows.map((r) => `<tr class="${r.done ? '' : 'not-done'}"><th scope="row">${r.n} ${esc(r.title)}</th><td>${r.time}</td><td>${r.runs}</td><td>${r.errors}</td><td>${r.hints}</td><td>${r.done ? r.stars : '–'}</td></tr>`).join('');
     const stuck = rows.filter((r) => r.errors >= 3 || r.hints >= 2).map((r) => `${r.n} ${r.title}`);
-    $('#results-stuck').textContent = stuck.length ? `Watch these lessons: ${stuck.join(', ')}.` : 'No lesson has caused much trouble so far.';
+    $('#results-stuck').textContent = stuck.length ? `Watch these missions: ${stuck.join(', ')}.` : 'No mission has caused much trouble so far.';
     $('#results-votes').textContent = C.STORIES.filter((s) => S.votes[s.id]).map((s) => s.title).join(', ') || 'None picked yet';
     $('#results-notes').value = S.notes || '';
     $('#copy-status').textContent = '';
@@ -1461,8 +1729,8 @@
       'Life.py playtest results',
       `Player: ${S.profile ? S.profile.name : '-'} · Hometown: ${S.profile ? C.PACKS[S.profile.pack].label : '-'} · ${new Date().toLocaleDateString()}`,
       '',
-      'Lesson | Time | Tries | Mistakes | Hints | Asked Pip | Finished',
-      ...rows.map((r) => `${r.n} ${r.title} | ${r.time} | ${r.runs} | ${r.errors} | ${r.hints} | ${r.asked} | ${r.done ? 'yes' : 'no'}`),
+      'Mission | Time | Tries | Mistakes | Hints | Asked Pip | Stars',
+      ...rows.map((r) => `${r.n} ${r.title} | ${r.time} | ${r.runs} | ${r.errors} | ${r.hints} | ${r.asked} | ${r.done ? r.stars : 'not finished'}`),
       '',
       `Stories they want next: ${C.STORIES.filter((s) => S.votes[s.id]).map((s) => s.title).join(', ') || 'none'}`,
       `Hardest part, in their words: ${S.notes || '(not filled in)'}`,
@@ -1494,13 +1762,19 @@
       if (goBtn) { go(goBtn.dataset.go); return; }
       const start = e.target.closest('[data-start]');
       if (start && !start.disabled) { startLesson(start.dataset.start); return; }
+      const node = e.target.closest('[data-mission]');
+      if (node && !node.disabled) { openSheet(node.dataset.mission); return; }
+      if (e.target.closest('[data-close-sheet], #sheet-shade')) { closeSheet(); return; }
       const opt = e.target.closest('.options .choice');
       if (opt && !opt.disabled && L) {
         selectIn(opt.parentElement, opt);
         L.choice = Number(opt.dataset.value);
         clearFeedback();
         restoreRunButton();
+        return;
       }
+      // Tapping the stage or the dialogue moves the story on, like a visual novel.
+      if (L && currentScreen === 'lesson' && L.kind === 'line' && e.target.closest('#stage, #dialogue') && !e.target.closest('button')) mainAction();
     });
 
     $('#welcome-start').addEventListener('click', () => go('name'));
@@ -1523,11 +1797,13 @@
     $('#story-next').addEventListener('click', finishOnboarding);
 
     $('#btn-settings').addEventListener('click', () => go('settings'));
+    $('#btn-album').addEventListener('click', () => go('album'));
     $('#btn-notebook').addEventListener('click', () => { renderNotebook(); show('notebook'); });
 
     $('#lesson-close').addEventListener('click', leaveLesson);
     $('#btn-main').addEventListener('click', mainAction);
     $('#btn-hint').addEventListener('click', showHint);
+    $('#btn-listen').addEventListener('click', () => { Voice.stop(); if (L && L.spoken) Voice.say(L.spoken); });
 
     $('#set-sound').addEventListener('change', (e) => { S.settings.sound = e.target.checked; persist(); Sound.play('tap'); });
     $('#set-voice').addEventListener('change', (e) => { S.settings.voice = e.target.checked; if (!e.target.checked) Voice.stop(); persist(); });
@@ -1547,6 +1823,7 @@
     $('#reset-yes').addEventListener('click', resetAll);
 
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('#sheet').hidden) { closeSheet(); return; }
       // The editor handles its own Ctrl+Enter and marks the event as handled.
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && currentScreen === 'lesson' && !e.defaultPrevented) {
         e.preventDefault();
@@ -1556,8 +1833,10 @@
   }
 
   function boot() {
+    // The map scrolls to your next mission; don't let a reload put the page back at the top.
+    try { history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }
     wire();
-    $('#hero-pip').innerHTML = Art.pip('happy');
+    fillScenes(document);
     openHome();
   }
 

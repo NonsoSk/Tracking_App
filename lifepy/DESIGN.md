@@ -12,25 +12,28 @@ building it. Anyone adding content (a person or an AI agent) should follow this.
 Players don't "study". They live a life, and Python is how they get things done
 in it. Nobody needs to know what Python is when they start.
 
-## Rules every lesson follows
+## Rules every mission follows
 
-1. **One thing at a time.** Each screen has one job and one main button at the
-   bottom. Story screens and task screens are separate. Feedback appears in the
+1. **It's a game, not a quiz.** Every lesson is a mission in a place, with
+   people who talk, react and remember. Tasks are "your move" in the story, and
+   finishing one earns XP, stars and a memory for the album.
+2. **One thing at a time.** Each step has one job (a story line, an explanation
+   or one task) and one main button at the bottom. Feedback appears in the
    bottom bar, never as a pop-up.
-2. **Nobody types anything they haven't first seen, predicted and built.**
+3. **Nobody types anything they haven't first seen, predicted and built.**
    Each new idea climbs the ladder: explain → watch → "what will Pip show?" →
    "which one works?" → change → build → fix → type with help → type alone.
-3. **Problems come before concepts.** A script for one customer breaks when 60
+4. **Problems come before concepts.** A script for one customer breaks when 60
    arrive, so the loop shows up as a superpower, not homework.
-4. **Real Python only.** Solutions are plain Python on everyday data (names,
+5. **Real Python only.** Solutions are plain Python on everyday data (names,
    sweets, guests, prices). Avoid game-only commands like `hero.move()`; those
    skills don't carry over to VS Code.
-5. **Mistakes are explained, not punished.** A short plain title ("A quote mark
+6. **Mistakes are explained, not punished.** A short plain title ("A quote mark
    is missing"), one sentence on how to fix it, and the real Python error message
    underneath. Wrong multiple-choice answers say why they're wrong.
-6. **Doing first, naming later.** Jargon ("string", "function", "variable")
+7. **Doing first, naming later.** Jargon ("string", "function", "variable")
    appears only after a chapter, once the player has used the thing many times.
-7. **Short and calm.** Lessons take 3–5 minutes and keep sentences short. Code
+8. **Short and calm.** Lessons take 3–5 minutes and keep sentences short. Code
    inside sentences is always shown in code font.
 
 ## The four storylines
@@ -84,16 +87,23 @@ CSV files, pandas, charts).
 
 ## Characters in the prototype
 
-- **Pip** — a small blue screen with a yellow face (a nod to Python's colours;
-  named after `pip`). Faces: idle, asleep, happy, oops, confused.
-- **Mum, Grandma, an uncle, a cousin, friends** — they appear as their initial in
-  a soft colour, speaking in chat bubbles. Names, family words and food come from
-  the hometown pack.
+- **Pip** — a small, glossy blue robot with a glowing yellow face (a nod to
+  Python's colours; named after `pip`). It floats, talks while it prints, hops
+  when you succeed and wobbles when it gets stuck. Faces: idle, asleep, talking,
+  happy, oops, confused.
+- **Mum, Grandma, an uncle, a cousin and three friends** — shaded, near-real
+  portraits drawn from a small description (age, skin tone, hair style and
+  colour, eye colour, clothes, glasses, beard, earrings, face shape). They
+  breathe, blink, look towards Pip, and switch between five expressions:
+  neutral, smiling, laughing, surprised and worried. Each hometown pack has its
+  own family: in West Africa, Mummy wears a gele and Uncle Tunde has a beard; in
+  the UK & US pack one friend has red curls and another has short coily hair.
+  Families are mixed on purpose: the world is mixed.
 
 ## Hometown packs
 
 Universal skeleton, local skin. A pack changes names, family words, food,
-playground games and skin tones. The Python never changes.
+playground games and how the family looks. The Python never changes.
 
 | | West Africa | South Asia | Latin America | UK & US |
 |---|---|---|---|---|
@@ -105,18 +115,40 @@ Next packs: East Africa, East Asia, the Middle East. Partner with local writers.
 
 ## Look and feel
 
-Calm and grown-up, not cartoonish. Playtesters found the first version (busy
-illustrated scenes, thick outlines, many panels at once) hard to follow.
+A game world that is pleasant to be in but never competes with the lesson.
 
-- **One column**, lots of space, one main button at the bottom.
+- History: the first version (busy cartoon scenes, many panels at once) was too
+  much for beginners; the second (one calm column) was easy but felt like a
+  question-and-answer session. This version keeps the second one's simplicity
+  and puts it inside a game.
+- **Places** are painted, then softly blurred and muted with a gentle vignette,
+  like a photo with a shallow depth of field: the living room on your birthday,
+  Grandma's kitchen with its jars, the park at golden hour.
+- **Characters** are semi-realistic and sharp, so they stand out from the
+  blurred places. Only the people in the current moment are on stage (one or
+  two plus Pip), and the speaker steps forward while the others dim slightly.
+- **Interface:** a frosted-glass dialogue box with the speaker's name, a small
+  mission bar at the top (map button, progress, XP), and one main button at the
+  bottom. On wide screens the stage stays on the left and Pip's console sits on
+  the right.
 - **Type:** Lexend for everything you read (designed to make reading easier),
   JetBrains Mono for code.
-- **Colour:** a soft grey-green background, one blue accent for actions, green
-  for success, orange for mistakes and hints. The code area is dark, like a real
-  editor, with a file name (`birthday.py`, `playground.py`). Later chapters add
-  VS Code features until the final chapter is VS Code itself.
-- **Pictures:** simple line icons on story screens instead of illustrated scenes.
-- Light and dark themes, works at phone width, respects reduced motion.
+- **Colour:** warm, muted places; one blue accent for actions, gold for XP and
+  stars, green for success, orange for mistakes and hints. The code area is
+  dark, like a real editor, with a file name (`birthday.py`, `playground.py`).
+  Later chapters add VS Code features until the final chapter is VS Code itself.
+- Light and dark themes, works at phone width, respects reduced motion (no
+  blinking, floating or sparkles).
+
+## Rewards
+
+- **XP:** 15 for each solved step, 10 if you used a hint. Every 100 XP is a new
+  player level.
+- **Stars:** 3 for a clean mission (no hints and at most one mistake), 2 for
+  a few mistakes or one or two hints, 1 otherwise. The best result is kept.
+- **Memories:** each mission adds a polaroid of its moment ("Your 5th birthday.
+  Pip woke up and said its first word.") to the album.
+- **Chapters** end with a badge and the reveal of the real programming names.
 
 ## Ask Pip (AI helper)
 
@@ -127,7 +159,10 @@ still work.
 
 ## Adding a level
 
-1. Add an entry to `LEVELS` in `src/content.js` and its id to a chapter.
+1. Add an entry to `LEVELS` in `src/content.js` and its id to a chapter. Give
+   it a `scene` (`home`, `kitchen`, `park`), a `cast` of one or two people
+   (`mum`, `grandma`, `uncle`, `cousin`, `f1`–`f3`) and a `memory` caption. A
+   round can set its own `cast` when someone new arrives.
 2. Pick the ladder step for each round (`explain`, `watch`, `predict`, `choice`,
    `change`, `build`, `fix`, `guided`, `free`). Write at most two story lines
    (`say`), a short `task`, and for typing steps a `check(result, x)` that

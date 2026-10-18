@@ -5,8 +5,9 @@ You live a life with Pip, a little robot that only understands Python. Everythin
 you teach Pip is real Python, and Python's own error messages are explained in
 plain words.
 
-This folder is a playable prototype: onboarding, the Growing Up storyline's
-first two chapters (13 lessons of about 3–5 minutes each), four hometown packs,
+This folder is a playable prototype: a title screen, a world map, the Growing
+Up storyline's first two chapters (13 missions of about 3–5 minutes each), four
+hometown packs, each with its own family and friends, a photo album of memories,
 Pip's notebook and a results page for playtests.
 
 ## Play it
@@ -17,18 +18,29 @@ Pip's notebook and a results page for playtests.
   It is one self-contained file: send it over WhatsApp or email, or copy it to
   a phone, and it plays offline. Progress is saved in that browser.
 
-## How a beginner moves through it
+## How it plays
 
-- **First visit:** one question per screen: your name, where you grew up, which
-  story. Then the first lesson starts.
-- **Home:** one big button to continue, plus the list of lessons.
-- **A lesson:** one screen at a time, a progress bar at the top and one main
-  button at the bottom (Continue, Run or Check). Feedback slides up in that bar:
-  green when it worked, orange with Pip's explanation when it didn't.
+- **First visit:** Pip asks your name, you pick where you grew up (each choice
+  shows your mum from there) and choose a story. The first mission starts
+  straight away.
+- **The world map:** a path through your life. Finished missions show their
+  stars, the next one glows with Pip standing on it, and later chapters wait in
+  the fog. One **Play** button at the bottom always takes you to the next
+  mission; tap any finished mission to replay it.
+- **A mission:** a softly painted place (the living room, Grandma's kitchen, the
+  park) with the people in the story and Pip. The story plays one line at a
+  time in a dialogue box; tap to continue. When it's **your move**, the stage
+  makes room for Pip's console below it (on wide screens it sits beside it).
+  Pip says what your code printed in a speech bubble, the characters smile,
+  laugh or look worried, and feedback slides up in the bottom bar: green when it
+  worked, orange with Pip's explanation when it didn't.
+- **Rewards:** XP for every solved step (more without hints), player levels,
+  1–3 stars per mission, a polaroid **memory** for every mission in the
+  album, a badge and the "real names" reveal at the end of each chapter.
 
 ## What's in the prototype
 
-| Chapter | Lessons | What players learn without being told |
+| Chapter | Missions | What players learn without being told |
 |---|---|---|
 | 1. First Words (age 5) | A present for you, Say my name, The pieces of a line, Bug hunt, Guests at the door, Party time | `print`, quote marks, brackets, reading errors, typing a line from memory |
 | 2. The Playground (age 6) | Pip's jars, Jar mix-ups, More sweets, Share fairly, Hide and seek, Loop bugs, Skip and clap | variables, `+` and `-`, `//` and `%`, `for` loops, `range`, indentation |
@@ -69,13 +81,13 @@ Other things that help complete beginners:
 1. Give each tester the link or the file. Don't explain anything about coding.
 2. Sit beside them and **don't help**. Note where they pause, frown or ask.
 3. When they finish (or after 30 minutes), open **Settings → See playtest
-   results**. It shows time, tries, mistakes and hints for every lesson, the
-   stories they want next and what they found hardest.
+   results**. It shows time, tries, mistakes, hints and stars for every mission,
+   the stories they want next and what they found hardest.
 4. Press **Copy results** and paste them into a message to yourself.
 5. In Settings, press **Start over for a new player** before handing the device
    to the next tester.
 
-What to look for: lessons with many mistakes or hints are where the design needs
+What to look for: missions with many mistakes or hints are where the design needs
 work. The goal is that a tester can type a `print` line from memory by the end
 of Chapter 1, and write a small loop by the end of Chapter 2.
 
@@ -86,9 +98,9 @@ The game is plain HTML, CSS and JavaScript with no build dependencies.
 | File | What it does |
 |---|---|
 | `src/python.js` | PyMini, a small Python interpreter for the beginner subset. It reports errors with exactly the same wording as CPython 3.13 and translates code into plain words. |
-| `src/content.js` | Storylines, hometown packs, chapters, lessons, checks and the notebook. Adding a lesson means adding data here. |
-| `src/art.js` | Pip's face, line icons and avatars, as inline SVG. |
-| `src/game.js` | Onboarding, home, lesson screens, the code editor, tiles, running code, explanations, hints, progress, results and the Ask Pip helper. |
+| `src/content.js` | Storylines, hometown packs (names, food, how each family looks), chapters, missions (place, cast, memory, rounds and checks) and the notebook. Adding a mission means adding data here. |
+| `src/art.js` | Lifelike character portraits (shaded skin, hair styles, blinking, five expressions), Pip, the painted places, the world map and icons. All inline SVG, so the game works offline. |
+| `src/game.js` | Title screen, world map, missions (stage, dialogue, Pip's console), the code editor, tiles, running code, reactions, hints, XP and stars, memories, results and the Ask Pip helper. |
 | `src/style.css`, `src/page.html` | Look and layout. |
 | `build.mjs` | Bundles everything into `dist/lifepy.html` (standalone) and `dist/artifact.html` (for claude.ai). |
 
@@ -102,7 +114,7 @@ learned that yet" rather than guessed.
 
 ```bash
 node lifepy/build.mjs                          # build dist/
-node --test lifepy/tests/*.test.mjs            # interpreter vs CPython, and every lesson's answers
+node --test lifepy/tests/*.test.mjs            # interpreter vs CPython, and every mission's answers
 node lifepy/tests/playthrough.mjs [shots-dir]  # plays the whole game in Chromium, saves screenshots
 ```
 

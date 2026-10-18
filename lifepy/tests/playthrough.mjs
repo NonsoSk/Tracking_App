@@ -1,5 +1,6 @@
 // Plays the whole prototype in a real browser the way a beginner would:
-// onboarding one question at a time, then every lesson screen by screen,
+// onboarding one question at a time, then every mission step by step (story
+// lines one tap at a time),
 // tapping tiles, typing line by line, running broken code before fixing it,
 // and getting some multiple-choice answers wrong first.
 // Fails on any console error. Saves screenshots for review.
@@ -41,6 +42,10 @@ async function newPage(opts) {
 
 const shot = (page, name) => page.screenshot({ path: join(shots, `${name}.png`) });
 const main = (page) => page.click('#btn-main');
+// Taps through story lines until the next task.
+async function skipStory(page) {
+  while (await page.evaluate(() => LifePyGame.lesson.kind === 'line')) await main(page);
+}
 const waitBar = (page, kind) => page.locator(`#lesson-bar.${kind}`).waitFor({ timeout: 30000 });
 
 async function typeLikeABeginner(page, text) {
@@ -172,6 +177,14 @@ async function fullPlaythrough(viewport, label, colorScheme, packIndex) {
   await shot(page, `${label}-91-home-finished`);
   const state = await page.evaluate(() => LifePyGame.state);
   if (Object.keys(state.done).length !== order.length) problems.push(`${label}: finished ${Object.keys(state.done).length} of ${order.length} lessons`);
+  await page.click('#btn-album');
+  await page.waitForSelector('#screen-album:not([hidden])');
+  await shot(page, `${label}-92-album`);
+  await page.click('#screen-album [data-go="home"]');
+  await page.click('.node.done');
+  await page.waitForSelector('#sheet:not([hidden])');
+  await shot(page, `${label}-92-sheet`);
+  await page.click('[data-close-sheet]');
   await page.click('#btn-notebook');
   await shot(page, `${label}-92-notebook`);
   await page.click('#screen-notebook [data-go="home"]');
@@ -195,7 +208,7 @@ async function spotChecks() {
 
   // Hints: two hints, then the answer, then "put it in for me".
   await page.evaluate(() => LifePyGame.startLesson('c1l6'));
-  await page.click('#btn-main'); // story
+  await skipStory(page);
   await page.click('#btn-hint');
   await page.waitForSelector('#lesson-bar.hint');
   await page.click('#fb-more');
@@ -209,7 +222,7 @@ async function spotChecks() {
 
   // A wrong prediction shows the right answer and moves on.
   await page.evaluate(() => LifePyGame.startLesson('c2l5'));
-  await page.click('#btn-main'); // story
+  await skipStory(page);
   await page.click('#btn-main'); // run the count
   await page.waitForSelector('#lesson-bar.good');
   await page.click('#btn-main');
@@ -220,7 +233,7 @@ async function spotChecks() {
 
   // The off-by-one message when counting to 20 with range(1, 20).
   await page.click('#btn-main');
-  await page.click('#btn-main'); // story
+  await skipStory(page);
   await page.fill('#slot-0', '20');
   await page.click('#btn-main');
   await page.waitForSelector('#lesson-bar.bad');
@@ -243,7 +256,7 @@ await browser.close();
 
 console.log('What beginners saw when they made mistakes:');
 for (const r of desktop.log) console.log('  ' + r);
-console.log(`Points after a full playthrough: ${desktop.points} (desktop), ${phone.points} (phone)`);
+console.log(`XP after a full playthrough: ${desktop.points} (desktop), ${phone.points} (phone)`);
 console.log(`Screenshots: ${shots}`);
 if (problems.length) {
   console.error('PROBLEMS:\n' + problems.map((p) => '  ' + p).join('\n'));
