@@ -564,7 +564,7 @@ code.inline {
 .scene { display: block; filter: brightness(var(--scene-dim)); }
 
 .backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
-.backdrop > .scene { width: 100%; height: 100%; }
+.backdrop > .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
 .backdrop::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(25, 18, 12, 0.08), rgba(25, 18, 12, 0.32)); }
 .backdrop.dim::after { background: linear-gradient(180deg, rgba(25, 18, 12, 0.35), rgba(25, 18, 12, 0.6)); }
 
@@ -575,6 +575,11 @@ code.inline {
 .tc { position: absolute; bottom: 0; height: 100%; aspect-ratio: 240 / 300; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.25)); }
 .tc-left { left: max(-40px, calc(50% - 560px)); }
 .tc-right { right: max(-40px, calc(50% - 560px)); }
+/* With the live 3D world, the world is the hero: the title sits low, people step aside. */
+.title-screen.live { justify-content: flex-end; padding-bottom: max(28px, 5vh); }
+.title-screen.live .title-cast { display: none; }
+.title-screen.live .title-pip { display: none; }
+.title-screen.live .backdrop::after { background: linear-gradient(180deg, rgba(25, 18, 12, 0) 45%, rgba(25, 18, 12, 0.35)); }
 .title-card { position: relative; z-index: 2; width: 100%; max-width: 420px; text-align: center; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--glass-line); border-radius: 28px; padding: 22px 24px 26px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .title-pip { width: 104px; height: 130px; }
 .brand-title { font-size: 2.75rem; font-weight: 700; letter-spacing: -0.01em; }
@@ -787,6 +792,23 @@ code.inline {
   .mission .actionbar .wrap { max-width: 1180px; }
   .mission .feedback { max-width: 760px; margin-left: auto; }
 }
+
+/* ---------- the 3D world ---------- */
+
+.world-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stagebox > .world-canvas, .backdrop > .world-canvas { z-index: 0; }
+.stagebox > svg.scene, .backdrop > svg.scene { z-index: -1; }
+.stagebox > .cast { z-index: 1; }
+canvas.snap { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: linear-gradient(#cfdbe5, #e8dcc8); }
+.map3d { position: fixed; inset: 0; z-index: 0; touch-action: none; cursor: grab; background: #b9cbd8; }
+.map3d:active { cursor: grabbing; }
+.map-nodes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.map-nodes .node, .map-nodes .sign { position: absolute; left: 0; top: 0; will-change: transform; }
+.map-nodes .node { pointer-events: auto; transform: none; }
+.map-nodes .node.current .node-disc { box-shadow: 0 4px 0 #1a2a7a, 0 0 0 7px rgba(255, 255, 255, 0.55), 0 0 28px rgba(127, 166, 255, 0.9); }
+.place-preview { position: sticky; top: 8px; z-index: 3; height: clamp(170px, 30vh, 280px); margin: -4px 0 4px; border-radius: 20px; overflow: hidden; background: linear-gradient(#bcd2e6, #e9dcc6); box-shadow: var(--shadow-lg); }
+.preview-loading { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 600; color: #3b3a36; opacity: 0; transition: opacity 0.2s; z-index: 1; pointer-events: none; }
+.place-preview.loading .preview-loading { opacity: 1; background: rgba(255, 255, 255, 0.35); }
 
 /* ---------- motion ---------- */
 

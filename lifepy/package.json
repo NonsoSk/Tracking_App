@@ -1,0 +1,14 @@
+{
+  "name": "lifepy",
+  "private": true,
+  "description": "Life.py: a story game that teaches Python. Build tools only; the game itself is one HTML file.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "playthrough": "node tests/playthrough.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "three": "0.180.0"
+  }
+}

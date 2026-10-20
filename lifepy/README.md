@@ -5,10 +5,10 @@ You live a life with Pip, a little robot that only understands Python. Everythin
 you teach Pip is real Python, and Python's own error messages are explained in
 plain words.
 
-This folder is a playable prototype: a title screen, a world map, the Growing
-Up storyline's first two chapters (13 missions of about 3–5 minutes each), four
-hometown packs, each with its own family and friends, a photo album of memories,
-Pip's notebook and a results page for playtests.
+This folder is a playable prototype: a living 3D world for each of four
+hometowns, the Growing Up storyline's first two chapters (13 missions of about
+3–5 minutes each), a family and friends from each hometown, a photo album of
+memories, Pip's notebook and a results page for playtests.
 
 ## Play it
 
@@ -20,16 +20,17 @@ Pip's notebook and a results page for playtests.
 
 ## How it plays
 
-- **First visit:** Pip asks your name, you pick where you grew up (each choice
-  shows your mum from there) and choose a story. The first mission starts
-  straight away.
-- **The world map:** a path through your life. Finished missions show their
-  stars, the next one glows with Pip standing on it, and later chapters wait in
-  the fog. One **Play** button at the bottom always takes you to the next
+- **First visit:** the title screen flies over your neighbourhood. Pip asks your
+  name, then you pick where you grew up: each choice shows your mum and a live
+  3D preview of the home you grow up in. The first mission starts straight away.
+- **The world map:** your road through life, in 3D. Missions glow on the road
+  outside the place they happen (home, Grandma's house, the park), and the
+  school, university, city and wedding venue wait further down the road. Drag
+  or scroll to travel along it. One **Play** button always takes you to the next
   mission; tap any finished mission to replay it.
-- **A mission:** a softly painted place (the living room, Grandma's kitchen, the
-  park) with the people in the story and Pip. The story plays one line at a
-  time in a dialogue box; tap to continue. When it's **your move**, the stage
+- **A mission:** a real-time 3D place (the birthday party in your garden,
+  Grandma's kitchen, the park) with the people in the story and a 3D Pip. The
+  story plays one line at a time in a dialogue box; tap to continue. When it's **your move**, the stage
   makes room for Pip's console below it (on wide screens it sits beside it).
   Pip says what your code printed in a speech bubble, the characters smile,
   laugh or look worried, and feedback slides up in the bottom bar: green when it
@@ -91,18 +92,38 @@ What to look for: missions with many mistakes or hints are where the design need
 work. The goal is that a tester can type a `print` line from memory by the end
 of Chapter 1, and write a small loop by the end of Chapter 2.
 
+## The 3D world
+
+Each hometown has its own neighbourhood, built from code when the game starts
+(no images or models are downloaded, so it still works offline):
+
+| Hometown | The family home | Around it |
+|---|---|---|
+| West Africa | A modern villa like the best of Banana Island, Lagos: white volumes, wood slats, floor-to-ceiling glass, a pool, a gated compound | Palms, flame trees and bougainvillea; the lagoon and city towers behind |
+| South Asia | A contemporary villa in sandstone and white, with a carved jaali screen, a rooftop chhatri and a lotus pool | Coconut palms, neem and mango trees; the sea and skyline behind |
+| Latin America | A Spanish colonial hacienda: clay-tile roofs, an arched arcade, a carved balcony, a stone fountain | Jacarandas in bloom, agaves; mountains all around |
+| UK & US | A Georgian brick house: slate roof, chimneys, sash windows, a columned portico, iron railings | Oaks and maples, rolling green hills |
+
+Late-afternoon sunlight with soft shadows, a sky with drifting clouds, palm
+fronds and grass moving in the wind, birds, balloons that bob, swings that sway
+and a glowing 3D Pip. Phones get a lighter version automatically, and the game
+steps down further if a phone struggles. **Settings → 3D world** switches to the
+painted 2D look, which is also used if a device can't run WebGL 2.
+
 ## How it works
 
-The game is plain HTML, CSS and JavaScript with no build dependencies.
+The game is plain HTML, CSS and JavaScript. The 3D world uses three.js, bundled
+into the same single file.
 
 | File | What it does |
 |---|---|
 | `src/python.js` | PyMini, a small Python interpreter for the beginner subset. It reports errors with exactly the same wording as CPython 3.13 and translates code into plain words. |
 | `src/content.js` | Storylines, hometown packs (names, food, how each family looks), chapters, missions (place, cast, memory, rounds and checks) and the notebook. Adding a mission means adding data here. |
-| `src/art.js` | Lifelike character portraits (shaded skin, hair styles, blinking, five expressions), Pip, the painted places, the world map and icons. All inline SVG, so the game works offline. |
+| `src/art.js` | Lifelike character portraits (shaded skin, hair styles, blinking, five expressions), the 2D Pip, painted places and map for the simple look, and icons. All inline SVG. |
+| `src/world/` | The 3D world: renderer, sky, light and colour grade (`index.js`, `sky.js`, `grade.js`); land, trees, palms, grass, water and birds (`nature.js`); the four family homes (`houses.js`); the neighbourhood, park and later landmarks (`town.js`); the party (`props.js`); Grandma's kitchen (`kitchen.js`); the 3D Pip (`pip.js`); every surface painted in code (`textures.js`). |
 | `src/game.js` | Title screen, world map, missions (stage, dialogue, Pip's console), the code editor, tiles, running code, reactions, hints, XP and stars, memories, results and the Ask Pip helper. |
 | `src/style.css`, `src/page.html` | Look and layout. |
-| `build.mjs` | Bundles everything into `dist/lifepy.html` (standalone) and `dist/artifact.html` (for claude.ai). |
+| `build.mjs` | Bundles the 3D world with esbuild, then everything into `dist/lifepy.html` (standalone) and `dist/artifact.html` (for claude.ai). About 1.1 MB. |
 
 Why not run real CPython in the browser (Pyodide)? It is about 10 MB to
 download, which is slow on many phones and networks, and the claude.ai page
@@ -113,9 +134,10 @@ learned that yet" rather than guessed.
 ## Commands
 
 ```bash
+npm install --prefix lifepy                    # once: three.js and esbuild for the 3D world
 node lifepy/build.mjs                          # build dist/
 node --test lifepy/tests/*.test.mjs            # interpreter vs CPython, and every mission's answers
-node lifepy/tests/playthrough.mjs [shots-dir]  # plays the whole game in Chromium, saves screenshots
+node lifepy/tests/playthrough.mjs [shots-dir]  # plays the whole game in Chromium (2D), tours the 3D world, saves screenshots
 ```
 
 The tests need `python3` (3.13 for exact error wording) and, for the

@@ -3,6 +3,9 @@
 // lines one tap at a time),
 // tapping tiles, typing line by line, running broken code before fixing it,
 // and getting some multiple-choice answers wrong first.
+// The full runs use the simple painted look so they stay quick; a separate tour
+// checks the 3D world: every region's home, the party, the kitchen, the park,
+// the map and photos for the album.
 // Fails on any console error. Saves screenshots for review.
 //
 // Run with: node lifepy/build.mjs && node lifepy/tests/playthrough.mjs [screenshot-dir]
@@ -27,7 +30,8 @@ const shots = resolve(process.argv[2] || join(here, '../.screenshots'));
 mkdirSync(shots, { recursive: true });
 const C = require(resolve(here, '../src/content.js'));
 
-const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }));
+const args = ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+const browser = await chromium.launch({ args }).catch(() => chromium.launch({ args, executablePath: '/opt/pw-browsers/chromium' }));
 const problems = [];
 
 async function newPage(opts) {
@@ -155,6 +159,8 @@ async function playStep(page, x, tag, log, opts) {
 async function fullPlaythrough(viewport, label, colorScheme, packIndex) {
   const page = await newPage({ viewport, colorScheme, reducedMotion: 'reduce' });
   await page.goto(pageUrl);
+  await page.evaluate(() => localStorage.setItem('lifepy.v1', JSON.stringify({ settings: { sound: true, voice: false, gfx: 'simple' } })));
+  await page.reload();
   await onboard(page, 'Ada', packIndex, label);
   const x = C.makeContext('Ada', Object.keys(C.PACKS)[packIndex]);
   const log = [];
@@ -201,7 +207,7 @@ async function fullPlaythrough(viewport, label, colorScheme, packIndex) {
 async function spotChecks() {
   const page = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   await page.goto(pageUrl);
-  await page.evaluate(() => localStorage.setItem('lifepy.v1', JSON.stringify({ profile: { name: 'Sam', pack: 'ukus' }, done: { c1l1: true }, points: 15, settings: { sound: false, voice: false } })));
+  await page.evaluate(() => localStorage.setItem('lifepy.v1', JSON.stringify({ profile: { name: 'Sam', pack: 'ukus' }, done: { c1l1: true }, points: 15, settings: { sound: false, voice: false, gfx: 'simple' } })));
   await page.reload();
   await page.waitForSelector('#screen-home:not([hidden])');
   await shot(page, 'spot-01-home');
@@ -249,6 +255,77 @@ async function spotChecks() {
   await page.context().close();
 }
 
+// The 3D world on a phone-sized screen: every region builds, every place renders.
+async function world3dTour() {
+  const page = await newPage({ viewport: { width: 390, height: 844 } });
+  page.setDefaultTimeout(240000);
+  await page.goto(pageUrl);
+  await page.waitForSelector('#screen-welcome:not([hidden])');
+  if (!(await page.evaluate(() => LifePyGame.world3d))) {
+    problems.push('3D: WebGL 2 is not available in the test browser, so the 3D world was not checked');
+    await page.context().close();
+    return;
+  }
+  const canvasIn = (sel) => page.evaluate((s) => !!document.querySelector(`${s} canvas.world-canvas`), sel);
+  await page.waitForTimeout(800);
+  await shot(page, '3d-01-title');
+  if (!(await canvasIn('#title-scene'))) problems.push('3D: the title screen has no 3D view');
+  await page.click('#welcome-start');
+  await page.fill('#player-name', 'Ada');
+  await shot(page, '3d-02-name');
+  await page.click('#name-next');
+  for (let i = 4; i >= 1; i--) {
+    await page.click(`#place-list .choice:nth-child(${i})`);
+    await page.waitForFunction(() => !document.querySelector('#place-preview').classList.contains('loading'));
+    await page.waitForTimeout(400);
+    await shot(page, `3d-03-place-${i}`);
+  }
+  if (!(await canvasIn('#place-preview'))) problems.push('3D: the hometown preview has no 3D view');
+  await page.click('#place-next');
+  await page.click('#story-next');
+  await page.waitForSelector('#screen-lesson:not([hidden])');
+  await shot(page, '3d-04-party');
+  if (!(await canvasIn('#stage'))) problems.push('3D: the mission stage has no 3D view');
+  while (await page.evaluate(() => LifePyGame.lesson.kind === 'line')) await main(page);
+  await main(page);
+  await waitBar(page, 'good');
+  await shot(page, '3d-05-pip-says-hello');
+  await main(page);
+  await page.click('.options .choice[data-value="0"]');
+  await main(page);
+  await waitBar(page, 'good');
+  await main(page);
+  await page.waitForSelector('#screen-done:not([hidden])');
+  await page.waitForFunction(() => document.querySelector('#done-body canvas.snap[data-done]'));
+  await page.waitForTimeout(600);
+  await shot(page, '3d-06-done');
+  await page.click('#done-buttons .btn.quiet');
+  await page.waitForSelector('#screen-home:not([hidden])');
+  await page.waitForTimeout(1500);
+  await shot(page, '3d-07-map');
+  if (!(await canvasIn('#map3d'))) problems.push('3D: the map has no 3D view');
+  await page.click('.node.done:not([hidden])');
+  await page.waitForSelector('#sheet:not([hidden])');
+  await page.waitForTimeout(800);
+  await shot(page, '3d-08-sheet');
+  await page.click('[data-close-sheet]');
+  for (const [id, name] of [['c2l1', 'kitchen'], ['c2l5', 'park']]) {
+    await page.evaluate((x) => LifePyGame.startLesson(x), id);
+    await page.waitForTimeout(5000);
+    await shot(page, `3d-09-${name}`);
+    if (!(await canvasIn('#stage'))) problems.push(`3D: the ${name} stage has no 3D view`);
+  }
+  await page.click('#lesson-close');
+  if (await page.locator('#fb-leave').count()) await page.click('#fb-leave');
+  await page.waitForSelector('#screen-home:not([hidden])');
+  await page.click('#btn-album');
+  await page.waitForFunction(() => document.querySelector('#album-list canvas.snap[data-done]'));
+  await page.waitForTimeout(800);
+  await shot(page, '3d-10-album');
+  await page.context().close();
+}
+
+await world3dTour();
 const desktop = await fullPlaythrough({ width: 1280, height: 860 }, 'desktop', 'light', 0);
 const phone = await fullPlaythrough({ width: 390, height: 844 }, 'phone', 'dark', 1);
 await spotChecks();

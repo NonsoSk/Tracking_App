@@ -87,10 +87,10 @@ CSV files, pandas, charts).
 
 ## Characters in the prototype
 
-- **Pip** — a small, glossy blue robot with a glowing yellow face (a nod to
-  Python's colours; named after `pip`). It floats, talks while it prints, hops
-  when you succeed and wobbles when it gets stuck. Faces: idle, asleep, talking,
-  happy, oops, confused.
+- **Pip** — a small, glossy blue robot with a glowing yellow face screen (a nod
+  to Python's colours; named after `pip`), modelled in 3D. It floats over a soft
+  glow, talks while it prints, spins and waves when you succeed and wobbles when
+  it gets stuck. Faces: idle, asleep, talking, happy, oops, confused.
 - **Mum, Grandma, an uncle, a cousin and three friends** — shaded, near-real
   portraits drawn from a small description (age, skin tone, hair style and
   colour, eye colour, clothes, glasses, beard, earrings, face shape). They
@@ -115,17 +115,28 @@ Next packs: East Africa, East Asia, the Middle East. Partner with local writers.
 
 ## Look and feel
 
-A game world that is pleasant to be in but never competes with the lesson.
+A beautiful world the player wants to be in, that never competes with the lesson.
 
 - History: the first version (busy cartoon scenes, many panels at once) was too
   much for beginners; the second (one calm column) was easy but felt like a
-  question-and-answer session. This version keeps the second one's simplicity
-  and puts it inside a game.
-- **Places** are painted, then softly blurred and muted with a gentle vignette,
-  like a photo with a shallow depth of field: the living room on your birthday,
-  Grandma's kitchen with its jars, the park at golden hour.
-- **Characters** are semi-realistic and sharp, so they stand out from the
-  blurred places. Only the people in the current moment are on stage (one or
+  question-and-answer session; the third put it inside a game with painted
+  scenes. This version makes the world real-time 3D.
+- **Every hometown is the best of its region.** The family home is modelled on
+  the finest homes there: a Banana Island villa with a pool (West Africa), a
+  contemporary villa with a jaali screen and rooftop chhatri (South Asia), a
+  colonial hacienda under jacarandas (Latin America), a Georgian brick house
+  (UK & US). Grandma lives next door in a classic bungalow; the park is across
+  the road; the school, university, city and wedding venue lie further along it.
+- **Light sells it.** Late-afternoon sun with long, soft shadows; a deep blue
+  sky with moving clouds; reflections in glass, pools and Pip's shell; a soft
+  glow on fairy lights and Pip's face; a gentle film grade and vignette.
+- **Everything breathes, slowly:** fronds and grass in the wind, birds circling,
+  balloons bobbing, swings swaying, dust in the kitchen sunbeam. The camera
+  drifts like a hand-held film camera and glides between shots.
+- **Places** in the missions: the birthday party in your garden, Grandma's
+  kitchen with its shelves of sweet jars, the playground in the park.
+- **Characters** are semi-realistic portraits in front of the 3D world, like a
+  visual novel, so their faces stay expressive and readable on a phone. Only the people in the current moment are on stage (one or
   two plus Pip), and the speaker steps forward while the others dim slightly.
 - **Interface:** a frosted-glass dialogue box with the speaker's name, a small
   mission bar at the top (map button, progress, XP), and one main button at the
@@ -137,8 +148,12 @@ A game world that is pleasant to be in but never competes with the lesson.
   stars, green for success, orange for mistakes and hints. The code area is
   dark, like a real editor, with a file name (`birthday.py`, `playground.py`).
   Later chapters add VS Code features until the final chapter is VS Code itself.
+- **Performance:** phones get fewer grass blades, smaller shadow maps and fewer
+  pixels; if frames still drop, the game lowers resolution, then turns off
+  glow, then shadows. Settings has a switch for the painted 2D look, which is
+  also the automatic fallback without WebGL 2.
 - Light and dark themes, works at phone width, respects reduced motion (no
-  blinking, floating or sparkles).
+  blinking, floating or sparkles; the camera holds still).
 
 ## Rewards
 

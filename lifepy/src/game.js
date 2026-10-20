@@ -35,7 +35,7 @@
       stars: {},
       votes: {},
       notes: '',
-      settings: { sound: true, voice: false },
+      settings: { sound: true, voice: false, gfx: 'full' },
     };
   }
 
@@ -145,6 +145,8 @@
     cancelRun();
     SCREENS.forEach((s) => { $('#screen-' + s).hidden = s !== name; });
     currentScreen = name;
+    if (name !== 'home') stopMap3D();
+    if (W3 && !SCREENS_3D.has(name)) { try { W3.unmount(); } catch (e) { /* ignore */ } }
     window.scrollTo(0, 0);
   }
 
@@ -152,14 +154,23 @@
     if (name === 'home') return openHome();
     if (name === 'welcome') { renderTitle(); return show('welcome'); }
     if (name === 'settings') { renderSettings(); return show('settings'); }
-    if (name === 'album') { renderAlbum(); return show('album'); }
+    if (name === 'album') { renderAlbum(); show('album'); fillSnaps($('#album-list')); return undefined; }
     if (name === 'name') {
-      $('#name-pip').innerHTML = Art.pip('happy');
       $('#player-name').value = draft.name;
       updateNameButton();
-      return show('name');
+      show('name');
+      const live = backdrop($('#screen-name .backdrop'), 'name', { show: true, x: 0, bottom: 0.5, size: 0.3, maxW: 0.42, state: 'happy' });
+      $('#name-pip').hidden = live;
+      if (!live) $('#name-pip').innerHTML = Art.pip('happy');
+      return undefined;
     }
-    if (name === 'place') { renderPlaces('#place-list', draft.pack, true); $('#place-next').disabled = !draft.pack; return show('place'); }
+    if (name === 'place') {
+      renderPlaces('#place-list', draft.pack, true);
+      $('#place-next').disabled = !draft.pack;
+      show('place');
+      showPreview(draft.pack);
+      return undefined;
+    }
     return show(name);
   }
 
@@ -169,6 +180,173 @@
 
   function fillScenes(root) {
     $$('[data-scene]', root).forEach((el) => { if (!el.firstChild) el.innerHTML = Art.scene(el.dataset.scene); });
+  }
+
+  // ---------- the 3D world (painted scenes when a device can't run it) ----------
+
+  const W3 = window.LifePyWorld || null;
+  const SCREENS_3D = new Set(['welcome', 'name', 'place', 'home', 'lesson', 'done']);
+  const SHOT_FOR_SCENE = { home: 'home', kitchen: 'kitchen', park: 'park' };
+  let w3ok = null;
+
+  function use3D() {
+    if (w3ok === null) w3ok = !!(W3 && W3.supported());
+    return w3ok && S.settings.gfx !== 'simple';
+  }
+
+  // Any 3D failure switches to painted scenes for the rest of the visit.
+  function w3(fn) {
+    if (!use3D()) return false;
+    try {
+      fn();
+      return true;
+    } catch (e) {
+      w3ok = false;
+      try { W3.unmount(); } catch (e2) { /* ignore */ }
+      return false;
+    }
+  }
+
+  const regionNow = () => (S.profile && S.profile.pack) || draft.pack || 'westafrica';
+
+  // A screen's backdrop: the live world, or a painting of the same place.
+  function backdrop(el, shot, pip, region) {
+    const painted = shot === 'kitchen' || shot === 'park' ? shot : 'home';
+    const ok = w3(() => {
+      // The painting stays underneath until the 3D view has drawn its first frame.
+      if (!el.querySelector('svg.scene')) el.insertAdjacentHTML('beforeend', Art.scene(painted));
+      W3.mount(el);
+      W3.show(region || regionNow(), shot);
+      W3.setPip(pip || { show: false });
+    });
+    if (!ok) el.innerHTML = Art.scene(painted);
+    return ok;
+  }
+
+  // The place picker shows the home you'd grow up in, in 3D.
+  function showPreview(pack) {
+    const box = $('#place-preview');
+    if (!use3D()) { box.hidden = true; return; }
+    box.hidden = false;
+    box.classList.add('loading');
+    setTimeout(() => {
+      if (currentScreen !== 'place') return;
+      const ok = w3(() => {
+        W3.mount(box);
+        W3.show(pack || 'westafrica', 'hero');
+        W3.setPip({ show: false });
+      });
+      box.classList.remove('loading');
+      if (!ok) box.hidden = true;
+    }, 60);
+  }
+
+  // Photos for memories, drawn from the 3D world one at a time.
+  async function fillSnaps(root) {
+    for (const c of $$('canvas.snap:not([data-done])', root)) {
+      c.dataset.done = '1';
+      const box = c.parentElement;
+      const w = Math.max(120, box.clientWidth);
+      const h = Math.max(90, box.clientHeight);
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const lv = C.LEVELS[c.dataset.snap];
+      const n = Math.min(2, (lv.cast || []).length);
+      const ok = w3(() => {
+        const img = W3.snapshot(regionNow(), SHOT_FOR_SCENE[lv.scene] || 'home', Math.round(w * dpr), Math.round(h * dpr),
+          { show: true, x: n === 1 ? 0.48 : 0, bottom: 0.03, size: 0.5, maxW: 0.34, state: c.dataset.mood === 'happy' ? 'happy' : 'idle' });
+        c.width = img.width;
+        c.height = img.height;
+        c.getContext('2d').drawImage(img, 0, 0);
+      });
+      if (!ok) {
+        c.insertAdjacentHTML('afterend', Art.scene(lv.scene) + `<div class="pip-spot">${Art.pip(c.dataset.mood === 'happy' ? 'happy' : 'idle')}</div>`);
+        c.remove();
+      }
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  }
+
+  // ---------- the map in 3D: your road through life ----------
+
+  let mapHook = null;
+  const mapState = { x: 0, nodes: [], max: 480 };
+
+  // Missions sit on the road outside the place they happen.
+  function missionSpots(info) {
+    const start = { home: [-14, 5.6], kitchen: [36, 7], park: [76, 9] };
+    const used = { home: 0, kitchen: 0, park: 0 };
+    const spots = {};
+    for (const id of allLevels()) {
+      const sc = C.LEVELS[id].scene || 'home';
+      const [x0, step] = start[sc] || start.home;
+      spots[id] = { x: x0 + step * used[sc]++, z: info.roadZ };
+    }
+    return spots;
+  }
+
+  const SIGN_X = { c1: [0, 11.5, 2], c2: [44, 8.5, 2], c3: [196, 12, 0], c4: [214, 12, 0], c5: [270, 18, 66], c6: [330, 40, -40], c7: [404, 10, 40], c8: [470, 26, 10] };
+
+  function renderMap3D() {
+    const region = regionNow();
+    const ok = w3(() => W3.mount($('#map3d')));
+    if (!ok) return false;
+    $('#map3d').hidden = false;
+    $('#map-wrap').hidden = true;
+    let info;
+    if (!w3(() => { info = W3.mapInfo(region); })) return false;
+    const spots = missionSpots(info);
+    const next = nextLessonId();
+    const nodes = allLevels().map((id) => {
+      const state = S.done[id] ? 'done' : id === next ? 'current' : 'locked';
+      const stars = S.stars[id] || 1;
+      const label = `Mission ${lessonNumber(id)}: ${C.LEVELS[id].title}${state === 'done' ? `, ${stars} of 3 stars` : state === 'locked' ? ', locked' : ''}`;
+      const sp = spots[id];
+      return `<button class="node ${state}" type="button" data-wx="${sp.x}" data-wy="1.3" data-wz="${sp.z}" data-mission="${id}" aria-label="${esc(label)}" ${state === 'locked' ? 'disabled' : ''}>
+        <span class="node-disc">${state === 'done' ? Art.icon('check') : state === 'locked' ? Art.icon('lock') : lessonNumber(id)}</span>
+        ${state === 'done' ? starsHTML(stars, 'mini') : ''}</button>`;
+    }).join('');
+    const signs = C.CHAPTERS.map((ch) => {
+      const [x, y, z] = SIGN_X[ch.id] || [0, 10, 0];
+      return `<div class="sign${ch.locked ? ' locked' : ''}" data-wx="${x}" data-wy="${y}" data-wz="${z}"><b>${ch.n}. ${esc(ch.title)}</b><span>${ch.locked ? 'Coming soon' : esc(ch.age)}</span></div>`;
+    }).join('');
+    $('#map-nodes').innerHTML = signs + nodes;
+    mapState.nodes = $$('#map-nodes [data-wx]').map((el) => ({ el, x: +el.dataset.wx, y: +el.dataset.wy, z: +el.dataset.wz, sign: el.classList.contains('sign'), off: null }));
+    const focus = next || allLevels().slice(-1)[0];
+    mapState.x = spots[focus].x;
+    mapState.max = SIGN_X.c8[0];
+    w3(() => {
+      W3.mapFocus(region, mapState.x, { instant: true });
+      W3.setMarkers(allLevels().map((id) => ({ x: spots[id].x, z: spots[id].z, state: S.done[id] ? 'done' : id === next ? 'current' : 'locked' })));
+    });
+    stopMap3D();
+    mapHook = W3.onFrame(placeMapNodes);
+    placeMapNodes();
+    return true;
+  }
+
+  function placeMapNodes() {
+    const box = $('#map3d');
+    const w = box.clientWidth;
+    const h = box.clientHeight;
+    for (const n of mapState.nodes) {
+      const p = W3.project(n.x, n.y, n.z);
+      const q = W3.project(n.x, n.y + 1, n.z);
+      const off = !p || p.behind || p.x < -80 || p.x > w + 80 || p.y < 70 || p.y > h - 70;
+      if (off !== n.off) { n.el.hidden = off; n.off = off; }
+      if (off) continue;
+      const sc = Math.max(0.42, Math.min(1.1, (p.y - q.y) / (n.sign ? 22 : 30)));
+      n.el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${sc.toFixed(3)})`;
+      n.el.style.zIndex = String(Math.round(p.y));
+    }
+  }
+
+  function stopMap3D() {
+    if (mapHook) { mapHook(); mapHook = null; }
+  }
+
+  function panMap(dx) {
+    mapState.x = Math.max(-24, Math.min(mapState.max, mapState.x + dx));
+    w3(() => W3.mapFocus(regionNow(), mapState.x));
   }
 
   // ---------- characters ----------
@@ -203,7 +381,9 @@
     const lv = C.LEVELS[id];
     const cast = (lv.cast || []).slice(0, 2);
     const pos = positions(cast.length);
-    return `<div class="stagebox mini" data-cast="${cast.length}">${Art.scene(lv.scene)}${cast.map((w, i) => actorHTML(w, pos[i], mood)).join('')}<div class="pip-spot">${Art.pip(mood === 'happy' ? 'happy' : 'idle')}</div></div>`;
+    const people = cast.map((w, i) => actorHTML(w, pos[i], mood)).join('');
+    if (use3D()) return `<div class="stagebox mini" data-cast="${cast.length}"><canvas class="snap" data-snap="${id}" data-mood="${mood}"></canvas>${people}</div>`;
+    return `<div class="stagebox mini" data-cast="${cast.length}">${Art.scene(lv.scene)}${people}<div class="pip-spot">${Art.pip(mood === 'happy' ? 'happy' : 'idle')}</div></div>`;
   }
 
   function polaroid(id, tilt) {
@@ -215,7 +395,8 @@
   const draft = { name: '', pack: null };
 
   function renderTitle() {
-    $('#title-scene').innerHTML = Art.scene('home');
+    const live = backdrop($('#title-scene'), 'title');
+    $('#screen-welcome').classList.toggle('live', live);
     $('#hero-pip').innerHTML = Art.pip('happy');
     const P = C.PACKS;
     $('#title-cast').innerHTML = `<div class="tc tc-left">${Art.portrait(P.westafrica.looks.mum, { expr: 'smile', look: 1 })}</div>` +
@@ -295,8 +476,9 @@
 
   function openHome() {
     if (!S.profile) { renderTitle(); show('welcome'); return; }
-    renderHome();
     show('home');
+    renderHome();
+    if (!$('#map3d').hidden) return;
     const focus = $('.node.current') || $(`.node[data-mission="${allLevels().slice(-1)[0]}"]`);
     if (focus) focus.scrollIntoView({ block: 'center' });
   }
@@ -310,6 +492,13 @@
     $('#hud-xp').style.width = lv.pct + '%';
     $('#hud-sub').textContent = `Level ${lv.level} · ${S.points} XP${streak ? ` · ${streak}-day streak` : ''}`;
 
+    if (!renderMap3D()) renderMapSVG();
+    renderMapBar();
+  }
+
+  function renderMapSVG() {
+    $('#map3d').hidden = true;
+    $('#map-wrap').hidden = false;
     const m = Art.worldMap(C.CHAPTERS.map((ch) => ({ id: ch.id, n: ch.n, locked: !!ch.locked, levels: ch.levels || [] })));
     const next = nextLessonId();
     const at = (x, y) => `left:${((x / 400) * 100).toFixed(2)}%;top:${((y / m.height) * 100).toFixed(2)}%`;
@@ -329,7 +518,10 @@
     const map = $('#map');
     map.style.aspectRatio = `400 / ${m.height}`;
     map.innerHTML = m.svg + signs + nodes;
+  }
 
+  function renderMapBar() {
+    const next = nextLessonId();
     if (next) {
       const ch = chapterOf(next);
       $('#map-bar').innerHTML = `<div class="map-next">
@@ -356,6 +548,7 @@
     sheet.hidden = false;
     $('#sheet-shade').hidden = false;
     $('[data-start]', sheet).focus();
+    fillSnaps(sheet);
   }
 
   function closeSheet() {
@@ -643,12 +836,25 @@
   // ---------- the stage: a painted place, the people in it, and Pip ----------
 
   function buildStage() {
+    const live = use3D();
     $('#stage').innerHTML = `${Art.scene(L.level.scene || 'home')}<div class="cast" id="cast"></div>
-      <div class="pip-spot" id="pip-spot">${Art.pip('idle')}</div>
+      <div class="pip-spot" id="pip-spot"${live ? ' hidden' : ''}>${Art.pip('idle')}</div>
       <div class="bubble" id="bubble" hidden><pre class="screen-out" id="screen-out"></pre></div>
       <div class="mission-card" aria-hidden="true"><span>Chapter ${L.chapter.n} · ${esc(L.chapter.age)}</span><b>${esc(L.level.title)}</b></div>`;
     L.actors = {};
     L.castKey = null;
+    L.live = live && w3(() => {
+      W3.mount($('#stage'));
+      W3.show(regionNow(), SHOT_FOR_SCENE[L.level.scene] || 'home', { instant: true });
+    });
+    if (live && !L.live) $('#pip-spot').hidden = false;
+  }
+
+  // Pip stands where the painted Pip would: centre stage, or right when one person is with it.
+  function place3DPip() {
+    if (!L || !L.live) return;
+    const n = Number($('#stage').dataset.cast || 0);
+    w3(() => W3.setPip({ show: true, x: n === 1 ? 0.48 : 0, bottom: 0.03, size: n === 0 ? 0.6 : 0.5, maxW: n === 0 ? 0.4 : 0.34 }));
   }
 
   function castFor(R, speaker) {
@@ -683,6 +889,7 @@
     });
     L.actors = next;
     $('#stage').dataset.cast = String(list.length);
+    place3DPip();
   }
 
   function express(expr, who) {
@@ -715,6 +922,7 @@
   function setPip(state) {
     const svg = $('#pip-spot svg');
     if (svg) svg.dataset.state = state;
+    if (L && L.live) w3(() => W3.pipState(state));
   }
 
   function sayLine(who, text) {
@@ -1568,11 +1776,12 @@
   }
 
   function doneScreen(scene, body, buttons) {
-    $('#done-scene').innerHTML = Art.scene(scene);
     $('#done-body').innerHTML = body;
     $('#done-buttons').innerHTML = buttons.map((b, i) => `<button class="btn ${b.primary ? 'primary' : 'quiet'}" type="button" data-done="${i}">${esc(b.label)}</button>`).join('');
     $$('[data-done]').forEach((el) => el.addEventListener('click', () => buttons[Number(el.dataset.done)].action()));
     show('done');
+    backdrop($('#done-scene'), SHOT_FOR_SCENE[scene] || 'home');
+    fillSnaps($('#done-body'));
     const first = $('#done-buttons .primary');
     if (first) first.focus({ preventScroll: true });
   }
@@ -1679,6 +1888,8 @@
   function renderSettings() {
     $('#set-sound').checked = !!S.settings.sound;
     $('#set-voice').checked = !!S.settings.voice;
+    $('#set-gfx').checked = S.settings.gfx !== 'simple';
+    $('#gfx-row').hidden = !(W3 && W3.supported());
     renderPlaces('#set-place-list', S.profile ? S.profile.pack : null);
     $('#reset-confirm').hidden = true;
   }
@@ -1792,11 +2003,30 @@
       selectIn($('#place-list'), b);
       draft.pack = b.dataset.value;
       $('#place-next').disabled = false;
+      showPreview(draft.pack);
     });
     $('#place-next').addEventListener('click', () => { renderStoryChoices(); show('story'); });
     $('#story-next').addEventListener('click', finishOnboarding);
 
     $('#btn-settings').addEventListener('click', () => go('settings'));
+    // Drag the map (or scroll) to travel along the road.
+    let drag = null;
+    const map3d = $('#map3d');
+    map3d.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.node')) return;
+      drag = { y: e.clientY, x: e.clientX, from: mapState.x };
+      map3d.setPointerCapture(e.pointerId);
+    });
+    map3d.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const d = (e.clientY - drag.y) * 0.16 + (drag.x - e.clientX) * 0.08;
+      mapState.x = drag.from;
+      panMap(d);
+    });
+    const endDrag = () => { drag = null; };
+    map3d.addEventListener('pointerup', endDrag);
+    map3d.addEventListener('pointercancel', endDrag);
+    map3d.addEventListener('wheel', (e) => { e.preventDefault(); panMap(e.deltaY * 0.05); }, { passive: false });
     $('#btn-album').addEventListener('click', () => go('album'));
     $('#btn-notebook').addEventListener('click', () => { renderNotebook(); show('notebook'); });
 
@@ -1807,6 +2037,7 @@
 
     $('#set-sound').addEventListener('change', (e) => { S.settings.sound = e.target.checked; persist(); Sound.play('tap'); });
     $('#set-voice').addEventListener('change', (e) => { S.settings.voice = e.target.checked; if (!e.target.checked) Voice.stop(); persist(); });
+    $('#set-gfx').addEventListener('change', (e) => { S.settings.gfx = e.target.checked ? 'full' : 'simple'; persist(); });
     $('#set-place-list').addEventListener('click', (e) => {
       const b = e.target.closest('.choice');
       if (!b || !S.profile) return;
@@ -1837,6 +2068,8 @@
     try { history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }
     wire();
     fillScenes(document);
+    // With reduced motion the 3D camera holds still and Pip stops bobbing.
+    w3(() => W3.setStill(reducedMotion()));
     openHome();
   }
 
@@ -1844,6 +2077,7 @@
   window.LifePyGame = {
     get state() { return S; },
     get lesson() { return L; },
+    get world3d() { return use3D(); },
     startLesson,
   };
 
