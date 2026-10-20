@@ -574,7 +574,54 @@
     return { id, s };
   }
 
-  const SCENES = { home: homeScene, kitchen: kitchenScene, park: parkScene };
+  function classroomScene() {
+    const id = nid();
+    let s = `<defs>
+      <linearGradient id="${id}-wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe6d2"/><stop offset="1" stop-color="#ddd0b6"/></linearGradient>
+      <linearGradient id="${id}-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8744c"/><stop offset="1" stop-color="#8e5638"/></linearGradient>
+      <linearGradient id="${id}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a8cbe8"/><stop offset="1" stop-color="#e6eed8"/></linearGradient>
+    </defs>
+    <rect width="800" height="500" fill="url(#${id}-wall)"/>
+    <rect y="300" width="800" height="200" fill="url(#${id}-floor)"/>
+    <rect y="250" width="800" height="50" fill="#3f7a5f"/>
+    <rect x="210" y="70" width="380" height="150" rx="4" fill="#6b4428"/><rect x="220" y="80" width="360" height="130" fill="#25443a"/>
+    <text x="240" y="125" font-family="cursive" font-size="26" fill="#f2efe4">Welcome to Class 3!</text>
+    <text x="240" y="170" font-family="monospace" font-size="16" fill="#e8e6dc">for n in range(1, 6):</text>
+    <rect x="650" y="60" width="110" height="170" fill="url(#${id}-sky)" stroke="#f5f2ec" stroke-width="8"/>
+    <rect x="40" y="90" width="70" height="95" fill="#fbf6ea"/><rect x="125" y="90" width="60" height="95" fill="#fbf6ea"/>`;
+    const cols = ['#e8475e', '#f4a93b', '#57b36b', '#4b8de0', '#b067d6', '#f06aa8'];
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 4; c++) {
+        const x = 60 + c * 190 + r * 30;
+        const y = 330 + r * 80;
+        s += `<rect x="${x}" y="${y}" width="130" height="14" fill="#c08a58"/><rect x="${x + 10}" y="${y + 14}" width="6" height="40" fill="#5a6068"/><rect x="${x + 114}" y="${y + 14}" width="6" height="40" fill="#5a6068"/>`;
+        s += `<rect x="${x + 30}" y="${y + 22}" width="44" height="40" rx="4" fill="${cols[(r * 4 + c) % cols.length]}"/>`;
+      }
+    }
+    return { id, s };
+  }
+
+  function schoolyardScene() {
+    const id = nid();
+    let s = `<defs>
+      <linearGradient id="${id}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fbbe0"/><stop offset="1" stop-color="#e9e2cf"/></linearGradient>
+    </defs>
+    <rect width="800" height="500" fill="url(#${id}-sky)"/>
+    <rect x="80" y="140" width="640" height="190" fill="#e2d6bf"/><rect x="70" y="128" width="660" height="16" fill="#2f8a5a"/>
+    <rect x="360" y="250" width="80" height="80" fill="#2f8a5a"/><rect x="330" y="232" width="140" height="10" fill="#f3efe6"/>
+    <rect x="340" y="200" width="120" height="24" fill="#1f4e8c"/>`;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 8; c++) {
+      if (r === 1 && (c === 3 || c === 4)) continue;
+      s += `<rect x="${110 + c * 76}" y="${160 + r * 84}" width="44" height="40" fill="#5b7088"/>`;
+    }
+    s += `<rect y="330" width="800" height="170" fill="#d4cfc3"/>
+      <path d="M150 400 h300 v80 h-300 z M300 400 v80" stroke="#ffffff" stroke-width="4" fill="none"/>
+      <rect x="40" y="90" width="6" height="240" fill="#b8bcc2"/><rect x="46" y="96" width="60" height="38" fill="#2f8a5a"/>
+      <circle cx="700" cy="250" r="60" fill="#6c8a52"/><rect x="694" y="280" width="12" height="60" fill="#5e4632"/>`;
+    return { id, s };
+  }
+
+  const SCENES = { home: homeScene, kitchen: kitchenScene, park: parkScene, classroom: classroomScene, schoolyard: schoolyardScene };
 
   function scene(name) {
     const make = SCENES[name] || homeScene;

@@ -1,7 +1,7 @@
 // The rest of the neighbourhood: neighbours, Grandma's bungalow, the park, and the
 // places later chapters lead to (school, university, the city, the wedding venue).
 import * as THREE from 'three';
-import { Kit, std, place } from './kit.js';
+import { Kit, std, place, windy, setSway } from './kit.js';
 import { frame, fbox, fgeo, win, door, hipRoof, gableRoof, column, mats } from './build.js';
 import { palm, tree, bush, hedge } from './nature.js';
 import { rng } from './noise.js';
@@ -245,14 +245,6 @@ export function park(group, M, P, x0, z0, x1, z1, style) {
 export function landmarks(group, M, P, style, sites) {
   const kit = new Kit();
   const { school, uni, city, venue } = sites;
-  // Primary and secondary school: long blocks around a courtyard, a flagpole.
-  for (const [dx, dz, w, d] of [[0, 0, 34, 10], [-14, -14, 10, 26], [14, -14, 10, 26]]) {
-    kit.box(M.walls[1] || M.walls[0], w, 7, d, school.x + dx, 3.5, school.z + dz);
-    kit.box(M.trim, w + 1, 0.4, d + 1, school.x + dx, 7.2, school.z + dz);
-  }
-  const sf = frame(school.x, 0, school.z + 5, 0);
-  for (let i = 0; i < 9; i++) for (let j = 0; j < 2; j++) glazedSmall(kit, M, sf, -14 + i * 3.5, 0.9 + j * 3.3, 2, 1.8);
-  kit.add(M.steel, place(new THREE.CylinderGeometry(0.06, 0.08, 10, 8), school.x - 20, 5, school.z + 9));
   // University: a columned hall with a dome.
   kit.box(M.trim, 40, 1.2, 22, uni.x, 0.6, uni.z);
   kit.box(M.walls[0], 36, 10, 18, uni.x, 6, uni.z);
@@ -277,6 +269,92 @@ export function landmarks(group, M, P, style, sites) {
   const t = new Kit();
   palm(t, P.plants, venue.x - 13, venue.z + 9, 9, 801);
   tree(t, P.plants, venue.x + 14, venue.z - 6, 10, 'jacaranda', 802, 0.7);
-  tree(t, P.plants, school.x + 22, school.z + 8, 9, style.parkTree || 'broadleaf', 803, 0.7);
   t.build(group);
+  return schoolGrounds(group, M, P, style, school);
+}
+
+function signTexture(text) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 96;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#1f4e8c';
+  ctx.fillRect(0, 0, 512, 96);
+  ctx.strokeStyle = '#f2c14e';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 500, 84);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 46px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 256, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// The primary school: a two-storey block, a canopy over the door, a playground
+// with a court and hopscotch, a flag in the wind. `s.ry` turns it to face the road.
+function schoolGrounds(group, M, P, style, s) {
+  const kit = new Kit();
+  const F = frame(s.x, 0, s.z, s.ry || 0);
+  const at = (lx, lz) => F.at(lx, 0, lz);
+  const walls = style.brickWalls ? M.brick : M.walls[1] || M.walls[0];
+  const trim = M.trim;
+  const yard = std({ map: T.tiled(T.plaster('#d9d4c9'), 1 / 4), roughness: 0.95 });
+  const paint = std({ color: '#ffffff', roughness: 0.6 });
+  const accent = std({ color: style.schoolAccent || '#2f7fd0', roughness: 0.5 });
+  // Playground in front of the school.
+  fbox(kit, yard, F, 46, 0.05, 20, 0, 0.03, 15.5, 1, { cast: false });
+  for (const [w, d, ox, oz] of [[16, 0.08, 9, 11], [16, 0.08, 9, 20], [0.08, 9, 1, 15.5], [0.08, 9, 17, 15.5], [0.08, 9, 9, 15.5]]) fbox(kit, paint, F, w, 0.012, d, ox, 0.06, oz, 1, { cast: false });
+  fgeo(kit, paint, F, new THREE.TorusGeometry(1.6, 0.04, 4, 40), 9, 0.06, 15.5, Math.PI / 2);
+  const hop = ['#e8475e', '#f4a93b', '#57b36b', '#4b8de0', '#b067d6', '#f06aa8'];
+  // Hopscotch: single, single, double, single, double, single.
+  const squares = [[0, 0], [0, 1], [-0.5, 2], [0.5, 2], [0, 3], [-0.5, 4], [0.5, 4], [0, 5]];
+  squares.forEach(([sx, sz], i) => fbox(kit, std({ color: hop[i % hop.length], roughness: 0.7 }), F, 0.68, 0.012, 0.68, -12 + sx * 1.4, 0.06, 9 + sz * 0.75, 1, { cast: false }));
+  // The building.
+  fbox(kit, M.stone, F, 35, 0.4, 11, 0, 0.2, 0);
+  fbox(kit, walls, F, 34, 7, 10, 0, 3.9, 0);
+  fbox(kit, trim, F, 34.4, 0.3, 10.4, 0, 3.9, 0);
+  if (style.roof === 'flat') {
+    fbox(kit, trim, F, 34.8, 0.5, 10.8, 0, 7.65, 0);
+    fbox(kit, accent, F, 34.9, 0.25, 10.9, 0, 7.35, 0);
+  } else {
+    fgeo(kit, M.roof, F, hipRoof(34, 10, 3.4, 0.7), 0, 7.4, 0);
+  }
+  const front = frame(...F.at(0, 0.4, 5), F.ry);
+  for (let i = 0; i < 9; i++) {
+    const lx = -14.5 + i * 3.6;
+    if (i !== 4) glazedSmall(kit, M, front, lx, 0.9, 2.2, 1.8);
+    glazedSmall(kit, M, front, lx, 4.3, 2.2, 1.8);
+  }
+  door(kit, M, front, 0, 2.4, 2.6, accent, { double: true, frame: M.frame });
+  fbox(kit, trim, front, 5.6, 0.25, 2.8, 0, 3.05, 1.4);
+  for (const lx of [-2.6, 2.6]) fbox(kit, M.frame, front, 0.14, 2.9, 0.14, lx, 1.45, 2.6);
+  fgeo(kit, std({ map: signTexture(style.schoolName || 'PRIMARY SCHOOL'), roughness: 0.6 }), front, new THREE.PlaneGeometry(5.2, 0.98), 0, 3.75, 0.08);
+  // A low wall along the street, benches, a flagpole.
+  for (const sx of [-1, 1]) fbox(kit, walls, F, 18, 0.9, 0.3, sx * 13.5, 0.45, 25.4);
+  for (const [bx, bz] of [[-17, 12], [-17, 18], [19, 10]]) {
+    fbox(kit, M.bench, F, 0.45, 0.08, 1.8, bx, 0.48, bz);
+    fbox(kit, M.steel, F, 0.45, 0.48, 0.06, bx, 0.24, bz - 0.8);
+    fbox(kit, M.steel, F, 0.45, 0.48, 0.06, bx, 0.24, bz + 0.8);
+  }
+  fgeo(kit, M.steel, F, new THREE.CylinderGeometry(0.06, 0.09, 9, 10), -20, 4.5, 7);
+  kit.build(group);
+  // The flag ripples in the wind.
+  const flagGeo = new THREE.PlaneGeometry(1.8, 1.1, 12, 4);
+  flagGeo.translate(0.9, 0, 0);
+  setSway(flagGeo, (fx) => (fx / 1.8) * 0.5);
+  const flag = new THREE.Mesh(flagGeo, windy(std({ color: style.flag || '#2f6fd0', roughness: 0.7, side: THREE.DoubleSide }), 1.6));
+  const [fx, , fz] = F.at(-19.94, 0, 7);
+  flag.position.set(fx, 8.3, fz);
+  flag.rotation.y = F.ry;
+  group.add(flag);
+  const plants = new Kit();
+  [[-21, 18], [22, 18], [-21, 2], [22, 2]].forEach(([tx, tz], k) => {
+    const [px, , pz] = F.at(tx, 0, tz);
+    if (style.tree === 'palm' && k % 2) palm(plants, P.plants, px, pz, 8, 820 + k);
+    else tree(plants, P.plants, px, pz, 8 + k, k === 1 ? style.flowerTree || 'flamboyant' : style.parkTree || 'broadleaf', 820 + k, 0.8);
+  });
+  plants.build(group);
+  return { shot: { pos: F.at(6, 1.65, 26), look: F.at(-3, 3.2, 3) } };
 }

@@ -54,9 +54,12 @@ const waitBar = (page, kind) => page.locator(`#lesson-bar.${kind}`).waitFor({ ti
 
 async function typeLikeABeginner(page, text) {
   const lines = text.split('\n');
+  // If the cursor sits on a line the editor has already indented, don't add more spaces.
+  const before = await page.inputValue('#code-input');
+  const onIndent = /(^|\n) +$/.test(before);
   for (let i = 0; i < lines.length; i++) {
     // After Enter the editor indents by itself, so skip the spaces a person wouldn't type.
-    await page.keyboard.type(i === 0 ? lines[i] : lines[i].replace(/^ +/, ''), { delay: 4 });
+    await page.keyboard.type(i === 0 && !onIndent ? lines[i] : lines[i].replace(/^ +/, ''), { delay: 4 });
     if (i < lines.length - 1) await page.keyboard.press('Enter');
   }
 }
@@ -171,7 +174,7 @@ async function fullPlaythrough(viewport, label, colorScheme, packIndex) {
     const steps = await page.evaluate(() => LifePyGame.lesson.steps.length);
     for (let s = 0; s < steps; s++) await playStep(page, x, { label, level: id }, log, opts);
     await page.waitForSelector('#screen-done:not([hidden])');
-    if (opts.shots && (id === 'c1l1' || id === 'c1l6' || id === 'c2l7')) await shot(page, `${label}-${id}-done`);
+    if (opts.shots && ['c1l1', 'c1l6', 'c2l7', 'c3l7'].includes(id)) await shot(page, `${label}-${id}-done`);
     await page.click('#done-buttons .btn.primary');
   }
   // End of the prototype: vote and leave a note, then home.
@@ -246,10 +249,28 @@ async function spotChecks() {
   const msg = await page.locator('#feedback').innerText();
   if (!/stopped at 19/.test(msg)) problems.push(`off-by-one message missing: ${msg}`);
 
+  // The tester switch opens every mission, so a later one can be played straight away.
+  await page.click('#lesson-close');
+  await page.click('#fb-leave');
+  await page.waitForSelector('#screen-home:not([hidden])');
+  if (await page.locator('.node.open').count()) problems.push('missions were open before the tester switch was on');
+  await page.click('#btn-settings');
+  await page.click('#set-open');
+  await page.click('#screen-settings [data-go="home"]');
+  await page.waitForSelector('#screen-home:not([hidden])');
+  await page.click('.node[data-mission="c3l4"]');
+  await page.waitForSelector('#sheet:not([hidden])');
+  await shot(page, 'spot-04-open-mission');
+  await page.click('#sheet [data-start]');
+  await page.waitForSelector('#screen-lesson:not([hidden])');
+  if ((await page.evaluate(() => LifePyGame.lesson.id)) !== 'c3l4') problems.push('the tester switch did not open mission c3l4');
+
   // Leaving a lesson asks first.
+  await page.evaluate(() => LifePyGame.startLesson('c2l5'));
+  await skipStory(page);
   await page.click('#lesson-close');
   await page.waitForSelector('#fb-leave');
-  await shot(page, 'spot-04-leave');
+  await shot(page, 'spot-05-leave');
   await page.click('#fb-leave');
   await page.waitForSelector('#screen-home:not([hidden])');
   await page.context().close();
@@ -309,7 +330,7 @@ async function world3dTour() {
   await page.waitForTimeout(800);
   await shot(page, '3d-08-sheet');
   await page.click('[data-close-sheet]');
-  for (const [id, name] of [['c2l1', 'kitchen'], ['c2l5', 'park']]) {
+  for (const [id, name] of [['c2l1', 'kitchen'], ['c2l5', 'park'], ['c3l1', 'classroom'], ['c3l5', 'schoolyard']]) {
     await page.evaluate((x) => LifePyGame.startLesson(x), id);
     await page.waitForTimeout(5000);
     await shot(page, `3d-09-${name}`);

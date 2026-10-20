@@ -17,7 +17,7 @@ export const REGIONS = {
     fogNear: 140, fogFar: 1500, exposure: 0.68,
     grass: '#7a9f4c', landTints: ['#ffffff', '#eef5dc', '#dfe9c4', '#f6f2d6'], highTint: '#a6a066',
     hills: 7, sea: 'behind', skyline: '#5a7590', distant: 'palm', street: 'palm', car: '#20262e',
-    style: { roof: 'flat', compound: true, walls: ['#e6dfd2', '#d8c9b2', '#ece6dc', '#c7b296'], trim: '#efeae2', roofColor: '#ece6dc', tree: 'palm', flower: 'bougainvillea', parkTree: 'broadleaf', flowerTree: 'flamboyant', grandmaTree: 'mango', grandmaRoofColor: '#8f4a34', shutter: '#3f6b5a' },
+    style: { roof: 'flat', compound: true, schoolAccent: '#2f8a5a', flag: '#2f8a5a', walls: ['#e6dfd2', '#d8c9b2', '#ece6dc', '#c7b296'], trim: '#efeae2', roofColor: '#ece6dc', tree: 'palm', flower: 'bougainvillea', parkTree: 'broadleaf', flowerTree: 'flamboyant', grandmaTree: 'mango', grandmaRoofColor: '#8f4a34', shutter: '#3f6b5a' },
   },
   southasia: {
     sky: { zenith: '#3667b0', mid: '#86acd4', horizon: '#efdcc0', ground: '#bcab95', sunColor: '#ffd29a', elevation: 22, azimuth: 108, cover: 0.32, gain: 1.7 },
@@ -25,7 +25,7 @@ export const REGIONS = {
     fogNear: 120, fogFar: 1300, exposure: 0.68,
     grass: '#80a04a', landTints: ['#ffffff', '#f2f0d4', '#e3e8c0', '#f4ead0'], highTint: '#a9a06a',
     hills: 9, sea: 'behind', skyline: '#6b7f8f', distant: 'palm', street: 'palm', car: '#e9e7e2',
-    style: { roof: 'flat', compound: true, walls: ['#efe6d6', '#e6d3b8', '#f3ede4', '#d8c2a0'], trim: '#f3ede4', roofColor: '#f3ede4', tree: 'palm', flower: 'bougainvillea', parkTree: 'neem', flowerTree: 'flamboyant', grandmaTree: 'mango', grandmaRoofColor: '#a4553a', shutter: '#2f6f6a' },
+    style: { roof: 'flat', compound: true, schoolAccent: '#c0562f', flag: '#e08a2a', walls: ['#efe6d6', '#e6d3b8', '#f3ede4', '#d8c2a0'], trim: '#f3ede4', roofColor: '#f3ede4', tree: 'palm', flower: 'bougainvillea', parkTree: 'neem', flowerTree: 'flamboyant', grandmaTree: 'mango', grandmaRoofColor: '#a4553a', shutter: '#2f6f6a' },
   },
   latam: {
     sky: { zenith: '#2457ae', mid: '#6c9fd8', horizon: '#dfe4e2', ground: '#a9b0a8', sunColor: '#ffe0b4', elevation: 28, azimuth: 112, cover: 0.5, gain: 1.75 },
@@ -33,7 +33,7 @@ export const REGIONS = {
     fogNear: 160, fogFar: 1700, exposure: 0.68,
     grass: '#76994a', landTints: ['#ffffff', '#eef0d0', '#e2e2b8', '#f2ead0'], highTint: '#8f9a6a',
     hills: 12, mountains: 170, distant: 'broadleaf', street: 'jacaranda', car: '#7a1f24',
-    style: { roof: 'clay', compound: true, walls: ['#f0e3c8', '#e8c6a6', '#d6e3d8', '#f2d4c4', '#f4ecd8', '#c9dbe8'], trim: '#f6efe2', roofColor: '#b4532d', tree: 'jacaranda', flower: 'bougainvillea', parkTree: 'broadleaf', flowerTree: 'jacaranda', grandmaTree: 'broadleaf', grandmaRoofColor: '#a6492a', shutter: '#2c6ea3' },
+    style: { roof: 'clay', compound: true, schoolAccent: '#2c6ea3', flag: '#2c6ea3', schoolName: 'ESCUELA PRIMARIA', walls: ['#f0e3c8', '#e8c6a6', '#d6e3d8', '#f2d4c4', '#f4ecd8', '#c9dbe8'], trim: '#f6efe2', roofColor: '#b4532d', tree: 'jacaranda', flower: 'bougainvillea', parkTree: 'broadleaf', flowerTree: 'jacaranda', grandmaTree: 'broadleaf', grandmaRoofColor: '#a6492a', shutter: '#2c6ea3' },
   },
   ukus: {
     sky: { zenith: '#3a6db8', mid: '#8bb3dc', horizon: '#e4e7e6', ground: '#a3ad9f', sunColor: '#fff0d4', elevation: 30, azimuth: 110, cover: 0.62, gain: 1.75 },
@@ -41,7 +41,7 @@ export const REGIONS = {
     fogNear: 140, fogFar: 1400, exposure: 0.7,
     grass: '#6f9a46', landTints: ['#ffffff', '#e9f0d0', '#f3ecc4', '#dfe8c8', '#cfe0b0'], highTint: '#7f9a5a', fields: true,
     hills: 16, distant: 'oak', street: 'maple', car: '#22382c',
-    style: { roof: 'slate', brickWalls: true, walls: ['#a2563c', '#b8664a', '#8f4a36', '#e9e2d4'], brick: '#9c4a33', trim: '#f4f2ec', roofColor: '#59606a', tree: 'oak', flower: 'rose', parkTree: 'oak', flowerTree: 'maple', grandmaTree: 'oak', grandmaRoof: 'slate', grandmaRoofColor: '#59606a', shutter: '#2f4a3a' },
+    style: { roof: 'slate', brickWalls: true, schoolAccent: '#8a2b3a', flag: '#1f4e8c', walls: ['#a2563c', '#b8664a', '#8f4a36', '#e9e2d4'], brick: '#9c4a33', trim: '#f4f2ec', roofColor: '#59606a', tree: 'oak', flower: 'rose', parkTree: 'oak', flowerTree: 'maple', grandmaTree: 'oak', grandmaRoof: 'slate', grandmaRoofColor: '#59606a', shutter: '#2f4a3a' },
   },
 };
 
@@ -138,8 +138,8 @@ export function buildWorld(regionId, detail = 1) {
   [-30, -76, -122, -168].forEach((x, i) => neighbour(scene, M, P, R.style, x, 52, Math.PI, 31 + i));
   const pk = park(scene, M, P, 62, 33, 150, 92, R.style);
   updaters.push(pk.swings.userData.update);
-  const sites = { school: { x: 205, z: -2 }, uni: { x: 270, z: 66 }, city: { x: 330, z: -40 }, venue: { x: 470, y: 14, z: 10 } };
-  landmarks(scene, M, P, R.style, sites);
+  const sites = { school: { x: 205, z: 62, ry: Math.PI }, uni: { x: 270, z: 66 }, city: { x: 330, z: -40 }, venue: { x: 470, y: 14, z: 10 } };
+  const school = landmarks(scene, M, P, R.style, sites);
   if (R.skyline) skyline(scene, R.skyline, heightAt);
 
   const street = new Kit();
@@ -184,6 +184,7 @@ export function buildWorld(regionId, detail = 1) {
     home: { pos: [pX + 1.4, 1.6, pZ + 6.1], look: [pX - 1.0, 2.1, pZ - 6], drift: 0.22, shadow: [pX, 0, pZ - 3, 22], fov: 46 },
     name: { pos: [pX - 2.6, 1.7, pZ + 6.0], look: [pX - 5, 2.8, pZ - 6], drift: 0.22, shadow: [pX, 0, pZ - 3, 22], fov: 46 },
     grandma: { pos: [44, 2.0, 24], look: [44, 2.6, 6], drift: 0.25, shadow: [44, 0, 10, 24], fov: 46 },
+    schoolyard: { pos: school.shot.pos, look: school.shot.look, drift: 0.25, shadow: [sites.school.x, 0, sites.school.z - 14, 28], fov: 48 },
     park: { pos: [pk.playground.x - 6, 1.7, pk.playground.z + 13], look: [pk.playground.x + 1, 1.6, pk.playground.z - 2], drift: 0.25, shadow: [pk.playground.x, 0, pk.playground.z, 24], fov: 48 },
   };
   // The map camera rides along the road; nodes sit on it.

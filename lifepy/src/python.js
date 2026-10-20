@@ -2061,6 +2061,20 @@
         if (fname === 'str') return `${a[0] || 'nothing'} as words`;
         if (fname === 'int') return `${a[0] || '0'} as a whole number`;
         if (fname === 'float') return `${a[0] || '0'} as a decimal number`;
+        if (fname === 'sorted' && e.args.length === 1) {
+          const rev = e.kwargs && e.kwargs.some((k) => k.name === 'reverse');
+          return rev ? `${a[0]} sorted from biggest to smallest` : `${a[0]} sorted from smallest to biggest`;
+        }
+        if (fname === 'max' && e.args.length === 1) return `the biggest in ${a[0]}`;
+        if (fname === 'min' && e.args.length === 1) return `the smallest in ${a[0]}`;
+        if (fname === 'max') return `the biggest of ${a.join(' and ')}`;
+        if (fname === 'min') return `the smallest of ${a.join(' and ')}`;
+        if (fname === 'sum' && e.args.length === 1) return `everything in ${a[0]} added up`;
+        if (fname === 'round' && e.args.length === 1) return `${a[0]} rounded to a whole number`;
+        if (fname === 'round' && e.args.length === 2) {
+          const n = litInt(e.args[1]);
+          return n === 1 ? `${a[0]} rounded to 1 decimal place` : `${a[0]} rounded to ${a[1]} decimal places`;
+        }
         if (fname === 'range') {
           const nums = e.args.map(litInt);
           if (e.args.length === 1 && nums[0] !== null) return `the numbers 0 to ${nums[0] - 1}`;
@@ -2097,6 +2111,11 @@
           return 'Show ' + e.args.map((a) => describeShown(a, loopVars)).join(', then ');
         }
         if (e.k === 'Call' && e.f.k === 'Attr' && e.f.name === 'append') return `Add ${describe(e.args[0] || { k: 'Const', v: null })} to the end of ${describe(e.f.obj)}`;
+        if (e.k === 'Call' && e.f.k === 'Attr' && e.f.name === 'sort' && !e.args.length) {
+          const rev = e.kwargs && e.kwargs.some((k) => k.name === 'reverse');
+          return `Sort ${describe(e.f.obj)} from ${rev ? 'biggest to smallest' : 'smallest to biggest'}`;
+        }
+        if (e.k === 'Call' && e.f.k === 'Attr' && e.f.name === 'remove') return `Take ${describe(e.args[0] || { k: 'Const', v: null })} out of ${describe(e.f.obj)}`;
         return `Work out ${describe(e)}`;
       }
       case 'Assign': {

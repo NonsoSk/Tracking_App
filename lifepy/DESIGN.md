@@ -51,7 +51,7 @@ curriculum: a child's problems are simple, an adult's are complex.
 |---|---|---|---|
 | 1. First Words | Age 5 | Birthday present, naming Pip, guests at the door | `print`, quotes, brackets, errors |
 | 2. The Playground | Age 6 | Sweet jars, sharing fairly, hide-and-seek, skipping | variables, maths, `//` `%`, `for`, `range`, indentation |
-| 3. Primary School | Age 8 | Class register, lining up by height, times tables, report card | lists, sorting, averages, nested loops |
+| 3. Primary School (built) | Age 8 | Class register, a new pupil, lining up by height, times tables, report card | lists, `len`, positions from 0, `.append`, `sorted`/`max`/`min`, nested loops, `sum` and averages |
 | 4. Secondary School | Age 13 | Timetable, class elections, secret coded notes, sports day | dictionaries, counting, strings, functions |
 | 5. University | Age 18 | Hostel, monthly budget, group project, choosing a course | files, modules, data; career branches |
 | 6. First Job | Age 23 | First salary and rent, automating boring work | classes, errors, real automation |
@@ -91,6 +91,9 @@ CSV files, pandas, charts).
   to Python's colours; named after `pip`), modelled in 3D. It floats over a soft
   glow, talks while it prints, spins and waves when you succeed and wobbles when
   it gets stuck. Faces: idle, asleep, talking, happy, oops, confused.
+- **The teacher** (Chapter 3) — Mrs Adeyemi, Mrs Sharma, Maestra López or
+  Mrs Green, depending on the hometown, who runs the class register, roll call
+  and times tables. A fourth friend joins as the new pupil.
 - **Mum, Grandma, an uncle, a cousin and three friends** — shaded, near-real
   portraits drawn from a small description (age, skin tone, hair style and
   colour, eye colour, clothes, glasses, beard, earrings, face shape). They
@@ -134,7 +137,9 @@ A beautiful world the player wants to be in, that never competes with the lesson
   balloons bobbing, swings swaying, dust in the kitchen sunbeam. The camera
   drifts like a hand-held film camera and glides between shots.
 - **Places** in the missions: the birthday party in your garden, Grandma's
-  kitchen with its shelves of sweet jars, the playground in the park.
+  kitchen with its shelves of sweet jars, the playground in the park, a sunny
+  classroom with a chalkboard and rows of desks, and the schoolyard with its
+  court, hopscotch and flag.
 - **Characters** are semi-realistic portraits in front of the 3D world, like a
   visual novel, so their faces stay expressive and readable on a phone. Only the people in the current moment are on stage (one or
   two plus Pip), and the speaker steps forward while the others dim slightly.
@@ -191,8 +196,8 @@ still work.
 
 ## Roadmap
 
-1. **Now:** playtest Chapters 1–2 with 5–10 people who have never coded.
-2. **Next 2–3 months:** Chapters 3–4, Toolbox, daily streak quests, the
+1. **Now:** playtest Chapters 1–3 with 5–10 people who have never coded.
+2. **Next 2–3 months:** Chapters 4–5, Toolbox, daily streak quests, the
    remaining storyline pilots (20 minutes each) to see which one players want.
 3. **Then:** accounts and cloud saves, more hometown packs, career branches,
    the VS Code graduation (export your Toolbox as a real `.py` project).

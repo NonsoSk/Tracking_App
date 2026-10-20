@@ -35,7 +35,7 @@
       stars: {},
       votes: {},
       notes: '',
-      settings: { sound: true, voice: false, gfx: 'full' },
+      settings: { sound: true, voice: false, gfx: 'full', allOpen: false },
     };
   }
 
@@ -186,7 +186,7 @@
 
   const W3 = window.LifePyWorld || null;
   const SCREENS_3D = new Set(['welcome', 'name', 'place', 'home', 'lesson', 'done']);
-  const SHOT_FOR_SCENE = { home: 'home', kitchen: 'kitchen', park: 'park' };
+  const SHOT_FOR_SCENE = { home: 'home', kitchen: 'kitchen', park: 'park', classroom: 'classroom', schoolyard: 'schoolyard' };
   let w3ok = null;
 
   function use3D() {
@@ -211,7 +211,7 @@
 
   // A screen's backdrop: the live world, or a painting of the same place.
   function backdrop(el, shot, pip, region) {
-    const painted = shot === 'kitchen' || shot === 'park' ? shot : 'home';
+    const painted = ['kitchen', 'park', 'classroom', 'schoolyard'].includes(shot) ? shot : 'home';
     const ok = w3(() => {
       // The painting stays underneath until the 3D view has drawn its first frame.
       if (!el.querySelector('svg.scene')) el.insertAdjacentHTML('beforeend', Art.scene(painted));
@@ -271,20 +271,21 @@
   let mapHook = null;
   const mapState = { x: 0, nodes: [], max: 480 };
 
-  // Missions sit on the road outside the place they happen.
+  // Each chapter's missions sit in a row on the road, outside the places they
+  // happen: home, then Grandma's house and the park, then the school.
+  const CHAPTER_ROAD = { c1: [-14, 5.6], c2: [36, 9.2], c3: [170, 7.4] };
+
   function missionSpots(info) {
-    const start = { home: [-14, 5.6], kitchen: [36, 7], park: [76, 9] };
-    const used = { home: 0, kitchen: 0, park: 0 };
     const spots = {};
-    for (const id of allLevels()) {
-      const sc = C.LEVELS[id].scene || 'home';
-      const [x0, step] = start[sc] || start.home;
-      spots[id] = { x: x0 + step * used[sc]++, z: info.roadZ };
+    for (const ch of C.CHAPTERS) {
+      if (!ch.levels) continue;
+      const [x0, step] = CHAPTER_ROAD[ch.id] || [170 + (ch.n - 3) * 60, 7];
+      ch.levels.forEach((id, i) => { spots[id] = { x: x0 + step * i, z: info.roadZ }; });
     }
     return spots;
   }
 
-  const SIGN_X = { c1: [0, 11.5, 2], c2: [44, 8.5, 2], c3: [196, 12, 0], c4: [214, 12, 0], c5: [270, 18, 66], c6: [330, 40, -40], c7: [404, 10, 40], c8: [470, 26, 10] };
+  const SIGN_X = { c1: [0, 11.5, 2], c2: [44, 8.5, 2], c3: [205, 13, 62], c4: [222, 13, 62], c5: [270, 18, 66], c6: [330, 40, -40], c7: [404, 10, 40], c8: [470, 26, 10] };
 
   function renderMap3D() {
     const region = regionNow();
@@ -297,7 +298,7 @@
     const spots = missionSpots(info);
     const next = nextLessonId();
     const nodes = allLevels().map((id) => {
-      const state = S.done[id] ? 'done' : id === next ? 'current' : 'locked';
+      const state = missionState(id, next);
       const stars = S.stars[id] || 1;
       const label = `Mission ${lessonNumber(id)}: ${C.LEVELS[id].title}${state === 'done' ? `, ${stars} of 3 stars` : state === 'locked' ? ', locked' : ''}`;
       const sp = spots[id];
@@ -316,7 +317,7 @@
     mapState.max = SIGN_X.c8[0];
     w3(() => {
       W3.mapFocus(region, mapState.x, { instant: true });
-      W3.setMarkers(allLevels().map((id) => ({ x: spots[id].x, z: spots[id].z, state: S.done[id] ? 'done' : id === next ? 'current' : 'locked' })));
+      W3.setMarkers(allLevels().map((id) => ({ x: spots[id].x, z: spots[id].z, state: missionState(id, next) })));
     });
     stopMap3D();
     mapHook = W3.onFrame(placeMapNodes);
@@ -351,8 +352,8 @@
 
   // ---------- characters ----------
 
-  const PEOPLE = ['mum', 'grandma', 'uncle', 'cousin', 'f1', 'f2', 'f3'];
-  const SPEAKER_KIND = { pip: 'pip', mum: 'family', grandma: 'family', uncle: 'family', cousin: 'family', f1: 'friend', f2: 'friend', f3: 'friend' };
+  const PEOPLE = ['mum', 'grandma', 'uncle', 'cousin', 'f1', 'f2', 'f3', 'f4', 'teacher'];
+  const SPEAKER_KIND = { pip: 'pip', mum: 'family', grandma: 'family', uncle: 'family', cousin: 'family', f1: 'friend', f2: 'friend', f3: 'friend', f4: 'friend', teacher: 'teacher' };
 
   function nameOf(who) {
     switch (who) {
@@ -364,6 +365,8 @@
       case 'f1': return X.f(1);
       case 'f2': return X.f(2);
       case 'f3': return X.f(3);
+      case 'f4': return X.f(4);
+      case 'teacher': return X.P.teacher;
       default: return '';
     }
   }
@@ -470,6 +473,19 @@
     return ch.levels.indexOf(id) + 1;
   }
 
+  // done, current (the next one to play), open (testers can play it early) or locked.
+  function missionState(id, next) {
+    if (S.done[id]) return 'done';
+    if (id === next) return 'current';
+    return S.settings.allOpen ? 'open' : 'locked';
+  }
+
+  // The first chapter that isn't built yet, for "coming soon" messages.
+  function comingNext() {
+    const ch = C.CHAPTERS.find((c) => c.locked);
+    return ch ? `Chapter ${ch.n}, ${ch.title},` : 'More';
+  }
+
   function nextLessonId() {
     return allLevels().find((id) => !S.done[id]) || null;
   }
@@ -504,7 +520,7 @@
     const at = (x, y) => `left:${((x / 400) * 100).toFixed(2)}%;top:${((y / m.height) * 100).toFixed(2)}%`;
     const nodes = m.nodes.map((nd) => {
       const id = nd.id;
-      const state = S.done[id] ? 'done' : id === next ? 'current' : 'locked';
+      const state = missionState(id, next);
       const stars = S.stars[id] || 1;
       const label = `Mission ${lessonNumber(id)}: ${C.LEVELS[id].title}${state === 'done' ? `, ${stars} of 3 stars` : state === 'locked' ? ', locked' : ''}`;
       return `<button class="node ${state}" type="button" style="${at(nd.x, nd.y)}" data-mission="${id}" aria-label="${esc(label)}" ${state === 'locked' ? 'disabled' : ''}>
@@ -529,7 +545,7 @@
         <button class="btn primary" type="button" data-start="${next}">${Art.icon('play')}Play</button></div>`;
     } else {
       $('#map-bar').innerHTML = `<div class="map-next">
-        <div class="map-next-text"><span class="eyebrow">Every mission done</span><b>Chapter 3 is coming soon</b></div>
+        <div class="map-next-text"><span class="eyebrow">Every mission done</span><b>${esc(comingNext())} is coming soon</b></div>
         <button class="btn quiet" type="button" data-go="album">${Art.icon('album')}Memories</button></div>`;
     }
   }
@@ -1563,6 +1579,8 @@
     }
     if (t === 'TypeError' && /can only concatenate str/.test(m)) return { pip: 'confused', title: 'Words and numbers don\'t mix', text: 'Use a comma instead of `+`, like `print("I am", 6)`.' };
     if (t === 'TypeError' && /unsupported operand/.test(m)) return { pip: 'confused', title: 'Those don\'t mix', text: 'Pip can\'t do maths with words. Numbers don\'t need quote marks.' };
+    if (t === 'IndexError') return { pip: 'confused', title: 'Nobody at that position', text: 'The list isn\'t that long. Positions start at 0, so the last one is one less than the length.' };
+    if (t === 'AttributeError') return { pip: 'confused', title: 'Pip doesn\'t know that word after the dot', text: 'Check the spelling after the `.`, like `.append`.' };
     if (t === 'ZeroDivisionError') return { pip: 'oops', title: 'Sharing with nobody?', text: 'You can\'t share between 0 friends. Use a number bigger than 0.' };
     if (t === 'SyntaxError') return { pip: 'confused', title: 'Pip can\'t read this line', text: `Something${onLine} is out of place. Check that every \`(\` has a \`)\` and every \`"\` has a partner.` };
     return { pip: 'confused', title: 'Something went wrong', text: 'Read Python\'s message below, or tap Hint.' };
@@ -1840,7 +1858,7 @@
     doneScreen('park', `<div class="done-card">
         <div class="title-pip">${Art.pip('happy')}</div>
         <h1>You finished this early version</h1>
-        <p class="lede">Chapter 3, Primary School, is next. Which story should we build after that?</p>
+        <p class="lede">${esc(comingNext())} is next. Which story should we build after that?</p>
         <div class="vote-row" id="vote-row">${options}</div>
         <div class="end-notes"><label class="field-label" for="end-notes">What was the hardest part?</label>
         <textarea id="end-notes" class="text-input" rows="3" placeholder="Anything that confused you">${esc(S.notes || '')}</textarea></div></div>`,
@@ -1889,6 +1907,7 @@
     $('#set-sound').checked = !!S.settings.sound;
     $('#set-voice').checked = !!S.settings.voice;
     $('#set-gfx').checked = S.settings.gfx !== 'simple';
+    $('#set-open').checked = !!S.settings.allOpen;
     $('#gfx-row').hidden = !(W3 && W3.supported());
     renderPlaces('#set-place-list', S.profile ? S.profile.pack : null);
     $('#reset-confirm').hidden = true;
@@ -2038,6 +2057,7 @@
     $('#set-sound').addEventListener('change', (e) => { S.settings.sound = e.target.checked; persist(); Sound.play('tap'); });
     $('#set-voice').addEventListener('change', (e) => { S.settings.voice = e.target.checked; if (!e.target.checked) Voice.stop(); persist(); });
     $('#set-gfx').addEventListener('change', (e) => { S.settings.gfx = e.target.checked ? 'full' : 'simple'; persist(); });
+    $('#set-open').addEventListener('change', (e) => { S.settings.allOpen = e.target.checked; persist(); });
     $('#set-place-list').addEventListener('click', (e) => {
       const b = e.target.closest('.choice');
       if (!b || !S.profile) return;

@@ -10,6 +10,10 @@ import { GradeShader } from './grade.js';
 import { skyDome } from './sky.js';
 import { buildWorld } from './world.js';
 import { buildKitchen } from './kitchen.js';
+import { buildClassroom } from './classroom.js';
+
+// Indoor places are separate small scenes; everything else is part of the neighbourhood.
+const INTERIORS = { kitchen: buildKitchen, classroom: buildClassroom };
 import { makePip } from './pip.js';
 import { time } from './kit.js';
 import { setAnisotropy } from './textures.js';
@@ -88,11 +92,11 @@ function init() {
 }
 
 function getWorld(region, place) {
-  const key = place === 'kitchen' ? `${region}:kitchen` : region;
+  const key = INTERIORS[place] ? `${region}:${place}` : region;
   if (!worlds[key]) {
     let w;
-    if (place === 'kitchen') {
-      w = buildKitchen(region, renderer);
+    if (INTERIORS[place]) {
+      w = INTERIORS[place](region, renderer);
     } else {
       w = buildWorld(region, detail);
       // Reflections on glass, water and Pip come from the same sky.
@@ -360,7 +364,7 @@ export function setMarkers(list) {
   }
   if (!list) return;
   markers = new THREE.Group();
-  const colors = { done: '#ffd36a', current: '#7fa6ff', locked: '#9a958a' };
+  const colors = { done: '#ffd36a', current: '#7fa6ff', open: '#d6e2ff', locked: '#9a958a' };
   for (const m of list) {
     const mat = new THREE.MeshStandardMaterial({ color: '#000000', emissive: colors[m.state], emissiveIntensity: m.state === 'locked' ? 0.4 : 2.4, transparent: true, opacity: 0.9 });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.25, 40), mat);
@@ -431,5 +435,5 @@ export function snapshot(region, shotName, w, h, pipOpts) {
 // Build a place ahead of time so it is ready when the player gets there.
 export function prepare(region, place) {
   init();
-  getWorld(region, place === 'kitchen' ? 'kitchen' : undefined);
+  getWorld(region, INTERIORS[place] ? place : undefined);
 }

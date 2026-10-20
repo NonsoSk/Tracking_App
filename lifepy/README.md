@@ -6,7 +6,7 @@ you teach Pip is real Python, and Python's own error messages are explained in
 plain words.
 
 This folder is a playable prototype: a living 3D world for each of four
-hometowns, the Growing Up storyline's first two chapters (13 missions of about
+hometowns, the Growing Up storyline's first three chapters (20 missions of about
 3–5 minutes each), a family and friends from each hometown, a photo album of
 memories, Pip's notebook and a results page for playtests.
 
@@ -24,12 +24,12 @@ memories, Pip's notebook and a results page for playtests.
   name, then you pick where you grew up: each choice shows your mum and a live
   3D preview of the home you grow up in. The first mission starts straight away.
 - **The world map:** your road through life, in 3D. Missions glow on the road
-  outside the place they happen (home, Grandma's house, the park), and the
-  school, university, city and wedding venue wait further down the road. Drag
+  outside the place they happen (home, Grandma's house, the park, the
+  school), and the university, city and wedding venue wait further down the road. Drag
   or scroll to travel along it. One **Play** button always takes you to the next
   mission; tap any finished mission to replay it.
 - **A mission:** a real-time 3D place (the birthday party in your garden,
-  Grandma's kitchen, the park) with the people in the story and a 3D Pip. The
+  Grandma's kitchen, the park, the classroom, the schoolyard) with the people in the story and a 3D Pip. The
   story plays one line at a time in a dialogue box; tap to continue. When it's **your move**, the stage
   makes room for Pip's console below it (on wide screens it sits beside it).
   Pip says what your code printed in a speech bubble, the characters smile,
@@ -45,6 +45,11 @@ memories, Pip's notebook and a results page for playtests.
 |---|---|---|
 | 1. First Words (age 5) | A present for you, Say my name, The pieces of a line, Bug hunt, Guests at the door, Party time | `print`, quote marks, brackets, reading errors, typing a line from memory |
 | 2. The Playground (age 6) | Pip's jars, Jar mix-ups, More sweets, Share fairly, Hide and seek, Loop bugs, Skip and clap | variables, `+` and `-`, `//` and `%`, `for` loops, `range`, indentation |
+| 3. Primary School (age 8) | The class register, Who's first?, Roll call, A new pupil, Line up by height, Times tables, Report card | lists, `len`, positions from 0, looping over a list, `.append`, `sorted`, `max` and `min`, loops inside loops, `sum` and averages |
+
+Chapters 4–8 (secondary school to the wedding) and the other three stories show
+as "Coming soon" on the map; they are not built yet. Missions open one at a time
+as you finish the one before; testers can open them all (see below).
 
 Every idea is taught in small steps, so nobody types anything they haven't
 first seen, predicted and built:
@@ -87,10 +92,14 @@ Other things that help complete beginners:
 4. Press **Copy results** and paste them into a message to yourself.
 5. In Settings, press **Start over for a new player** before handing the device
    to the next tester.
+6. To try a later mission without playing through, turn on **Settings → Open
+   every mission**. Every built mission can then be played from the map in any
+   order. Turn it off again before a real playtest.
 
 What to look for: missions with many mistakes or hints are where the design needs
 work. The goal is that a tester can type a `print` line from memory by the end
-of Chapter 1, and write a small loop by the end of Chapter 2.
+of Chapter 1, write a small loop by the end of Chapter 2, and work out an
+average from a list by the end of Chapter 3.
 
 ## The 3D world
 
@@ -120,7 +129,7 @@ into the same single file.
 | `src/python.js` | PyMini, a small Python interpreter for the beginner subset. It reports errors with exactly the same wording as CPython 3.13 and translates code into plain words. |
 | `src/content.js` | Storylines, hometown packs (names, food, how each family looks), chapters, missions (place, cast, memory, rounds and checks) and the notebook. Adding a mission means adding data here. |
 | `src/art.js` | Lifelike character portraits (shaded skin, hair styles, blinking, five expressions), the 2D Pip, painted places and map for the simple look, and icons. All inline SVG. |
-| `src/world/` | The 3D world: renderer, sky, light and colour grade (`index.js`, `sky.js`, `grade.js`); land, trees, palms, grass, water and birds (`nature.js`); the four family homes (`houses.js`); the neighbourhood, park and later landmarks (`town.js`); the party (`props.js`); Grandma's kitchen (`kitchen.js`); the 3D Pip (`pip.js`); every surface painted in code (`textures.js`). |
+| `src/world/` | The 3D world: renderer, sky, light and colour grade (`index.js`, `sky.js`, `grade.js`); land, trees, palms, grass, water and birds (`nature.js`); the four family homes (`houses.js`); the neighbourhood, park, school and later landmarks (`town.js`); the party (`props.js`); Grandma's kitchen (`kitchen.js`); the classroom (`classroom.js`); the 3D Pip (`pip.js`); every surface painted in code (`textures.js`). |
 | `src/game.js` | Title screen, world map, missions (stage, dialogue, Pip's console), the code editor, tiles, running code, reactions, hints, XP and stars, memories, results and the Ask Pip helper. |
 | `src/style.css`, `src/page.html` | Look and layout. |
 | `build.mjs` | Bundles the 3D world with esbuild, then everything into `dist/lifepy.html` (standalone) and `dist/artifact.html` (for claude.ai). About 1.1 MB. |

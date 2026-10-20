@@ -515,6 +515,7 @@ code.inline {
 .switch-row input { width: 48px; height: 28px; accent-color: var(--accent); }
 .settings-block { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .settings-block .choices { width: 100%; }
+.settings-block .wide-row { width: 100%; }
 .confirm { background: var(--bad-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; width: 100%; }
 
 .field-label { font-weight: 600; }
@@ -661,6 +662,7 @@ code.inline {
 .speaker { position: absolute; top: -13px; left: 16px; padding: 2px 12px; border-radius: 999px; background: var(--accent); color: #ffffff; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.01em; box-shadow: var(--shadow); }
 .dialogue.is-family .speaker { background: #9a5b3a; }
 .dialogue.is-friend .speaker { background: #2f7d6d; }
+.dialogue.is-teacher .speaker { background: #6a4bb0; }
 .dialogue.is-task .speaker { background: var(--ink); color: var(--bg); }
 .dialogue.is-task p { font-weight: 600; }
 .dialogue.is-narrator p { font-style: italic; color: var(--ink-soft); }
@@ -709,6 +711,7 @@ code.inline {
 .node.done .node-disc { background: #fffaf0; color: #17804f; box-shadow: 0 4px 0 #c9b98f, 0 8px 16px rgba(0, 0, 0, 0.18); }
 .node.done .node-disc .icon { width: 28px; height: 28px; stroke-width: 2.6; }
 .node.current .node-disc { background: radial-gradient(circle at 35% 30%, #7e9dff, #2d5be3 60%, #1c2f8f); color: #ffffff; box-shadow: 0 4px 0 #1a2a7a, 0 0 0 7px rgba(255, 255, 255, 0.55), 0 10px 22px rgba(0, 0, 0, 0.25); animation: beacon 2.2s ease-in-out infinite; }
+.node.open .node-disc { background: #fffaf0; color: #2d5be3; box-shadow: 0 4px 0 #c9b98f, 0 8px 16px rgba(0, 0, 0, 0.18); }
 .node.locked { cursor: not-allowed; }
 .node.locked .node-disc { background: #e9e3d3; color: #9a9384; box-shadow: 0 4px 0 #c8bfa8; }
 .node.locked .node-disc .icon { width: 22px; height: 22px; }

@@ -32,6 +32,7 @@ function fillSlots(template, values) {
 function solutionCode(round, x) {
   switch (round.mode) {
     case 'explain':
+      return (round.setup ? x.t(round.setup) + '\n' : '') + x.t(round.code);
     case 'watch':
     case 'predict':
       return x.t(round.code);
@@ -177,5 +178,6 @@ test('accents do not matter when checking names', () => {
 
 test('tiles join into readable code', () => {
   assert.equal(C.joinTiles(['print', '(', '"', 'Thank you', '"', ')']), 'print("Thank you")');
+  assert.equal(C.joinTiles(['names', '.append', '(', '"', 'Kofi', '"', ')']), 'names.append("Kofi")');
   assert.equal(C.joinTiles(['sweets', '=', 'sweets', '+', '3']), 'sweets = sweets + 3');
 });
