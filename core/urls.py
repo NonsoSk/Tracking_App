@@ -13,6 +13,7 @@ urlpatterns = [
     path("staff/import/", views.import_employees, name="import_employees"),
     path("staff/<int:pk>/notify/", views.notify_replacement, name="notify_replacement"),
     path("staff/<int:pk>/exit/", views.record_exit, name="record_exit"),
+    path("excel-link/", views.excel_link, name="excel_link"),
     path("styleguide/", views.styleguide, name="styleguide"),
     path("search/", views.palette_search, name="palette_search"),
 ]

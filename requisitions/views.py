@@ -3,11 +3,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.ai import ai_enabled
 from core.choices import EmploymentType
 from core.models import Employee
 from core.permissions import can_view_requisition, ensure, hr_required, requisitions_for, role_required, safe_next
@@ -16,7 +17,7 @@ from pipeline.models import STAGE_ICONS, Application, Interview, Stage
 from pipeline.presentation import decorate_cards
 from pipeline.services import WorkflowError, auto_shortlist, move_to_stage, set_status as set_app_status
 
-from . import services
+from . import services, summary
 from .forms import AdvertForm, ApproveForm, NoteForm, PublishForm, RequisitionForm, ReturnForm
 from .knowledge_base import all_terms
 from .models import JobRole, Requisition, SkillTag
@@ -86,7 +87,8 @@ def _initial_from_query(request):
 
 @role_required("can_raise_requisition")
 def requisition_create(request):
-    form = RequisitionForm(request.POST or None, user=request.user, initial=_initial_from_query(request))
+    form = RequisitionForm(request.POST or None, user=request.user, initial=_initial_from_query(request),
+                           submitting="submit" in request.POST)
     if request.method == "POST" and form.is_valid():
         requisition = form.save(commit=False)
         requisition.raised_by = request.user
@@ -109,7 +111,8 @@ def requisition_edit(request, pk):
     ensure(user.is_hr or (requisition.is_editable_by_department and can_view_requisition(user, requisition)
                           and user.can_raise_requisition))
     before = {f: getattr(requisition, f) for f in REQUIREMENT_FIELDS}
-    form = RequisitionForm(request.POST or None, instance=requisition, user=user)
+    form = RequisitionForm(request.POST or None, instance=requisition, user=user,
+                           submitting="submit" in request.POST and requisition.is_editable_by_department)
     if request.method == "POST" and form.is_valid():
         requisition = form.save()
         if any(getattr(requisition, f) != before[f] for f in REQUIREMENT_FIELDS):
@@ -165,10 +168,14 @@ def requisition_detail(request, pk):
         "records": records, "interview_total": interviews.count() + len(records), "notes": requisition.notes.select_related("author"),
         "activity": requisition.activities.select_related("actor", "application__candidate")[:40],
         "note_form": NoteForm(), "return_form": ReturnForm(), "approve_form": ApproveForm(),
-        "publish_form": PublishForm(initial={"closing_date": requisition.closing_date}),
         "stages": [s for s in Stage], "threshold": settings.RECRUITMENT["AUTO_SHORTLIST_THRESHOLD"],
         "careers_url": request.build_absolute_uri(f"/careers/jobs/{requisition.reference}/"),
         "tab": request.GET.get("tab", "candidates"), "STAGE_ICONS": STAGE_ICONS,
+        "awaiting_review": summary.awaiting_review(requisition).count(),
+        "can_review": can_review_shortlist(request.user, requisition),
+        "summary_to": summary.recipients(requisition)[1] if request.user.is_hr else [],
+        "summary_frequencies": Requisition.SummaryFrequency.choices,
+        "email_connected": email_connected(),
     })
 
 
@@ -181,6 +188,10 @@ def requisition_action(request, pk, action):
     try:
         if action == "submit":
             ensure(user.can_raise_requisition)
+            missing = services.missing_details(requisition)
+            if missing:
+                messages.error(request, "Before submitting, fill in: " + ", ".join(missing) + ".")
+                return redirect("requisitions:edit", pk=requisition.pk)
             services.submit(requisition, actor=user)
             messages.success(request, "Submitted to the hiring team.")
         elif action == "approve":
@@ -228,18 +239,118 @@ def add_note(request, pk):
 
 @hr_required
 def edit_advert(request, pk):
+    """The job description shown on the careers page: drafted for HR to review, edit and publish."""
     requisition = get_object_or_404(Requisition, pk=pk)
+    can_publish = requisition.status in services.PUBLISHABLE
+    how = "with AI" if ai_enabled() else "from the requisition"
     if request.method == "POST" and "generate" in request.POST:
         requisition.advert = draft_job_advert(requisition)
         requisition.save(update_fields=["advert"])
-        messages.info(request, "Draft advert generated" + (" with AI." if settings.ANTHROPIC_API_KEY else " from the requirements."))
+        services.log(f"Job description redrafted {how}.", verb="requisition", requisition=requisition, actor=request.user)
+        messages.info(request, f"A new job description was drafted {how}. Review it before publishing.")
         return redirect("requisitions:advert", pk=pk)
+    drafted = False
+    if request.method == "GET" and can_publish and not requisition.advert.strip():
+        # Ready to publish: the first visit drafts the job description from everything the department gave.
+        requisition.advert = draft_job_advert(requisition)
+        requisition.save(update_fields=["advert"])
+        services.log(f"Job description drafted {how}.", verb="requisition", requisition=requisition, actor=request.user)
+        drafted = True
     form = AdvertForm(request.POST or None, instance=requisition)
     if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Job advert saved.")
-        return redirect(requisition)
-    return render(request, "requisitions/advert.html", {"form": form, "req": requisition})
+        publishing = "publish" in request.POST and can_publish
+        if publishing and not form.cleaned_data["advert"].strip():
+            form.add_error("advert", "Write the job description before publishing.")
+        else:
+            form.save()
+            if publishing:
+                services.publish(requisition, actor=request.user, closing_date=form.cleaned_data.get("closing_date"))
+                messages.success(request, "The vacancy is now live on the careers page.")
+            else:
+                messages.success(request, "Job description saved.")
+            return redirect(requisition)
+    return render(request, "requisitions/advert.html", {
+        "form": form, "req": requisition, "can_publish": can_publish, "drafted": drafted, "how": how,
+    })
+
+
+def email_connected() -> bool:
+    return not any(word in settings.EMAIL_BACKEND for word in ("console", "dummy", "filebased"))
+
+
+def can_review_shortlist(user, requisition) -> bool:
+    return user.is_hr or (user.is_department_user and user.department_id == requisition.department_id)
+
+
+@hr_required
+@require_POST
+def department_summary(request, pk):
+    """Save how often the department gets the candidate summary, and send it now if asked."""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    frequency = request.POST.get("summary_frequency")
+    if frequency in Requisition.SummaryFrequency.values and frequency != requisition.summary_frequency:
+        requisition.summary_frequency = frequency
+        requisition.save(update_fields=["summary_frequency"])
+        services.log(f"Candidate summary to the department: {requisition.get_summary_frequency_display().lower()}.",
+                     verb="summary", requisition=requisition, actor=request.user)
+        if "send" not in request.POST:
+            messages.success(request, "Saved. " + ("The department gets the summary "
+                             f"{requisition.get_summary_frequency_display().lower()}."
+                             if frequency != Requisition.SummaryFrequency.OFF else "Summaries go out only when you send one."))
+    if "send" in request.POST:
+        try:
+            sent_to = summary.send_summary(requisition, actor=request.user, note=request.POST.get("note", ""))
+        except WorkflowError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "Candidate summary emailed to " + ", ".join(sent_to) + "."
+                             + ("" if email_connected() else " Email is not connected on this computer yet, so it "
+                                "was printed in the portal window instead of delivered."))
+    return redirect(requisition.get_absolute_url() + "?tab=activity")
+
+
+@hr_required
+def summary_preview(request, pk):
+    """The candidate summary exactly as the department receives it."""
+    from core.notify import absolute
+
+    requisition = get_object_or_404(Requisition, pk=pk)
+    content = summary.build_summary(requisition, note=request.GET.get("note", ""))
+    return render(request, "emails/base.html", {
+        "subject": content["subject"], "body": content["body"], "stats": content["stats"], "table": content["table"],
+        "action_url": absolute(content["action_url"]), "action_label": content["action_label"],
+        "company": settings.COMPANY_NAME, "portal": settings.PORTAL_NAME,
+    })
+
+
+@login_required
+def review_shortlist(request, pk):
+    """The department approves which shortlisted candidates move on to interviews."""
+    requisition = get_object_or_404(Requisition.objects.select_related("department"), pk=pk)
+    ensure(can_review_shortlist(request.user, requisition))
+    if request.method == "POST":
+        if not request.POST.get("application", "").isdigit():
+            raise Http404
+        application = get_object_or_404(requisition.applications.select_related("candidate"),
+                                        pk=request.POST["application"])
+        try:
+            summary.record_review(application, request.POST.get("answer", ""), actor=request.user,
+                                  note=request.POST.get("note", ""))
+        except WorkflowError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, f"{application.candidate.full_name}: "
+                             f"{application.get_department_review_display().lower()}.")
+        return redirect("requisitions:review", pk=pk)
+    shortlisted = (requisition.applications.filter(stage__in=summary.REVIEW_STAGES,
+                                                   status=Application.Status.ACTIVE)
+                   .select_related("candidate", "department_reviewed_by").order_by("-match_score", "applied_at"))
+    waiting = [a for a in shortlisted if not a.current_department_review]
+    answered = [a for a in shortlisted if a.current_department_review]
+    decorate_cards(waiting + answered)
+    return render(request, "requisitions/review.html", {
+        "req": requisition, "waiting": waiting, "answered": answered, "counts": summary.stage_counts(requisition),
+    })
 
 
 @hr_required

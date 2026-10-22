@@ -14,6 +14,12 @@ With ``replace=True`` every record already in the portal (including the demo dat
 removed first, so the portal holds only what is in the two workbooks. Settings are kept:
 the selection-report criteria, the document checklists and skill vocabulary.
 
+Without it the run is a refresh (see core/excel_link.py): new rows are added, rows changed in
+Excel update their records, and what the hiring team did in the portal is kept. A requisition's
+status follows the tracker only when the tracker's Status cell changed since the last run, and an
+application follows the interview records only while nobody has worked on it in the portal.
+A refresh may be given just one of the workbooks.
+
 People who appear in several sheets (same email or phone number, and names that share a
 word) become one candidate. A phone number or email used by more than three different
 people is treated as a placeholder and never used to match anyone. Salaries are never read.
@@ -24,6 +30,7 @@ from __future__ import annotations
 import os
 import re
 from collections import Counter, defaultdict
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from decimal import Decimal
@@ -301,8 +308,13 @@ class ImportResult:
     report_path: str = ""
 
 
+def snapshot(instance) -> dict:
+    """Field values, to tell whether a record really changed."""
+    return {f.attname: deepcopy(getattr(instance, f.attname)) for f in instance._meta.concrete_fields}
+
+
 # --------------------------------------------------------------------------- reading
-def read_sheets(paths) -> dict[str, Sheet]:
+def read_sheets(paths, *, require_all=True) -> dict[str, Sheet]:
     from openpyxl import load_workbook
 
     found: dict[str, Sheet] = {}
@@ -331,16 +343,21 @@ def read_sheets(paths) -> dict[str, Sheet]:
             found[kind] = Sheet(kind, os.path.basename(path), ws.title, labels, data)
         wb.close()
     missing = [SHEET_LABELS[k] for k in SHEET_SIGNATURES if k not in found]
-    if missing:
+    if missing and (require_all or not found):
+        names = ", ".join(os.path.basename(str(p)) for p in paths)
+        if not found:
+            raise WorkbookError(f"No recruitment sheets were found in {names}. Is this the CV file or the "
+                                "recruitment master workbook?")
         raise WorkbookError("These sheets were not found in the files given: " + ", ".join(missing) + ".")
     return found
 
 
 # --------------------------------------------------------------------------- importer
 class WorkbookImporter:
-    def __init__(self, paths, *, replace=False, report_dir=None, log=print):
+    def __init__(self, paths, *, replace=False, report_dir=None, log=print, require_all=True):
         self.paths = list(paths)
         self.replace = replace
+        self.require_all = require_all or replace  # never empty the portal to load only part of the data
         self.report_dir = report_dir
         self.log = log
         self.result = ImportResult()
@@ -371,7 +388,8 @@ class WorkbookImporter:
     # -- main
     def run(self) -> ImportResult:
         self.log("Reading the workbooks...")
-        sheets = read_sheets(self.paths)
+        sheets = read_sheets(self.paths, require_all=self.require_all)
+        self.sheets = sheets
         for kind, sheet in sheets.items():
             self.log(f"  {SHEET_LABELS[kind]}: {len(sheet.rows):,} rows ({sheet.file} > {sheet.title})")
         with transaction.atomic():
@@ -379,10 +397,14 @@ class WorkbookImporter:
                 self.log("Removing every existing record (demo data included)...")
                 self.purge()
             self.departments = {}
+            self.requisitions = {}
             self.load_departments(sheets)
-            self.load_staff(sheets["staff"])
-            self.load_requisitions(sheets["requisitions"])
-            self.load_people(sheets)
+            if "staff" in sheets:
+                self.load_staff(sheets["staff"])
+            if "requisitions" in sheets:
+                self.load_requisitions(sheets["requisitions"])
+            if sheets.keys() & {"cv", "interviews", "cbt"}:
+                self.load_people(sheets)
         if self.report_dir:
             self.result.report_path = write_report(self.result, self.report_dir)
         return self.result
@@ -412,7 +434,7 @@ class WorkbookImporter:
     def load_departments(self, sheets):
         spellings = defaultdict(Counter)
         for kind, column in (("staff", "department"), ("requisitions", "department of requisitor")):
-            for _, row in sheets[kind].rows:
+            for _, row in (sheets[kind].rows if kind in sheets else []):
                 name = clean(row.get(column))
                 if name:
                     spellings[self.dept_key(name)][name] += 1
@@ -481,6 +503,8 @@ class WorkbookImporter:
             }
             employee = existing.get(staff_id)
             if employee:
+                if all(getattr(employee, key) == value for key, value in values.items()):
+                    continue  # unchanged since the last run
                 for key, value in values.items():
                     setattr(employee, key, value)
                 employee.retirement_date = employee.compute_retirement_date()
@@ -559,25 +583,49 @@ class WorkbookImporter:
             }
             key = values["source_record"]["key"]
             req = existing.get(ref.lower()) if ref else Requisition.objects.filter(source_record__key=key).first()
+            if req and not self.replace:
+                self.keep_portal_changes(req, values, tracker_status)
             if req:
-                for k, v in values.items():
-                    setattr(req, k, v)
-                req.save()
-                self.result.counts["requisitions updated"] += 1
+                if any(getattr(req, k) != v for k, v in values.items()):
+                    for k, v in values.items():
+                        setattr(req, k, v)
+                    req.save()
+                    self.result.counts["requisitions updated"] += 1
             else:
                 req = Requisition(reference=ref[:20], **values)
                 req.save()
                 self.result.counts["requisitions added"] += 1
-            if req_date:
+            if req_date and req.created_at != aware(req_date):
                 Requisition.objects.filter(pk=req.pk).update(created_at=aware(req_date))
             if ref:
                 self.requisitions[ref.lower()] = req
+
+    def keep_portal_changes(self, req, values, tracker_status):
+        """On a refresh, keep what the hiring team set in the portal unless Excel changed the same thing."""
+        if req.education_level:
+            values.pop("education_level")
+        before = next((clean(v).lower() for k, v in (req.source_record or {}).get("values", {}).items()
+                       if header_key(k) == "status"), None)
+        closed_now = values["status"] != Requisition.Status.APPROVED
+        portal_closed = req.status in {Requisition.Status.FILLED, Requisition.Status.CLOSED}
+        if tracker_status == before:
+            follow = closed_now and portal_closed  # still closed: filled or not may have changed
+        elif closed_now:
+            follow = req.status != Requisition.Status.CANCELLED
+        else:
+            follow = portal_closed  # re-opened in the tracker
+        if not follow:
+            values.pop("status")
+            values.pop("closed_at")
+        elif values["status"] != req.status:
+            self.result.counts["requisition statuses changed by the tracker"] += 1
 
     # -- people
     def load_people(self, sheets):
         for req in Requisition.objects.exclude(reference=""):
             self.requisitions.setdefault(req.reference.lower(), req)
-        cv, interviews, cbt = sheets["cv"], sheets["interviews"], sheets["cbt"]
+        empty = Sheet("", "", "", {}, [])
+        cv, interviews, cbt = (sheets.get(k, empty) for k in ("cv", "interviews", "cbt"))
         rows: list[PersonRow] = []
         def has_person(row, *columns):
             return any(clean(row.get(c)) for c in columns)
@@ -705,10 +753,11 @@ class WorkbookImporter:
             group.sort(key=lambda r: (order[r.kind], -(r.when or date.min).toordinal()))
             current = next((existing[r.ref] for r in group if r.kind == "existing"), None)
             person = current or Candidate(source=Candidate.Source.IMPORT, consent_given=False, years_experience=None)
+            before = snapshot(person)
             self.fill_person(person, group)
             if current is None:
                 new_people.append(person)
-            elif any(r.kind != "existing" for r in group):
+            elif any(r.kind != "existing" for r in group) and snapshot(person) != before:
                 person.save()
                 self.result.counts["candidates updated"] += 1
             plan.append((person, group))
@@ -808,10 +857,21 @@ class WorkbookImporter:
 
     # -- CBTs, interview records, applications
     def save_history(self, plan, sheets):
-        known_cbt = set(CBTResult.objects.values_list("candidate_id", "test_date", "category", "score", "total"))
-        known_iv = set(InterviewRecord.objects.values_list("candidate_id", "interview_date", "ref_id", "panel_category",
-                                                           "result", "score", "panellists"))
+        # Rows already in the portal, by their full content and by the event they describe (person, date, test
+        # or interview). A row seen before is skipped; a row whose event is known but whose result or score was
+        # changed in Excel updates that record; anything else is new.
+        known_cbt, cbt_events = defaultdict(list), defaultdict(list)
+        for pk, *key in CBTResult.objects.values_list("pk", "candidate_id", "test_date", "category", "score", "total"):
+            known_cbt[tuple(key)].append(pk)
+            cbt_events[tuple(key[:3])].append(pk)
+        known_iv, iv_events = defaultdict(list), defaultdict(list)
+        for pk, *key in InterviewRecord.objects.values_list("pk", "candidate_id", "interview_date", "ref_id",
+                                                            "panel_category", "result", "score", "panellists"):
+            known_iv[tuple(key)].append(pk)
+            iv_events[tuple(key[:4])].append(pk)
+        seen_cbt, seen_iv, used = set(), set(), set()
         cbts, records, pairs = [], [], defaultdict(list)
+        changed_cbt, changed_iv = [], []
         for person, group in plan:
             for r in group:
                 sheet, number = r.ref if r.kind in {"cbt", "interview"} else (None, None)
@@ -821,12 +881,17 @@ class WorkbookImporter:
                     score, total = to_number(row.get("exam score")), to_number(row.get("total score"))
                     category = clean(row.get("category"))[:80]
                     key = (person.pk, test_date, category, score, total)
-                    if key in known_cbt:
+                    if key in seen_cbt:
                         self.result.counts["CBT rows repeated (same person, date, test and score; skipped)"] += 1
                         continue
-                    known_cbt.add(key)
-                    cbts.append(CBTResult(candidate=person, test_date=test_date, category=category, score=score,
-                                          total=total, company=clean(row.get("company"))[:20], source_row=number))
+                    seen_cbt.add(key)
+                    match = next((pk for pk in known_cbt.get(key, []) if ("cbt", pk) not in used), None)
+                    if match:
+                        used.add(("cbt", match))
+                        continue
+                    cbt = CBTResult(candidate=person, test_date=test_date, category=category, score=score,
+                                    total=total, company=clean(row.get("company"))[:20], source_row=number)
+                    changed_cbt.append((cbt, (person.pk, test_date, category)))
                 elif r.kind == "interview":
                     ref = clean(row.get("ref_id"))
                     result_text = clean(row.get("remarks_query")).lower()
@@ -840,10 +905,14 @@ class WorkbookImporter:
                     panel_category = clean(row.get("panel category"))[:80]
                     panellists = clean(row.get("panellists"))[:255]
                     key = (person.pk, when, ref[:30], panel_category, result, score, panellists)
-                    if key in known_iv:
+                    if key in seen_iv:
                         self.result.counts["interview rows repeated (same person, date, panel and result; skipped)"] += 1
                         continue
-                    known_iv.add(key)
+                    seen_iv.add(key)
+                    match = next((pk for pk in known_iv.get(key, []) if ("iv", pk) not in used), None)
+                    if match:
+                        used.add(("iv", match))
+                        continue
                     requisition = self.requisitions.get(ref.lower()) if ref else None
                     if ref and not requisition:
                         self.result.counts["interview rows whose requisition is not in the tracker"] += 1
@@ -857,15 +926,45 @@ class WorkbookImporter:
                         join_date=self.event_date(sheet, number, "Join Date", row.get("join date")),
                         remark=clean(row.get("remark"))[:60], source_row=number,
                     )
-                    records.append(record)
-                    if requisition:
-                        pairs[(person, requisition)].append(record)
+                    changed_iv.append((record, (person.pk, when, ref[:30], panel_category)))
+
+        # Rows that are not exactly as before: an edit of a known event, or new.
+        cbt_updates, iv_updates = [], []
+        for cbt, event in changed_cbt:
+            pk = next((pk for pk in cbt_events.get(event, []) if ("cbt", pk) not in used), None)
+            if pk:
+                used.add(("cbt", pk))
+                cbt.pk = pk
+                cbt_updates.append(cbt)
+            else:
+                cbts.append(cbt)
+        stored = InterviewRecord.objects.in_bulk(
+            [pk for _, event in changed_iv for pk in iv_events.get(event, [])])
+        for record, event in changed_iv:
+            pk = next((pk for pk in iv_events.get(event, []) if ("iv", pk) not in used), None)
+            if pk:
+                used.add(("iv", pk))
+                record.pk, record.application_id = pk, stored[pk].application_id
+                iv_updates.append(record)
+            else:
+                records.append(record)
+            if record.requisition:
+                pairs[(record.candidate, record.requisition)].append(record)
+
         self.log(f"Saving {len(cbts):,} CBT results and {len(records):,} interview records...")
         CBTResult.objects.bulk_create(cbts, batch_size=1000)
+        CBTResult.objects.bulk_update(cbt_updates, ["score", "total", "company", "source_row"], batch_size=1000)
         self.result.counts["CBT results"] += len(cbts)
+        if cbt_updates:
+            self.result.counts["CBT results changed in Excel (updated)"] += len(cbt_updates)
         self.save_applications(pairs)
         InterviewRecord.objects.bulk_create(records, batch_size=1000)
+        InterviewRecord.objects.bulk_update(iv_updates, [
+            "requisition", "application", "classification", "panellists", "panel_members", "score", "result",
+            "community_status", "onboarding_status", "join_date", "remark", "source_row"], batch_size=1000)
         self.result.counts["interview records"] += len(records)
+        if iv_updates:
+            self.result.counts["interview records changed in Excel (updated)"] += len(iv_updates)
 
     PRIORITY = {"onboarded": 7, "in progress": 6, "selected": 5, "on_hold": 4, "rejected": 3, "declined": 2,
                 "not_found": 1, "rescheduled": 0}
@@ -885,55 +984,78 @@ class WorkbookImporter:
                 app = Application.objects.get(candidate=person, requisition=requisition)
                 for record in records:
                     record.application = app
+                # Untouched in the portal: the application follows what Excel now says about the interviews.
+                if not self.replace and app.source == Candidate.Source.IMPORT \
+                        and not Activity.objects.filter(application=app).exists():
+                    history = {r.pk: r for r in app.interview_records.all()}
+                    history.update({r.pk: r for r in records if r.pk})
+                    before = (app.stage, app.status, app.decision)
+                    outcome = self.apply_outcome(app, list(history.values()) + [r for r in records if not r.pk],
+                                                 requisition)
+                    if (app.stage, app.status, app.decision) != before:
+                        app.save()
+                        self.start_onboarding(app, outcome)
+                        self.result.counts["applications moved on by the interview records"] += 1
                 continue
-            records.sort(key=lambda r: ((r.interview_date or date.min), self.PRIORITY[self.outcome(r)]))
-            final = records[-1]
-            outcome = self.outcome(final)
-            open_req = requisition.status in Requisition.ACTIVE_STATUSES
             app = Application(candidate=person, requisition=requisition, source=Candidate.Source.IMPORT,
                               match_score=Decimal("0"), match_grade="")
             first = min((r.interview_date for r in records if r.interview_date), default=None)
-            last = final.interview_date or first
             app.applied_at = aware(first) or aware(requisition.submitted_at.date() if requisition.submitted_at else None) \
                 or timezone.now()
-            app.stage_changed_at = aware(last) or app.applied_at
-            recorded = final.get_result_display() if final.result else "no result"
-            if outcome == "onboarded":
-                app.stage, app.status, app.decision = Stage.HIRED, Application.Status.HIRED, Application.Decision.SELECT
-                app.hired_at = aware(final.join_date) or app.stage_changed_at
-                app.status_reason = f"Onboarded ({final.onboarding_status.split('_')[-1]})"
-            elif outcome == "in progress":
-                app.stage, app.status, app.decision = Stage.ONBOARDING, Application.Status.ACTIVE, Application.Decision.SELECT
-            elif outcome == "selected":
-                app.stage, app.decision = Stage.DECISION, Application.Decision.SELECT
-                app.status = Application.Status.ACTIVE if open_req else Application.Status.NOT_ENGAGED
-            elif outcome == "on_hold":
-                app.stage, app.decision = Stage.DECISION, Application.Decision.ON_HOLD
-                app.status = Application.Status.ON_HOLD if open_req else Application.Status.NOT_ENGAGED
-            elif outcome == "rejected":
-                app.stage, app.status, app.decision = Stage.DECISION, Application.Status.REJECTED, Application.Decision.REJECT
-            elif outcome == "declined":
-                app.stage, app.status = Stage.DECISION, Application.Status.WITHDRAWN
-                app.status_reason = "Declined (as recorded)"
-            else:  # rescheduled, not found
-                app.stage = Stage.INTERVIEW
-                app.status = Application.Status.ACTIVE if open_req and outcome == "rescheduled" else Application.Status.NOT_ENGAGED
-            if app.status == Application.Status.NOT_ENGAGED:
-                app.status_reason = f"Not engaged; last recorded result: {recorded}"
-            if app.decision:
-                app.decided_at = app.stage_changed_at
+            outcome = self.apply_outcome(app, records, requisition)
             app.save()
-            if outcome == "in progress":
-                onboarding = Onboarding.objects.create(application=app, start_date=final.join_date,
-                                                       status=Onboarding.Status.IN_PROGRESS,
-                                                       notes="Onboarding in progress when imported from the interview records.")
-                OnboardingTask.objects.bulk_create([OnboardingTask(onboarding=onboarding, title=t, order=i)
-                                                    for i, t in enumerate(DEFAULT_ONBOARDING_TASKS)])
-                self.result.counts["onboardings in progress"] += 1
+            self.start_onboarding(app, outcome)
             for record in records:
                 record.application = app
             self.result.counts["applications"] += 1
             self.result.counts[f"applications: {app.get_status_display().lower()}"] += 1
+
+    def apply_outcome(self, app, records, requisition) -> str:
+        """Stage, status and decision from the latest interview record. Returns the outcome."""
+        records.sort(key=lambda r: ((r.interview_date or date.min), self.PRIORITY[self.outcome(r)]))
+        final = records[-1]
+        outcome = self.outcome(final)
+        open_req = requisition.status in Requisition.ACTIVE_STATUSES
+        first = min((r.interview_date for r in records if r.interview_date), default=None)
+        last = final.interview_date or first
+        app.stage_changed_at = aware(last) or app.applied_at
+        app.decision, app.status_reason, app.hired_at = "", "", None
+        recorded = final.get_result_display() if final.result else "no result"
+        if outcome == "onboarded":
+            app.stage, app.status, app.decision = Stage.HIRED, Application.Status.HIRED, Application.Decision.SELECT
+            app.hired_at = aware(final.join_date) or app.stage_changed_at
+            app.status_reason = f"Onboarded ({final.onboarding_status.split('_')[-1]})"
+        elif outcome == "in progress":
+            app.stage, app.status, app.decision = Stage.ONBOARDING, Application.Status.ACTIVE, Application.Decision.SELECT
+        elif outcome == "selected":
+            app.stage, app.decision = Stage.DECISION, Application.Decision.SELECT
+            app.status = Application.Status.ACTIVE if open_req else Application.Status.NOT_ENGAGED
+        elif outcome == "on_hold":
+            app.stage, app.decision = Stage.DECISION, Application.Decision.ON_HOLD
+            app.status = Application.Status.ON_HOLD if open_req else Application.Status.NOT_ENGAGED
+        elif outcome == "rejected":
+            app.stage, app.status, app.decision = Stage.DECISION, Application.Status.REJECTED, Application.Decision.REJECT
+        elif outcome == "declined":
+            app.stage, app.status = Stage.DECISION, Application.Status.WITHDRAWN
+            app.status_reason = "Declined (as recorded)"
+        else:  # rescheduled, not found
+            app.stage = Stage.INTERVIEW
+            app.status = Application.Status.ACTIVE if open_req and outcome == "rescheduled" else Application.Status.NOT_ENGAGED
+        if app.status == Application.Status.NOT_ENGAGED:
+            app.status_reason = f"Not engaged; last recorded result: {recorded}"
+        app.decided_at = app.stage_changed_at if app.decision else None
+        app._join_date = final.join_date
+        return outcome
+
+    def start_onboarding(self, app, outcome):
+        if outcome != "in progress" or Onboarding.objects.filter(application=app).exists():
+            return
+        onboarding = Onboarding.objects.create(application=app, start_date=app._join_date,
+                                               status=Onboarding.Status.IN_PROGRESS,
+                                               notes="Onboarding in progress when imported from the interview records.")
+        OnboardingTask.objects.bulk_create([OnboardingTask(onboarding=onboarding, title=t, order=i)
+                                            for i, t in enumerate(DEFAULT_ONBOARDING_TASKS)])
+        self.result.counts["onboardings in progress"] += 1
 
 
 # --------------------------------------------------------------------------- report

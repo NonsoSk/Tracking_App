@@ -172,7 +172,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s-24) 0; }
 ::selection { background: var(--tint-2); color: var(--text); }
 
 .small { font-size: var(--fs-small); } .caption { font-size: var(--fs-caption); }
-.muted { color: var(--text-3); } .soft { color: var(--text-2); }
+.muted { color: var(--text-3); } .soft { color: var(--text-2); } .danger-ink { color: var(--danger-ink); }
 .num { font-variant-numeric: tabular-nums; }
 .strong { font-weight: 700; }
 .eyebrow { font-size: var(--fs-caption); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--eyebrow); }
@@ -365,6 +365,7 @@ a.card:active, .card.is-interactive:active { box-shadow: var(--slab-1), var(--be
 .field { display: grid; gap: 6px; min-width: 0; align-content: start; }
 .label { font-size: var(--fs-small); font-weight: 700; color: var(--text-2); }
 .label .req { color: var(--danger-ink); margin-left: 2px; }
+.req-note .req { color: var(--danger-ink); font-weight: 700; }
 .help { font-size: var(--fs-caption); color: var(--text-3); }
 .error { font-size: var(--fs-caption); color: var(--danger-ink); display: flex; gap: 6px; align-items: center; font-weight: 600; }
 .input, .select, .textarea, .form-control, .form-select { width: 100%; height: 48px; padding: 0 14px; border-radius: var(--r-sm); background: var(--surface); color: var(--text);
@@ -1264,7 +1265,7 @@ main > .kpi-row + .tabs, main > .banner + .kpi-row { margin-top: 0; }
 .preview-sheet { position: sticky; top: var(--s-16); }
 .job-preview { padding: var(--s-24); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); display: grid; gap: var(--s-12); }
 .job-preview h3 { font-size: 24px; }
-.advert-out { white-space: pre-line; color: var(--text-2); font-size: 15px; line-height: 1.65; max-height: 560px; overflow: auto; padding-top: var(--s-12); border-top: 1px solid var(--line); }
+.advert-out { color: var(--text-2); font-size: 15px; line-height: 1.65; max-height: 640px; overflow: auto; padding-top: var(--s-12); border-top: 1px solid var(--line); }
 .advert-out.is-empty { color: var(--text-3); font-style: italic; }
 
 /* =====================================================================
@@ -1510,7 +1511,15 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 @media (max-width: 1000px) { .job-layout { grid-template-columns: minmax(0, 1fr); } }
 .job-h1 { margin: var(--s-8) 0 var(--s-16); }
 .job-body .h3 { margin: var(--s-24) 0 var(--s-8); } .job-body .h3:first-child { margin-top: 0; }
-.advert-text-out { white-space: pre-line; color: var(--text-2); line-height: 1.7; }
+.advert-text-out { color: var(--text-2); line-height: 1.7; }
+/* Job description text drawn by the job_text filter / jobHtml() */
+.jd > :first-child { margin-top: 0; }
+.jd h3 { font-size: 18px; font-weight: 800; color: var(--text-1); margin: var(--s-24) 0 var(--s-8); }
+.jd p { margin: 0 0 var(--s-8); }
+.jd .jd-fact { margin: 0 0 2px; }
+.jd .jd-fact b { color: var(--text-1); }
+.jd ul { margin: 0 0 var(--s-8); padding-left: 1.25em; display: grid; gap: 4px; }
+.jd li::marker { color: var(--brand); }
 .pre { white-space: pre-line; }
 .apply-card { padding: var(--s-24); display: grid; gap: var(--s-16); }
 .apply-points { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-8); font-size: var(--fs-small); color: var(--text-2); }
@@ -1631,3 +1640,25 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 .tnum { font-variant-numeric: tabular-nums; }
 .tracker-sheet .facts-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 .role-grid + .pager { margin-top: var(--s-32, 32px); }
+
+/* =====================================================================
+   Screen: department approves the shortlist
+   ===================================================================== */
+.review-list { display: grid; gap: 0; }
+.review-row { display: grid; grid-template-columns: minmax(200px, 1.1fr) minmax(0, 1.4fr) 92px minmax(240px, 1fr); gap: var(--s-16) var(--s-24); align-items: center; padding: var(--s-16) 0; border-bottom: 1px solid var(--line); }
+.review-row:last-child { border-bottom: 0; }
+.review-row .who { display: flex; align-items: center; gap: var(--s-12); min-width: 0; }
+.review-row .who div > b { display: block; color: var(--text); } .review-row .who div > span { color: var(--text-3); font-size: var(--fs-caption); }
+.review-facts { display: grid; gap: 4px; min-width: 0; }
+.review-score { display: grid; justify-items: center; gap: 4px; }
+.review-form { display: grid; gap: var(--s-8); }
+.review-answer { display: grid; justify-items: start; gap: 4px; }
+@media (max-width: 900px) {
+  .review-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .review-facts, .review-form { grid-column: 1 / -1; }
+  .review-score { grid-row: 1; grid-column: 2; }
+}
+
+/* Screen: Excel link */
+.tips { margin: 0; padding-left: 1.2em; display: grid; gap: var(--s-12); }
+.break { overflow-wrap: anywhere; }

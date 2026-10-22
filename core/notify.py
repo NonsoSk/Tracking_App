@@ -21,7 +21,8 @@ def absolute(url: str) -> str:
 
 
 def send_email(to: Iterable[str], subject: str, body: str, *, cc: Iterable[str] = (), attachments=None,
-               action_url: str = "", action_label: str = "Open in portal") -> bool:
+               action_url: str = "", action_label: str = "Open in portal", extra: dict | None = None) -> bool:
+    """Send one branded email. ``extra`` adds figures (``stats``) and a table (``table``) under the text."""
     recipients = sorted({addr for addr in to if addr})
     if not recipients:
         return False
@@ -32,8 +33,18 @@ def send_email(to: Iterable[str], subject: str, body: str, *, cc: Iterable[str] 
         "action_label": action_label,
         "company": settings.COMPANY_NAME,
         "portal": settings.PORTAL_NAME,
+        **(extra or {}),
     }
-    text = body + (f"\n\n{action_label}: {absolute(action_url)}" if action_url else "")
+    text = body
+    if context.get("stats"):
+        text += "\n\n" + "\n".join(f"{label}: {value}" for label, value in context["stats"])
+    if context.get("table"):
+        table = context["table"]
+        text += f"\n\n{table['title']}\n" + ("\n".join("- " + " | ".join(str(c) for c in row) for row in table["rows"])
+                                               or table.get("empty", ""))
+        if table.get("more"):
+            text += "\n" + table["more"]
+    text += f"\n\n{action_label}: {absolute(action_url)}" if action_url else ""
     text += f"\n\n— {settings.COMPANY_NAME} · {settings.PORTAL_NAME}"
     message = EmailMultiAlternatives(
         subject=f"[{settings.COMPANY_SHORT_NAME} Recruitment] {subject}",

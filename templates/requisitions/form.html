@@ -7,7 +7,8 @@
   <div>
     <div class="eyebrow">{% if is_new %}New requisition{% else %}{{ requisition.reference }}{% endif %}</div>
     <h1>{% if is_new %}Raise a requisition{% else %}Edit {{ requisition.title }}{% endif %}</h1>
-    <p class="lede">Tell the hiring team who you need. The requirements you pick are used to score every applicant automatically.</p>
+    <p class="lede">Tell the hiring team who you need. The requirements you pick are used to score every applicant automatically, and with the context they make up the job description on the careers page.</p>
+    <p class="small muted req-note">Fields marked <span class="req">*</span> are needed before you submit. You can save a draft without them.</p>
   </div>
 </header>
 
@@ -76,7 +77,7 @@
       </section>
 
       <section class="sheet form-sec" id="s-context" aria-labelledby="s-ctx-h">
-        <div class="sheet-h"><span class="step-num">3</span><div><h2 class="h3" id="s-ctx-h">Context</h2><p class="small muted">A few lines help the hiring team approve quickly.</p></div></div>
+        <div class="sheet-h"><span class="step-num">3</span><div><h2 class="h3" id="s-ctx-h">Context</h2><p class="small muted">A few lines help the hiring team approve quickly, and become the job description candidates read.</p></div></div>
         <div class="sheet-b form-grid">
           {% dsfield form.justification "span-4" %}
           {% dsfield form.job_description "span-4" %}

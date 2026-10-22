@@ -9,6 +9,21 @@ from pipeline.services import WorkflowError, log
 
 from .models import Requisition, RequisitionNote
 
+# Filled in by the department before submitting: they score candidates and make up the job description.
+REQUIRED_TO_SUBMIT = ["required_skills", "preferred_skills", "tools", "other_requirements", "justification",
+                      "job_description"]
+
+
+def missing_details(requisition) -> list[str]:
+    """Labels of the details the department still has to fill in before submitting."""
+    missing = []
+    for name in REQUIRED_TO_SUBMIT:
+        value = getattr(requisition, name)
+        if not (value.strip() if isinstance(value, str) else value):
+            label = str(Requisition._meta.get_field(name).verbose_name)
+            missing.append(label[0].upper() + label[1:])
+    return missing
+
 
 def submit(requisition, *, actor):
     if requisition.status not in {Requisition.Status.DRAFT, Requisition.Status.RETURNED}:
@@ -62,8 +77,12 @@ def return_for_changes(requisition, *, actor, reason: str):
            level="danger")
 
 
+# Statuses from which a vacancy can be put (back) on the careers page.
+PUBLISHABLE = {Requisition.Status.APPROVED, Requisition.Status.ON_HOLD, Requisition.Status.CLOSED}
+
+
 def publish(requisition, *, actor, closing_date=None):
-    if requisition.status not in {Requisition.Status.APPROVED, Requisition.Status.ON_HOLD, Requisition.Status.CLOSED}:
+    if requisition.status not in PUBLISHABLE:
         raise WorkflowError("Approve the requisition before opening it for applications.")
     requisition.status = Requisition.Status.OPEN
     requisition.published_at = requisition.published_at or timezone.now()

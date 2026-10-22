@@ -1,0 +1,66 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Excel link{% endblock %}
+{% block crumbs %}<span aria-current="page">Excel link</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">While the team still works in Excel</div>
+    <h1>Excel link</h1>
+    <p class="lede">The portal follows the recruitment workbooks below. Each time one is saved with changes, the portal loads it: new rows are added, edited rows are updated, nothing is duplicated, and what you did in the portal is kept.</p>
+  </div>
+  {% if workbooks %}<div class="actions"><form method="post">{% csrf_token %}<button class="btn btn-primary" type="submit" name="action" value="refresh">{% icon "refresh-cw" "ico-18" %} Refresh now</button></form></div>{% endif %}
+</header>
+
+{% if workbooks %}
+  {% if watching %}
+  <div class="banner success"><span class="tile">{% icon "radio-tower" "ico-18" %}</span><div><b>Watching for changes</b><span class="small">The files are checked every {{ minutes }} minute{{ minutes|pluralize }}.</span></div></div>
+  {% else %}
+  <div class="banner warning"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>Nothing is checking the files right now</b><span class="small">On this PC, start the portal with <b>start-portal.bat</b>: it opens a small "Excel link" window that does the checking. On the server, the scheduler does it.</span></div></div>
+  {% endif %}
+
+  <section class="sheet" aria-labelledby="wb-h">
+    <div class="sheet-h"><h2 class="title" id="wb-h">Linked workbooks</h2></div>
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>Workbook</th><th>State</th><th>Last loaded</th><th>What changed</th><th><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+      {% for wb in workbooks %}
+        <tr>
+          <td><b>{{ wb.name }}</b><div class="small muted">{{ wb.sheets|default:"—" }}</div><div class="small muted break">{{ wb.path }}</div></td>
+          <td data-label="State"><span class="chip {% if wb.state == 'ok' %}success{% elif wb.state == 'waiting' %}brand{% else %}danger{% endif %}">{{ wb.get_state_display }}</span>{% if wb.refresh_requested %}<div class="small muted">Refresh requested</div>{% endif %}{% if wb.checked_at %}<div class="small muted">Checked {{ wb.checked_at|short_since }} ago</div>{% endif %}</td>
+          <td data-label="Last loaded" class="num">{% if wb.synced_at %}{{ wb.synced_at|date:"j M Y, H:i" }}{% if wb.file_modified_at %}<div class="small muted">File saved {{ wb.file_modified_at|date:"j M, H:i" }}</div>{% endif %}{% else %}<span class="muted">Not yet</span>{% endif %}</td>
+          <td data-label="What changed" class="small">{{ wb.message|default:"—" }}{% if wb.report_path %} <a href="?report={{ wb.pk }}">{% icon "file-spreadsheet" "ico-14" %} Report</a>{% endif %}</td>
+          <td><form method="post">{% csrf_token %}<input type="hidden" name="workbook" value="{{ wb.pk }}"><button class="btn btn-ghost btn-sm" type="submit" name="action" value="unlink" data-confirm="Stop following {{ wb.name }}? The records already loaded stay in the portal." data-confirm-label="Stop following">Stop following</button></form></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+{% else %}
+  <div class="banner info"><span class="tile">{% icon "file-spreadsheet" "ico-18" %}</span>
+    <div><b>No workbooks linked yet</b><span class="small">On the PC that runs the portal, double-click <b>link-excel.bat</b> and pick the recruitment master workbook (and the CV file if you like). Or upload a copy below.</span></div></div>
+{% endif %}
+
+<div class="split split-even">
+  <form method="post" enctype="multipart/form-data" class="sheet" data-loading aria-labelledby="up-h">{% csrf_token %}
+    <div class="sheet-h"><h2 class="title" id="up-h">Upload the latest copy</h2></div>
+    <div class="sheet-b stack">
+      <p class="small soft">When the portal runs on a server that cannot see your PC, upload the workbook here after you save it. A file with the same name replaces the copy uploaded before.</p>
+      <div class="field"><label class="label" for="excel-file">Workbook (.xlsx)</label><input class="input" type="file" id="excel-file" name="file" accept=".xlsx" required></div>
+    </div>
+    <div class="sheet-f row wrap"><span class="small muted">{% icon "shield-check" "ico-16" %} Kept on the portal's server only.</span><span class="spacer"></span><button class="btn btn-primary" type="submit" name="action" value="upload">{% icon "upload" "ico-18" %} Upload</button></div>
+  </form>
+  <section class="sheet" aria-labelledby="how-h">
+    <div class="sheet-h"><h2 class="title" id="how-h">Good to know</h2></div>
+    <div class="sheet-b">
+      <ul class="tips small soft">
+        <li>Keep the headings in the first row as they are. Sheets are recognised by their headings, so they can be renamed or moved.</li>
+        <li>Save the workbook as usual. Changes reach the portal a few minutes after you save.</li>
+        <li>Rows you delete in Excel stay in the portal. Remove them in the portal if they should go.</li>
+        <li>A requisition's status follows Excel only when you change its Status cell. Statuses set in the portal are kept otherwise.</li>
+        <li>Once everyone works in the portal, click <b>Stop following</b>.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+{% endblock %}

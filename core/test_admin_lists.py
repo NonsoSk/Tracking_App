@@ -53,8 +53,14 @@ class PublishImportedRequisitionTests(TestCase):
         hr = User.objects.create_user("hr", "hr@iefcl.example", "x" * 12, role="hr_admin")
         self.client.force_login(hr)
         detail = self.client.get(req.get_absolute_url()).content.decode()
-        self.assertIn("Publish vacancy", detail)
-        response = self.client.post(f"/requisitions/{req.pk}/action/publish/", {"closing_date": "2099-12-31"})
+        self.assertIn("Review and publish", detail)
+        # The review page drafts a job description from what the tracker recorded, which HR publishes.
+        review = self.client.get(f"/requisitions/{req.pk}/advert/")
+        req.refresh_from_db()
+        self.assertIn("Job title: Lab DET", req.advert)
+        self.assertContains(review, "Publish vacancy")
+        response = self.client.post(f"/requisitions/{req.pk}/advert/",
+                                    {"advert": req.advert, "closing_date": "2099-12-31", "publish": "1"})
         self.assertEqual(response.status_code, 302)
         req.refresh_from_db()
         self.assertEqual(req.status, Requisition.Status.OPEN)

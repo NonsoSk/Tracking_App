@@ -129,6 +129,15 @@ class Requisition(models.Model):
     source_record = models.JSONField(default=dict, blank=True, editable=False,
                                      help_text="The tracker row this requisition was imported from, exactly as recorded.")
 
+    class SummaryFrequency(models.TextChoices):
+        OFF = "off", "Only when someone clicks Send"
+        DAILY = "daily", "Every day"
+        WEEKLY = "weekly", "Every week"
+
+    summary_frequency = models.CharField("Email the department a candidate summary", max_length=10,
+                                         choices=SummaryFrequency.choices, default=SummaryFrequency.OFF)
+    summary_sent_at = models.DateTimeField("Candidate summary last emailed", null=True, blank=True)
+
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
     raised_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="requisitions_raised")
     hr_owner = models.ForeignKey(

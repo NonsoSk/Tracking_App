@@ -421,6 +421,13 @@
     var btn = e.submitter || $('button[type="submit"]', form);
     if (btn) setTimeout(function () { btn.classList.add("is-loading"); btn.setAttribute("aria-busy", "true"); }, 0);
   });
+  /* ...and slow links (drafting a job description with AI) */
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest("a[data-loading-link]");
+    if (!link || e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    link.classList.add("is-loading");
+    link.setAttribute("aria-busy", "true");
+  });
 
   /* Type-to-filter for long pick lists (interview panel) */
   $$("[data-filter-list]").forEach(function (input) {
@@ -459,12 +466,47 @@
     if (el && el.form) el.form.requestSubmit ? el.form.requestSubmit() : el.form.submit();
   });
 
-  /* Live preview for long text (job advert) */
+  /* Live preview for long text (job description). Mirrors the job_text filter in core/templatetags/ds.py. */
+  var JD_HEADINGS = ["job summary", "about the role", "key responsibilities", "responsibilities",
+    "qualifications and experience", "requirements", "required skills", "tools, software and equipment",
+    "certifications and licences", "desirable", "nice to have", "other requirements", "how to apply"];
+  var JD_FACT = /^([A-Z][A-Za-z /&()-]{1,28}):\s+(\S.*)$/, JD_BULLET = /^[•\-*–·]\s*/;
+  var esc = function (t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; };
+  var jdHeading = function (line, first, more) {
+    var bare = line.replace(/:+$/, "").trim();
+    if (JD_HEADINGS.indexOf(bare.toLowerCase()) >= 0) return true;
+    if (bare.length > 48 || JD_FACT.test(line)) return false;
+    return /:$/.test(line) || (first && more && ".,;!?".indexOf(line.slice(-1)) < 0);
+  };
+  var jobHtml = function (text) {
+    var out = [];
+    text.replace(/\r\n/g, "\n").trim().split(/\n\s*\n/).forEach(function (block) {
+      var lines = block.split("\n").map(function (l) { return l.trim(); }).filter(Boolean), items = [], para = [];
+      var flush = function () {
+        if (items.length) { out.push("<ul>" + items.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul>"); items = []; }
+        if (para.length) { out.push("<p>" + para.map(esc).join("<br>") + "</p>"); para = []; }
+      };
+      lines.forEach(function (line, i) {
+        if (JD_BULLET.test(line) && line.length > 1) { if (para.length) flush(); items.push(line.replace(JD_BULLET, "")); return; }
+        if (items.length) flush();
+        var fact = line.match(JD_FACT);
+        if (jdHeading(line, i === 0, lines.length > 1)) { flush(); out.push("<h3>" + esc(line.replace(/:+$/, "").trim()) + "</h3>"); }
+        else if (fact) { flush(); out.push('<p class="jd-fact"><b>' + esc(fact[1]) + ":</b> " + esc(fact[2]) + "</p>"); }
+        else para.push(line);
+      });
+      flush();
+    });
+    return out.join("");
+  };
   $$("[data-preview]").forEach(function (area) {
     var out = document.getElementById(area.dataset.preview);
     if (!out) return;
     var empty = out.dataset.empty || "";
-    var draw = function () { out.textContent = area.value.trim() || empty; out.classList.toggle("is-empty", !area.value.trim()); };
+    var draw = function () {
+      var text = area.value.trim();
+      if (text && out.classList.contains("jd")) out.innerHTML = jobHtml(text); else out.textContent = text || empty;
+      out.classList.toggle("is-empty", !text);
+    };
     area.addEventListener("input", draw);
     draw();
   });

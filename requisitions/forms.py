@@ -6,6 +6,7 @@ from core.forms import BootstrapMixin, DateInput, TagListField
 from core.models import Department, Employee
 
 from .models import JobRole, Requisition
+from .services import REQUIRED_TO_SUBMIT
 
 
 class RequisitionForm(BootstrapMixin, forms.ModelForm):
@@ -34,11 +35,21 @@ class RequisitionForm(BootstrapMixin, forms.ModelForm):
         help_texts = {
             "job_role": "Pick a standard role to pre-fill requirements, or type a new title below.",
             "justification": "Why is this hire needed?",
+            "job_description": "The main duties, one per line. Used to write the job description on the careers page.",
+            "other_requirements": "E.g. willingness to work shifts, location, licences. Write \"None\" if there are none.",
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, submitting=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        # Needed to score candidates and write the job description: marked as required, but a draft
+        # can be saved without them.
+        for name in REQUIRED_TO_SUBMIT:
+            self.fields[name].required = True
+            self.fields[name].error_messages["required"] = "Required before you submit."
+        if self.is_bound and not submitting:
+            for name in REQUIRED_TO_SUBMIT:
+                self.fields[name].required = False
         self.fields["department"].queryset = Department.objects.filter(is_active=True)
         roles = JobRole.objects.filter(is_active=True)
         employees = Employee.objects.select_related("department")
@@ -90,3 +101,4 @@ class AdvertForm(BootstrapMixin, forms.ModelForm):
         model = Requisition
         fields = ["advert", "closing_date"]
         widgets = {"advert": forms.Textarea(attrs={"rows": 14}), "closing_date": DateInput()}
+        labels = {"advert": "Job description"}

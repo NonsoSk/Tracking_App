@@ -1,0 +1,21 @@
+{% load ds %}{% with c=a.candidate answer=a.current_department_review %}
+<article class="review-row" aria-label="{{ c.full_name }}">
+  <div class="who">{% avatar c %}<div><b><a href="{{ a.get_absolute_url }}">{{ c.full_name }}</a></b><span>{{ c.current_job_title|default:c.course|default:"—"|truncatechars:48 }}</span></div></div>
+  <div class="review-facts small">
+    <span>{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %}{% if c.course %} · {{ c.course|truncatechars:34 }}{% endif %}</span>
+    <span class="muted">{{ c.experience_label }} experience{% if c.institution %} · {{ c.institution|truncatechars:34 }}{% endif %}</span>
+    {% if a.key_tags %}<span class="tags">{% for t in a.key_tags %}<span class="tag">{{ t }}</span>{% endfor %}</span>{% endif %}
+  </div>
+  <div class="review-score">{% if a.matched_at %}{% if a.match_grade == "A" %}{% score_ring a.match_score 44 True "" False %}{% else %}{% score_ring a.match_score 44 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}</span>{% else %}<span class="small muted">Not scored</span>{% endif %}</div>
+  <form method="post" class="review-form">{% csrf_token %}
+    <input type="hidden" name="application" value="{{ a.pk }}">
+    {% if answer %}<div class="review-answer small"><span class="chip {% if answer == 'approved' %}success{% else %}danger{% endif %}">{{ a.get_department_review_display }}</span><span class="muted">{{ a.department_reviewed_by.display_name|default:"" }} · {{ a.department_reviewed_at|date:"j M Y" }}</span>{% if a.department_review_note %}<span class="soft">“{{ a.department_review_note }}”</span>{% endif %}</div>{% endif %}
+    <label class="sr-only" for="note-{{ a.pk }}">Comment for the hiring team (optional)</label>
+    <input class="input input-sm" id="note-{{ a.pk }}" name="note" placeholder="Comment for the hiring team (optional)" maxlength="500">
+    <div class="row wrap">
+      {% if answer != 'approved' %}<button class="btn btn-primary btn-sm" type="submit" name="answer" value="approved">{% icon "check" "ico-16" %} Approve</button>{% endif %}
+      {% if answer != 'declined' %}<button class="btn btn-secondary btn-sm" type="submit" name="answer" value="declined">{% icon "x" "ico-16" %} Not approved</button>{% endif %}
+    </div>
+  </form>
+</article>
+{% endwith %}

@@ -109,10 +109,21 @@ def dashboard(request):
     hiring = user.is_hr or user.is_department_user or user.is_management
     documents_due = (active_apps.filter(stage=Stage.DOCUMENTS, status=Application.Status.ACTIVE)
                      .select_related("candidate", "requisition")[:8]) if user.is_hr else []
+    shortlist_reviews = []
+    if user.is_department_user and user.department_id:
+        from django.db.models import Min
+
+        from requisitions.summary import awaiting_review
+
+        for req in requisitions.filter(department_id=user.department_id, status__in=Requisition.ACTIVE_STATUSES)[:20]:
+            waiting = awaiting_review(req)
+            n = waiting.count()
+            if n:
+                shortlist_reviews.append((req, n, waiting.aggregate(since=Min("stage_changed_at"))["since"]))
     tasks, task_kinds = home.build_tasks(
         user, action_requisitions=list(action_requisitions[:8]), pending_evaluations=pending_evaluations,
         offer_reviews=list(offer_reviews), decisions_needed=list(decisions_needed[:8]) if decisions_needed else [],
-        documents_due=list(documents_due), onboardings=list(onboardings))
+        documents_due=list(documents_due), onboardings=list(onboardings), shortlist_reviews=shortlist_reviews[:8])
     for row in funnel:
         row["short"] = STAGE_SHORT.get(row["stage"], row["label"])
     trends = {}
@@ -367,3 +378,53 @@ def palette_search(request):
                 {"label": r.title, "hint": f"{r.reference} · {r.get_status_display()}",
                  "url": reverse("requisitions:detail", args=[r.pk])} for r in roles]})
     return JsonResponse({"query": query, "groups": groups})
+
+
+def _excel_admin(user) -> bool:
+    return user.is_superuser or user.role == user.Role.HR_ADMIN
+
+
+@login_required
+def excel_link(request):
+    """The Excel workbooks the portal keeps itself in step with: their state, a refresh button and uploads."""
+    from django.core.exceptions import PermissionDenied
+    from django.http import FileResponse, Http404
+
+    from . import excel_link as link
+    from .models import LinkedWorkbook
+    from .workbook_import import WorkbookError
+
+    if not _excel_admin(request.user):
+        raise PermissionDenied
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "refresh":
+            LinkedWorkbook.objects.update(refresh_requested=True)
+            messages.success(request, "Refresh requested. It runs at the next check, within a few minutes." if link.watcher_running()
+                             else "Refresh requested, but nothing is checking the files at the moment. On this PC, "
+                                  "start the portal with start-portal.bat; on the server, the scheduler does it.")
+        elif action == "upload" and request.FILES.get("file"):
+            uploaded = request.FILES["file"]
+            try:
+                if not uploaded.name.lower().endswith(".xlsx"):
+                    raise WorkbookError("Upload the workbook as an .xlsx file.")
+                workbook = link.save_upload(uploaded, user=request.user)
+            except WorkbookError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, f"{workbook.name} uploaded ({workbook.sheets}). It is loaded at the next check.")
+        elif action == "unlink" and request.POST.get("workbook", "").isdigit():
+            workbook = get_object_or_404(LinkedWorkbook, pk=request.POST["workbook"])
+            workbook.delete()
+            messages.info(request, f"The portal no longer follows {workbook.name}. Records already loaded stay.")
+        return redirect("core:excel_link")
+    if request.GET.get("report", "").isdigit():
+        workbook = get_object_or_404(LinkedWorkbook, pk=request.GET["report"])
+        report = workbook.report_path and link.report_dir().joinpath(workbook.report_path.replace("\\", "/").rsplit("/", 1)[-1])
+        if not report or not report.is_file():
+            raise Http404
+        return FileResponse(open(report, "rb"), as_attachment=True, filename=report.name)
+    return render(request, "core/excel_link.html", {
+        "workbooks": LinkedWorkbook.objects.all(), "watching": link.watcher_running(),
+        "minutes": settings.EXCEL_SYNC_MINUTES,
+    })

@@ -106,16 +106,62 @@ the duplicates that were merged. Fix the workbook and run it again; the result r
 The workbooks, backups and reports hold personal data. They are kept out of git (`.gitignore`) and must never be
 uploaded to GitHub.
 
+## Keeping in step with Excel
+
+While the team still updates the workbooks in Excel, the portal can follow them so it is never out of date. On
+Windows, double-click `link-excel.bat` and pick the Recruitment Master workbook (and, if you like, the CV file). Pick
+the copies you keep working on, for example in OneDrive or a shared folder. Elsewhere:
+`python manage.py sync_workbooks --link <master>.xlsx [<cv file>.xlsx]`.
+
+From then on, `start-portal.bat` also opens a minimised **Excel link** window
+(`python manage.py sync_workbooks --watch`). It checks the files every `EXCEL_SYNC_MINUTES` (5) and, when one was
+saved with changes, loads a copy:
+
+* New rows are added and rows edited in Excel update their records (a corrected interview result or CBT score updates
+  that record rather than adding a second one). Nothing is duplicated.
+* What the hiring team did in the portal is kept. A requisition's status follows the tracker only when its **Status**
+  cell changes in Excel (closing it in Excel closes it in the portal), and an imported candidate follows the interview
+  records only until someone works on that application in the portal.
+* Rows deleted in Excel stay in the portal.
+
+HR Admins see each linked file, when it was last loaded and what changed under **Excel link** in the menu, with a
+**Refresh now** button and the import report. When the portal runs on a server that cannot see the PC, upload the
+saved workbook on that page instead; the scheduler loads it. Once everyone works in the portal, click **Stop
+following** (or run `sync_workbooks --unlink`). The records already loaded stay.
+
 ## Roles and what they see
 
 | Role | Access |
 |---|---|
-| HR Admin, Recruiter | Everything: all requisitions, the talent database, CV intake, the whole workflow, exports. HR Admin also manages master data. |
-| Head of Department, Department Manager | Raise and track their department's requisitions and candidates, sit on panels, record decisions for their department, see their department's retirements. |
+| HR Admin, Recruiter | Everything: all requisitions, the talent database, CV intake, the whole workflow, exports, candidate summaries to departments. HR Admin also manages master data and the Excel link. |
+| Head of Department, Department Manager | Raise and track their department's requisitions and candidates, approve which shortlisted candidates move on to interviews, sit on panels, record decisions for their department, see their department's retirements. |
 | Interviewer | Interviews they are on, and the selection report for those candidates. |
 | Management | All requisitions and candidates (read-only), offer reviews, and requisition approval if enabled. |
 | Onboarding team | Onboarding checklists and the new joiners' documents. |
 | Employee | Refer candidates and follow their own referrals. |
+
+### Raising a requisition and publishing the job description
+
+Before a department can submit a requisition it must fill in the **required skills, nice-to-have skills, tools /
+software / equipment, other requirements, justification and job description / responsibilities**. They score the
+candidates and make up the job description; a draft can be saved without them.
+
+Once the requisition is approved, **Review and publish** opens the job description already drafted in a standard
+format (job title and key facts, job summary, key responsibilities, qualifications and experience, required skills,
+tools, certifications, desirable, other requirements, how to apply). With AI on, Claude writes it from everything the
+department gave; it uses the justification only as background and never names employees or internal reasons, and it
+adds no requirement the department did not ask for. Without AI, the same sections are built from the requisition.
+HR edits it beside a live preview of the careers page, then publishes. **Redraft** writes a fresh one.
+
+### Candidate summaries to departments
+
+From a requisition, HR can **email the candidate summary** to the department (its HOD, managers and department email,
+copied to the sender and the recruiter): how many applied and how many are at each stage, the shortlisted candidates'
+profiles, and every applicant as an attached Excel file without contact details. The department is asked to **approve
+who moves on to interviews**: the email links to a page where the HOD approves or declines each shortlisted
+candidate, with an optional comment. The recruiter is told at once, the answers show on the ranked list, and every
+summary and answer is recorded in the requisition's activity. The summary can also go out automatically every day
+(weekdays) or every week, from `SUMMARY_EMAIL_HOUR` (8:00), while the vacancy is open.
 
 Candidates have no account. Each application gets a private link (included in every email) where the candidate can
 follow their status, confirm interviews, upload documents and respond to offers. They can also look up their
@@ -131,7 +177,8 @@ fertilizer/petrochemical plant cover the basics. Adding a Claude API key (`ANTHR
   history, skills, tools, certifications). The rule-based reader still runs and fills any gaps.
 * **Skill and tool suggestions** when a department raises a requisition, merged with the knowledge base and the
   standard role's defaults.
-* **Job advert drafting** from the requirements, and an on-demand **AI fit summary** per candidate.
+* **Job description drafting** in a standard format from the requisition, ready for HR to review and publish, and an
+  on-demand **AI fit summary** per candidate.
 
 The default model is `claude-opus-5-5` (change it with `ANTHROPIC_MODEL`). Requests use structured JSON output and the
 API's server-side refusal fallback (turn it off with `AI_SERVER_FALLBACK=false` if you call the API through a gateway
@@ -167,11 +214,13 @@ requisition's requirements re-scores all of its applicants automatically.
 |---|---|---|
 | `python manage.py send_retirement_alerts` | daily | Asks departments about staff retiring within `RETIREMENT_ALERT_MONTHS` (at most once every 90 days per person) |
 | `python manage.py send_reminders` | every 15–60 min | Interview reminders 24 hours ahead, chasers for overdue selection reports, expired-offer alerts |
+| `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes (see Keeping in step with Excel). `--watch` keeps checking; `start-portal.bat` runs it on Windows |
+| `python manage.py send_department_summaries` | every 15–60 min | Emails the candidate summary to departments for vacancies set to send it daily or weekly (once per day or week, from `SUMMARY_EMAIL_HOUR`) |
 | `python manage.py fetch_cv_emails` | every 15 min | Reads unread emails in the recruitment mailbox (IMAP) and adds their CV attachments. A requisition reference (e.g. `REQ-2026-0004`) or the vacancy title in the subject applies the CV to that vacancy |
 
 On Linux, use cron. On Windows Server, use Task Scheduler, for example
 `C:\portal\.venv\Scripts\python.exe C:\portal\manage.py send_reminders`. With Docker Compose, the `scheduler` service
-runs all three.
+runs all of them.
 
 ## Deployment
 
@@ -189,7 +238,8 @@ mailbox, or an SMTP relay.
 
 Most rules live in `.env` (see `.env.example`): retirement age and maximum service years, whether requisitions also need
 management approval, the auto-shortlist threshold, whether HND counts as equal to a BSc, whether trainees need
-medicals, offer validity, maximum upload size, and the video-meeting base URL.
+medicals, offer validity, maximum upload size, the video-meeting base URL, how often the linked Excel workbooks are
+checked (`EXCEL_SYNC_MINUTES`) and the hour automatic candidate summaries go out (`SUMMARY_EMAIL_HOUR`).
 
 In the admin you can change, without touching code:
 
@@ -206,8 +256,11 @@ In the admin you can change, without touching code:
 * Candidates must give consent under the Nigeria Data Protection Act 2023 before applying.
 * Department users only see their own department's requisitions and candidates. Interviewers only see candidates they
   interview.
-* With AI enabled, CV content is sent to the Claude API for extraction. Leave `ANTHROPIC_API_KEY` empty to keep all
-  processing on your own servers.
+* With AI enabled, CV content is sent to the Claude API for extraction, and the requisition (including the
+  justification) for drafting the job description. Leave `ANTHROPIC_API_KEY` empty to keep all processing on your
+  own servers.
+* Candidate summaries emailed to departments carry names, qualifications and scores, never email addresses or phone
+  numbers.
 
 ## Project layout
 
@@ -222,7 +275,8 @@ pipeline/        applications, matching, interviews, selection reports, decision
 careers/         public careers site and the candidate's personal application page
 templates/, static/   Design system UI (static/ds), all assets vendored, no CDN needed
 docs/            3D render spec sheets for the designer
-start-portal.bat, update-portal.bat, load-my-data.bat   Windows: start, update, load your workbooks
+start-portal.bat, update-portal.bat, load-my-data.bat, link-excel.bat
+                 Windows: start, update, load your workbooks, follow them while you still use Excel
 ```
 
 The design system and every component are shown at `/styleguide/` (signed in). The seven 3D objects appear as
@@ -235,9 +289,11 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 66 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
-both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites and the AI
-client (mocked, so no API calls). A smoke test loads the demo data and opens every screen as every role.
+The 143 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
+client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
+duplicates), the compulsory requisition details, the job description review, and candidate summaries and department
+approvals. A smoke test loads the demo data and opens every screen as every role.
 
 ## Possible next steps
 

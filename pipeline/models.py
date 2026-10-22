@@ -72,6 +72,19 @@ class Application(models.Model):
     decided_at = models.DateTimeField(null=True, blank=True)
     status_reason = models.CharField(max_length=255, blank=True)
 
+    # The department's answer when asked to approve who moves on (see requisitions/summary.py).
+    class DepartmentReview(models.TextChoices):
+        APPROVED = "approved", "Approved to move on"
+        DECLINED = "declined", "Not approved"
+
+    department_review = models.CharField(max_length=10, choices=DepartmentReview.choices, blank=True)
+    department_review_stage = models.CharField(max_length=20, choices=Stage.choices, blank=True,
+                                               help_text="The stage the candidate was at when the department answered.")
+    department_review_note = models.TextField(blank=True)
+    department_reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                               on_delete=models.SET_NULL, related_name="+")
+    department_reviewed_at = models.DateTimeField(null=True, blank=True)
+
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     applied_at = models.DateTimeField(default=timezone.now)
     stage_changed_at = models.DateTimeField(default=timezone.now)
@@ -122,6 +135,11 @@ class Application(models.Model):
     def stage_index(self) -> int:
         stages = self.pipeline_stages()
         return stages.index(self.stage) if self.stage in stages else 0
+
+    @property
+    def current_department_review(self) -> str:
+        """The department's answer for the stage the candidate is at now ("" if not asked or already moved on)."""
+        return self.department_review if self.department_review_stage == self.stage else ""
 
     @property
     def is_open(self) -> bool:

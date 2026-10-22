@@ -98,6 +98,8 @@ class DemoSmokeTests(TestCase):
                      reverse("core:employees") + "?view=all", reverse("core:employees") + "?view=exits"]
             for req in requisitions_for(user):
                 urls += [req.get_absolute_url(), reverse("requisitions:export", args=[req.pk])]
+                if user.is_hr or user.department_id == req.department_id and user.is_department_user:
+                    urls.append(reverse("requisitions:review", args=[req.pk]))
             for app in applications_for(user):
                 urls.append(app.get_absolute_url())
                 if app.evaluations.exists():
@@ -106,12 +108,15 @@ class DemoSmokeTests(TestCase):
             urls += [reverse("candidates:list"), reverse("candidates:intake"), reverse("candidates:import"),
                      reverse("candidates:create"), reverse("requisitions:create"), reverse("core:import_employees")]
             for req in Requisition.objects.all():
-                urls += [reverse("requisitions:edit", args=[req.pk]), reverse("requisitions:advert", args=[req.pk])]
+                urls += [reverse("requisitions:edit", args=[req.pk]), reverse("requisitions:advert", args=[req.pk]),
+                         reverse("requisitions:summary_preview", args=[req.pk])]
             for app in Application.objects.all():
                 urls += [app.candidate.get_absolute_url(), reverse("candidates:edit", args=[app.candidate.pk]),
                          reverse("pipeline:schedule_interview", args=[app.pk])]
             for interview in Interview.objects.all():
                 urls += [reverse("pipeline:edit_interview", args=[interview.pk]), reverse("pipeline:ics", args=[interview.pk])]
+        if user.is_superuser or user.role == User.Role.HR_ADMIN:
+            urls.append(reverse("core:excel_link"))
         if user.is_management or user.is_hr:
             urls.append(reverse("pipeline:offer_reviews"))
             for offer in Offer.objects.all():

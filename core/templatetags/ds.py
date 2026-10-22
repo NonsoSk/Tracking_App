@@ -315,6 +315,7 @@ def _nav(user):
     items.append({"label": "Refer", "long": "Refer a candidate", "url": reverse("candidates:refer"), "icon": "user-plus", "extra": True})
     items.append({"label": "Careers", "long": "Careers page", "url": reverse("careers:jobs"), "icon": "globe", "extra": True, "external": True})
     if user.is_superuser or getattr(user, "role", "") == "hr_admin":
+        items.append({"label": "Excel", "long": "Excel link", "url": reverse("core:excel_link"), "icon": "file-spreadsheet", "extra": True})
         items.append({"label": "Admin", "long": "Master data & users", "url": "/admin/", "icon": "settings", "extra": True, "external": True})
     return items
 
@@ -513,3 +514,64 @@ def tracker_value(value):
         except ValueError:
             return value
     return value
+
+
+# -------------------------------------------------------------- job description
+JD_KNOWN_HEADINGS = {
+    "job summary", "about the role", "key responsibilities", "responsibilities", "qualifications and experience",
+    "requirements", "required skills", "tools, software and equipment", "certifications and licences",
+    "desirable", "nice to have", "other requirements", "how to apply",
+}
+JD_FACT = re.compile(r"^([A-Z][A-Za-z /&()-]{1,28}):\s+(\S.*)$")
+JD_BULLET = re.compile(r"^[•\-*–·]\s*")
+
+
+def _jd_heading(line: str, first: bool, more: bool) -> bool:
+    bare = line.rstrip(":").strip()
+    if bare.lower() in JD_KNOWN_HEADINGS:
+        return True
+    if len(bare) > 48 or JD_FACT.match(line):
+        return False
+    return line.endswith(":") or (first and more and line[-1] not in ".,;!?")
+
+
+@register.filter
+def job_text(text):
+    """A plain-text job description as HTML: headings, bullet lists, key facts and paragraphs, all escaped.
+
+    Mirrors jobHtml() in static/ds/app.js, which draws the live preview.
+    """
+    if not text or not text.strip():
+        return ""
+    out = []
+    for block in re.split(r"\n\s*\n", text.replace("\r\n", "\n").strip()):
+        lines = [ln.strip() for ln in block.split("\n") if ln.strip()]
+        items, para = [], []
+
+        def flush():
+            if items:
+                out.append("<ul>" + "".join(f"<li>{escape(i)}</li>" for i in items) + "</ul>")
+                items.clear()
+            if para:
+                out.append("<p>" + "<br>".join(escape(p) for p in para) + "</p>")
+                para.clear()
+
+        for i, line in enumerate(lines):
+            if JD_BULLET.match(line) and len(line) > 1:
+                if para:
+                    flush()
+                items.append(JD_BULLET.sub("", line))
+                continue
+            if items:
+                flush()
+            fact = JD_FACT.match(line)
+            if _jd_heading(line, i == 0, len(lines) > 1):
+                flush()
+                out.append(f"<h3>{escape(line.rstrip(':').strip())}</h3>")
+            elif fact:
+                flush()
+                out.append(f'<p class="jd-fact"><b>{escape(fact[1])}:</b> {escape(fact[2])}</p>')
+            else:
+                para.append(line)
+        flush()
+    return mark_safe("".join(out))

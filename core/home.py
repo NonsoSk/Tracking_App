@@ -33,9 +33,17 @@ def age_label(days):
     return text, tone
 
 
-def build_tasks(user, *, action_requisitions, pending_evaluations, offer_reviews, decisions_needed, documents_due, onboardings):
+def build_tasks(user, *, action_requisitions, pending_evaluations, offer_reviews, decisions_needed, documents_due, onboardings,
+                shortlist_reviews=()):
     """One list of "Needs you today" rows, most important first. Only the first urgent row gets the red edge."""
     tasks = []
+
+    for req, waiting, since in shortlist_reviews:
+        tasks.append({"kind": "approvals", "icon": "user-check", "priority": 1, "age": _days_since(since),
+                      "title": format_html("Approve the shortlist for <b>{}</b>", req.title),
+                      "meta": f"{waiting} candidate{'s' if waiting != 1 else ''} waiting for you",
+                      "context": str(req.department or ""), "action": "Review",
+                      "url": reverse("requisitions:review", args=[req.pk])})
 
     for offer in offer_reviews:
         a = offer.application

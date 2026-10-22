@@ -40,6 +40,8 @@ services:
     command: >
       sh -c 'i=0; while true; do
         python manage.py send_reminders;
+        python manage.py sync_workbooks;
+        python manage.py send_department_summaries;
         [ -n "$$CV_INBOX_HOST" ] && python manage.py fetch_cv_emails;
         [ $$((i % 96)) -eq 0 ] && python manage.py send_retirement_alerts;
         i=$$((i + 1)); sleep 900; done'

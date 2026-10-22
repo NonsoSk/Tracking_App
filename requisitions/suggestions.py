@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 
 from core import ai
@@ -92,63 +94,142 @@ def suggest_requirements(title: str, department: str = "", employment_type: str 
     return result
 
 
-def draft_job_advert(requisition) -> str:
-    """Candidate-facing advert text. Uses Claude when available, otherwise a template."""
-    req = requisition
-    bullet = lambda items: "\n".join(f"• {i}" for i in items)  # noqa: E731
-    facts = [
-        f"Position: {req.title}",
-        f"Department: {req.department}",
-        f"Type: {req.get_employment_type_display()}",
-        f"Location: {req.location}",
-        f"Minimum qualification: {req.get_education_level_display()}",
-        f"Experience: {req.min_experience_years}+ years" if req.min_experience_years else "Experience: entry level",
-    ]
-    if req.courses:
-        facts.append("Courses: " + ", ".join(req.courses))
-    if req.required_skills:
-        facts.append("Required skills: " + ", ".join(req.required_skills))
-    if req.tools:
-        facts.append("Tools: " + ", ".join(req.tools))
-    if req.certifications:
-        facts.append("Certifications: " + ", ".join(req.certifications))
-    if req.other_requirements:
-        facts.append("Other: " + req.other_requirements)
-    if req.job_description:
-        facts.append("Department notes on the role: " + req.job_description)
+JD_HEADINGS = ["Job summary", "Key responsibilities", "Qualifications and experience", "Required skills",
+               "Tools, software and equipment", "Certifications and licences", "Desirable", "Other requirements",
+               "How to apply"]
 
+JD_SYSTEM = (
+    "You write job descriptions for {company}, an ammonia and urea fertilizer manufacturer in {location}. "
+    "Write a polished, inclusive job description in a standard format from the requisition below.\n\n"
+    "Format: plain text only, no markdown (no #, no **). Start with these lines, one per line, exactly as given: "
+    "Job title, Department, Location, Employment type, Number of positions, Reference. Then a blank line and these "
+    "sections, each heading on its own line followed by its content: " + ", ".join(JD_HEADINGS) + ". "
+    "Use bullets that start with \"• \". Leave out a section when the requisition gives nothing for it.\n\n"
+    "Rules: Job summary is 2-4 sentences on the purpose of the role. Key responsibilities has 6-10 clear bullets "
+    "that start with a verb, built from the department's description of the duties. Every requirement must come "
+    "from the requisition: do not add qualifications, years, skills, tools or certifications it does not list, "
+    "because candidates are scored against exactly these. Put the nice-to-have skills under Desirable. "
+    "The internal context explains why the hire is needed: use it only to understand the role and never quote it, "
+    "never name any employee, and never mention replacements, resignations, retirements or internal reasons. "
+    "Do not invent salary, benefits, reporting lines or closing dates. How to apply: apply online through the "
+    "{company_short} careers portal and upload a CV."
+)
+
+
+def _as_bullets(text: str) -> list[str]:
+    """The department's free text as separate points: one per line, or per sentence when it is one paragraph."""
+    lines = [ln.strip(" \t•-*–·").strip() for ln in (text or "").splitlines()]
+    lines = [ln for ln in lines if ln]
+    if len(lines) == 1:
+        lines = [p.strip() for p in re.split(r"(?<=[.;])\s+(?=[A-Z])|;\s*", lines[0]) if p.strip()]
+    return [ln[0].upper() + ln[1:].rstrip(".;") for ln in lines]
+
+
+def _qualification_line(req) -> str:
+    if not (req.education_level or req.courses):
+        return ""
+    if req.education_level:
+        line = f"Minimum of {req.get_education_level_display()}"
+        if req.courses:
+            line += " in " + _or_list(req.courses)
+    else:
+        line = "A qualification in " + _or_list(req.courses)
+    if req.min_degree_class:
+        line += f", with {req.get_min_degree_class_display()} or better"
+    return line
+
+
+def _or_list(items) -> str:
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " or " + items[-1]
+
+
+def requisition_facts(req) -> list[str]:
+    """Everything the department and the hiring team recorded, as lines for the AI prompt."""
+    facts = [
+        f"Job title: {req.title}",
+        f"Department: {req.department}",
+        f"Location: {req.location or settings.COMPANY_LOCATION}",
+        f"Employment type: {req.get_employment_type_display()}",
+        f"Number of positions: {req.positions}",
+        f"Reference: {req.reference}",
+    ]
+    qualification = _qualification_line(req)
+    if qualification:
+        facts.append("Minimum qualification: " + qualification)
+    if req.min_experience_years:
+        span = f"{req.min_experience_years}-{req.max_experience_years}" if req.max_experience_years else f"{req.min_experience_years}+"
+        facts.append(f"Experience: {span} years")
+    else:
+        facts.append("Experience: entry level accepted")
+    if req.requires_nysc:
+        facts.append("NYSC: completed or exempted")
+    for label, items in (("Required skills", req.required_skills), ("Nice-to-have skills", req.preferred_skills),
+                         ("Tools / software / equipment", req.tools),
+                         ("Certifications / licences", req.certifications)):
+        if items:
+            facts.append(f"{label}: " + "; ".join(items))
+    if req.other_requirements.strip():
+        facts.append("Other requirements: " + req.other_requirements.strip())
+    if req.job_description.strip():
+        facts.append("Duties as described by the department:\n" + req.job_description.strip())
+    if req.justification.strip():
+        facts.append("Internal context (do not quote): " + req.justification.strip())
+    return facts
+
+
+def clean_ai_text(text: str) -> str:
+    """Remove markdown the model may add anyway, so the careers page shows clean text."""
+    lines = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        line = re.sub(r"^\s*#+\s*", "", line).replace("**", "").replace("__", "")
+        line = re.sub(r"^(\s*)[-*]\s+", r"\1• ", line)
+        lines.append(line.rstrip())
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def draft_job_advert(requisition) -> str:
+    """The job description for the careers page, in a standard format.
+
+    Uses Claude when available, otherwise builds the same sections from the requisition.
+    """
+    req = requisition
     if ai.ai_enabled():
         text = ai.text_request(
-            system=(
-                f"You write clear, inclusive job adverts for {settings.COMPANY_NAME}. Plain text only, no markdown "
-                "headings with #. Use short sections: About the role, Key responsibilities (5-8 bullets using •), "
-                "Requirements (bullets), and How to apply (apply through the careers portal). Do not invent salary "
-                "figures or benefits."
-            ),
-            prompt="\n".join(facts),
-            max_tokens=3000,
+            system=JD_SYSTEM.format(company=settings.COMPANY_NAME, location=settings.COMPANY_LOCATION,
+                                    company_short=settings.COMPANY_SHORT_NAME),
+            prompt="\n".join(requisition_facts(req)),
+            max_tokens=4000,
+            effort="medium",
         )
         if text:
-            return text
+            return clean_ai_text(text)
 
-    sections = [
-        f"{settings.COMPANY_NAME} is recruiting a {req.title} for the {req.department} department in {req.location}.",
-    ]
-    if req.job_description:
-        sections.append("About the role\n" + req.job_description.strip())
-    reqs = [f"Minimum of {req.get_education_level_display()}"
-            + (f" in {', '.join(req.courses)}" if req.courses else "")]
+    bullet = lambda items: "\n".join(f"• {i}" for i in items)  # noqa: E731
+    sections = ["\n".join(requisition_facts(req)[:6])]
+    article = "an" if req.title[:1].lower() in "aeiou" else "a"
+    summary = (f"{settings.COMPANY_NAME} is recruiting {article} {req.title} for the {req.department} department"
+               f" in {req.location or settings.COMPANY_LOCATION}.")
+    if req.positions > 1:
+        summary += f" There are {req.positions} openings."
+    sections.append("Job summary\n" + summary)
+    duties = _as_bullets(req.job_description)
+    if duties:
+        sections.append("Key responsibilities\n" + bullet(duties))
+    background = [line for line in [_qualification_line(req)] if line]
     if req.min_experience_years:
-        reqs.append(f"At least {req.min_experience_years} years of relevant experience")
-    reqs += req.required_skills
-    if req.tools:
-        reqs.append("Working knowledge of " + ", ".join(req.tools))
-    if req.certifications:
-        reqs.append("Certifications: " + ", ".join(req.certifications))
-    if req.other_requirements:
-        reqs.append(req.other_requirements)
-    sections.append("Requirements\n" + bullet(reqs))
-    if req.preferred_skills:
-        sections.append("Nice to have\n" + bullet(req.preferred_skills))
-    sections.append("How to apply\nApply online through our careers portal and upload your CV.")
+        background.append(f"At least {req.min_experience_years} years of relevant experience")
+    if req.requires_nysc:
+        background.append("NYSC completed or exempted")
+    if background:
+        sections.append("Qualifications and experience\n" + bullet(background))
+    for heading, items in (("Required skills", req.required_skills), ("Tools, software and equipment", req.tools),
+                           ("Certifications and licences", req.certifications), ("Desirable", req.preferred_skills)):
+        if items:
+            sections.append(f"{heading}\n" + bullet(items))
+    other = [o for o in _as_bullets(req.other_requirements) if o.lower().rstrip(".") not in {"none", "nil", "n/a"}]
+    if other:
+        sections.append("Other requirements\n" + bullet(other))
+    sections.append(f"How to apply\nApply online through the {settings.COMPANY_SHORT_NAME} careers portal and upload "
+                    "your CV. The form fills itself from your CV; check it and submit.")
     return "\n\n".join(sections)

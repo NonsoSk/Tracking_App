@@ -131,3 +131,37 @@ class Notification(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class LinkedWorkbook(models.Model):
+    """An Excel workbook the portal keeps itself in step with (see core/excel_link.py)."""
+
+    class State(models.TextChoices):
+        WAITING = "waiting", "Waiting for the first refresh"
+        OK = "ok", "Up to date"
+        ERROR = "error", "Could not be read"
+        MISSING = "missing", "File not found"
+
+    path = models.CharField(max_length=500, unique=True, help_text="Full path of the .xlsx file on the computer running the portal.")
+    sheets = models.CharField(max_length=255, blank=True, help_text="The recruitment sheets found in it.")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.WAITING)
+    message = models.TextField(blank=True)
+    counts = models.JSONField(default=dict, blank=True)
+    fingerprint = models.CharField(max_length=64, blank=True, help_text="SHA-256 of the copy last loaded.")
+    file_modified_at = models.DateTimeField(null=True, blank=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    synced_at = models.DateTimeField(null=True, blank=True)
+    report_path = models.CharField(max_length=500, blank=True)
+    refresh_requested = models.BooleanField(default=False)
+    linked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def name(self) -> str:
+        return self.path.replace("\\", "/").rsplit("/", 1)[-1]

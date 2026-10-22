@@ -20,11 +20,12 @@
       <button class="btn btn-primary" type="button" data-open="approve-dlg">{% icon "circle-check" "ico-18" %} Approve</button>
     {% endif %}
     {% if u.is_hr %}
-      {% if req.status == 'approved' or req.status == 'on_hold' or req.status == 'closed' %}<button class="btn btn-primary" type="button" data-open="publish-dlg">{% icon "megaphone" "ico-18" %} {% if req.status == 'approved' %}Publish vacancy{% else %}Re-open{% endif %}</button>{% endif %}
+      {% if req.status == 'approved' or req.status == 'on_hold' or req.status == 'closed' %}<a class="btn btn-primary" href="{% url 'requisitions:advert' req.pk %}"{% if not req.advert and AI_ENABLED %} data-loading-link title="Drafting the job description with AI takes a few seconds"{% endif %}>{% icon "megaphone" "ico-18" %} {% if req.status == 'approved' %}Review and publish{% else %}Re-open{% endif %}</a>{% endif %}
       <div class="pop-wrap">
         <button class="btn btn-secondary btn-icon" type="button" data-popover="req-menu" aria-haspopup="true" aria-expanded="false" aria-label="More actions">{% icon "ellipsis" "ico-18" %}</button>
         <div class="popover" id="req-menu" hidden>
-          <a class="menu-item" href="{% url 'requisitions:advert' req.pk %}">{% icon "megaphone" "ico-18" %} Edit job advert</a>
+          <a class="menu-item" href="{% url 'requisitions:advert' req.pk %}">{% icon "file-text" "ico-18" %} Edit job description</a>
+          <button class="menu-item" type="button" data-open="summary-dlg">{% icon "mail" "ico-18" %} Email candidate summary to {{ req.department }}</button>
           <a class="menu-item" href="{% url 'requisitions:export' req.pk %}">{% icon "file-spreadsheet" "ico-18" %} Export applicants (Excel)</a>
           <form method="post" action="{% url 'requisitions:rescore' req.pk %}">{% csrf_token %}<button class="menu-item" type="submit">{% icon "refresh-cw" "ico-18" %} Re-score all applicants</button></form>
           <hr>
@@ -57,6 +58,12 @@
 </div>
 {% elif req.status == 'filled' %}
 <div class="banner gold"><span class="tile">{% icon "trophy" "ico-18" %}</span><div><b>All {{ req.positions }} position{{ req.positions|pluralize }} filled</b><span class="small">Well done. This vacancy is complete.</span></div></div>
+{% endif %}
+{% if awaiting_review and can_review %}
+<div class="banner warning"><span class="tile">{% icon "user-check" "ico-18" %}</span>
+  <div><b>{{ awaiting_review }} shortlisted candidate{{ awaiting_review|pluralize }} waiting for {% if u.is_hr %}{{ req.department }}'s{% else %}your{% endif %} approval</b><span class="small">{% if u.is_hr %}The department approves who moves on to interviews. Email them the candidate summary to ask.{% else %}Approve who should move on to interviews. The hiring team is told straight away.{% endif %}</span></div>
+  {% if u.is_hr %}<button class="btn btn-secondary btn-sm" type="button" data-open="summary-dlg">{% icon "mail" "ico-16" %} Email summary</button>{% else %}<a class="btn btn-primary btn-sm" href="{% url 'requisitions:review' req.pk %}">Review shortlist</a>{% endif %}
+</div>
 {% endif %}
 
 <div class="kpi-row">
@@ -109,7 +116,7 @@
           <td data-label="Match"><div class="row">{% if not a.matched_at %}<span class="small muted" title="Imported from the interview records; not scored against requirements">Not scored</span>{% elif a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}{% if a.match_breakdown.flags %}<span class="flag" title="{{ a.match_breakdown.flags|join:'; ' }}">{% icon "flag" "ico-14" %} {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</span>{% endif %}</span></div></td>
           <td data-label="Background">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %} · {{ c.experience_label }}<div class="small muted">{{ c.course|truncatechars:30 }}</div></td>
           <td class="small" data-label="Skills matched">{% with sk=comps.skills %}{% if sk %}{{ sk.detail }}{% else %}<span class="muted">—</span>{% endif %}{% endwith %}</td>
-          <td data-label="Stage">{% status_chip a %}<div class="small muted src">{% icon c.source|source_icon "ico-14" %} {{ c.source_short }}</div></td>
+          <td data-label="Stage">{% status_chip a %}{% with review=a.current_department_review %}{% if review %} <span class="chip {% if review == 'approved' %}success-outline{% else %}danger{% endif %} no-dot" title="{{ a.department_reviewed_by.display_name|default:req.department }}{% if a.department_review_note %}: {{ a.department_review_note }}{% endif %}">{% if review == 'approved' %}Dept approved{% else %}Dept: not approved{% endif %}</span>{% endif %}{% endwith %}<div class="small muted src">{% icon c.source|source_icon "ico-14" %} {{ c.source_short }}</div></td>
         </tr>
       {% endwith %}{% endfor %}
       </tbody></table></div>
@@ -280,14 +287,24 @@
     <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">Return to department</button></div>
   </form>
 </dialog>
-<dialog class="modal" id="publish-dlg" aria-labelledby="publish-h">
-  <form method="post" action="{% url 'requisitions:action' req.pk 'publish' %}">{% csrf_token %}
-    <div class="modal-h"><span class="tile">{% icon "megaphone" %}</span><h3 id="publish-h">Publish on the careers page</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
-    <div class="modal-b stack">{% for f in publish_form %}{% dsfield f %}{% endfor %}
-      <p class="help">{% if req.advert %}The saved job advert will be shown.{% else %}Tip: <a href="{% url 'requisitions:advert' req.pk %}">write or draft a job advert</a> first. Otherwise the requirements are shown.{% endif %}</p></div>
-    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">{% icon "megaphone" "ico-18" %} Publish</button></div>
+{% if u.is_hr %}
+<dialog class="modal" id="summary-dlg" aria-labelledby="summary-h">
+  <form method="post" action="{% url 'requisitions:summary' req.pk %}">{% csrf_token %}
+    <div class="modal-h"><span class="tile">{% icon "mail" %}</span><h3 id="summary-h">Email candidate summary</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-b stack">
+      <p class="small soft">How many applied, how many are shortlisted and at each stage, and the shortlisted candidates' profiles, with every applicant attached as an Excel file (names only, no contact details). The department is asked to approve who moves on to interviews.</p>
+      <div class="field"><span class="label">Goes to</span>{% if summary_to %}<span class="small">{{ summary_to|join:", " }}</span><span class="help">Copied to you{% if req.hr_owner and req.hr_owner != u %} and {{ req.hr_owner.display_name }}{% endif %}.</span>{% else %}<span class="small danger-ink">{{ req.department }} has no email address yet. Add one in Admin → Departments, or give its head of department an email in Admin → Users.</span>{% endif %}</div>
+      <div class="field"><label class="label" for="summary-note">Message to add (optional)</label><textarea class="textarea" id="summary-note" name="note" rows="2" placeholder="E.g. Please reply by Friday so we can book the interviews."></textarea></div>
+      <div class="field"><label class="label" for="summary-frequency">Send it automatically</label>
+        <select class="select" id="summary-frequency" name="summary_frequency">{% for value, label in summary_frequencies %}<option value="{{ value }}"{% if req.summary_frequency == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <span class="help">{% if req.summary_sent_at %}Last sent {{ req.summary_sent_at|date:"j M Y, H:i" }}. {% endif %}Automatic summaries go out while the vacancy is open, on weekdays for daily ones.</span></div>
+      {% if not email_connected %}<p class="help">{% icon "info" "ico-14" %} Email is not connected on this computer yet, so the summary is printed in the portal window instead of delivered. It is still recorded in Activity.</p>{% endif %}
+      <p class="help"><a href="{% url 'requisitions:summary_preview' req.pk %}" target="_blank" rel="noopener">{% icon "eye" "ico-14" %} Preview the email</a></p>
+    </div>
+    <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-secondary" type="submit" name="save" value="1">Save schedule</button><button class="btn btn-primary" type="submit" name="send" value="1"{% if not summary_to %} disabled{% endif %}>{% icon "send" "ico-18" %} Send now</button></div>
   </form>
 </dialog>
+{% endif %}
 {% endwith %}
 {% endblock %}
 {% block scripts %}{% if request.user.is_hr %}<script src="{% static 'vendor/sortable/Sortable.min.js' %}" defer></script>{% endif %}{% endblock %}

@@ -14,6 +14,8 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+rem Linked Excel workbooks (link-excel.bat): a minimised window loads them each time they are saved.
+start "Excel link - IEFCL Recruitment Portal" /min cmd /c ""%~dp0.venv\Scripts\python.exe" "%~dp0manage.py" sync_workbooks --watch"
 rem Opens the browser only once the portal is answering (waits up to 2 minutes).
 start "" powershell -NoProfile -WindowStyle Hidden -Command "for ($i = 0; $i -lt 120; $i++) { try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', 8000); $c.Close(); break } catch { Start-Sleep -Seconds 1 } }; Start-Process 'http://127.0.0.1:8000/'"
 echo.

@@ -1,0 +1,34 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Approve shortlist · {{ req.reference }}{% endblock %}
+{% block crumbs %}<a href="{% url 'requisitions:list' %}">Requisitions</a>{% icon "chevron-right" "ico-14" %}<a href="{{ req.get_absolute_url }}">{{ req.reference }}</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Approve shortlist</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">{{ req.reference }} · {{ req.department }}</div>
+    <h1>Approve the shortlist</h1>
+    <p class="lede">Shortlisted candidates for {{ req.title }}. Approve those who should move on to interviews. The hiring team is told straight away, and your answers are kept on each candidate's record.</p>
+  </div>
+  <div class="actions"><a class="btn btn-secondary" href="{{ req.get_absolute_url }}">{% icon "arrow-left" "ico-18" %} Back to the vacancy</a></div>
+</header>
+
+<section class="sheet" aria-labelledby="where-h">
+  <div class="sheet-h"><h2 class="title" id="where-h">Where recruitment stands</h2></div>
+  <div class="sheet-b"><dl class="facts facts-grid">{% for label, value in counts %}<div><dt>{{ label }}</dt><dd class="num">{{ value }}</dd></div>{% endfor %}</dl></div>
+</section>
+
+<section class="sheet" aria-labelledby="wait-h">
+  <div class="sheet-h"><h2 class="title" id="wait-h">Waiting for your approval</h2><span class="count-badge">{{ waiting|length }}</span></div>
+  <div class="sheet-b review-list">
+    {% for a in waiting %}{% include "requisitions/_review_row.html" %}
+    {% empty %}<div class="all-clear"><span class="tile">{% icon "circle-check" %}</span><div><b>Nothing waiting</b><p>You have answered for everyone on the shortlist.</p></div></div>{% endfor %}
+  </div>
+</section>
+
+{% if answered %}
+<section class="sheet" aria-labelledby="done-h">
+  <div class="sheet-h"><h2 class="title" id="done-h">Answered</h2><span class="count-badge">{{ answered|length }}</span><span class="spacer"></span><span class="small muted">You can change an answer until the candidate moves on.</span></div>
+  <div class="sheet-b review-list">{% for a in answered %}{% include "requisitions/_review_row.html" %}{% endfor %}</div>
+</section>
+{% endif %}
+{% endblock %}

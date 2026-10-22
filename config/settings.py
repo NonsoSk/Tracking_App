@@ -124,6 +124,8 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / env("SQLITE_PATH", "db.sqlite3"),
+            # Pages wait for an Excel refresh to finish writing instead of failing with "database is locked".
+            "OPTIONS": {"timeout": 60},
         }
     }
 
@@ -218,6 +220,9 @@ AI_SERVER_FALLBACK = env_bool("AI_SERVER_FALLBACK", True)
 # Optional OCR for scanned CVs when AI is not configured.
 TESSERACT_CMD = env("TESSERACT_CMD")
 
+# Minutes between checks of the linked Excel workbooks (python manage.py sync_workbooks --watch).
+EXCEL_SYNC_MINUTES = env_int("EXCEL_SYNC_MINUTES", 5)
+
 # ---------------------------------------------------------------------------
 # Recruitment rules
 # ---------------------------------------------------------------------------
@@ -239,6 +244,8 @@ RECRUITMENT = {
     # Base URL for auto-generated video meeting rooms when HR does not paste
     # a Teams/Zoom link. Jitsi rooms need no account or API key.
     "MEETING_ROOM_BASE_URL": env("MEETING_ROOM_BASE_URL", "https://meet.jit.si"),
+    # Automatic candidate summaries to departments go out from this hour (local time).
+    "SUMMARY_EMAIL_HOUR": env_int("SUMMARY_EMAIL_HOUR", 8),
 }
 
 LOGGING = {

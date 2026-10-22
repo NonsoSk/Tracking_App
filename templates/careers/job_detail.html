@@ -14,7 +14,7 @@
     <section class="sheet job-body" aria-label="About this role">
       <div class="sheet-b pad-top-24">
       {% if job.advert %}
-        <div class="advert-text-out">{{ job.advert }}</div>
+        <div class="advert-text-out jd">{{ job.advert|job_text }}</div>
       {% else %}
         {% if job.job_description %}<h2 class="h3">About the role</h2><p class="soft pre">{{ job.job_description }}</p>{% endif %}
         <h2 class="h3">What you need</h2>
