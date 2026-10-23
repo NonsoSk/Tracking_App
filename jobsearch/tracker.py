@@ -9,7 +9,7 @@ import os
 
 COLUMNS = [
     "status", "title", "company", "monthly_usd_min", "monthly_usd_max",
-    "location", "url", "fit", "style", "contact", "package", "sent",
+    "location", "signals", "url", "fit", "style", "contact", "package", "sent",
     "source", "posted", "first_seen", "notes", "id",
 ]
 STATUSES = ["New", "Interested", "Approved", "Applied", "Interviewing", "Offer", "Rejected", "Skipped"]
@@ -61,11 +61,11 @@ def drafts(row):
     return f"[open]({row['package']}){sent}"
 
 
-def render_markdown(rows, today):
+def render_markdown(rows, today, minimum=5000):
     lines = [
         "# Job matches",
         "",
-        f"Remote data analyst roles paying at least $5k a month. Last search: {today}.",
+        f"Remote data analyst roles paying at least {money(minimum)} a month. Last search: {today}.",
         "Edit `status` and `notes` in [data/jobs.csv](data/jobs.csv); the next search keeps your edits.",
         "Set a job's status to `Approved` to send its outreach email with the tailored resume on the next run.",
         "Set `style` to `deal` first to send the casual deal message (deal.md) instead of the formal email.",
@@ -76,15 +76,15 @@ def render_markdown(rows, today):
         if not group:
             continue
         lines += [f"## {status} ({len(group)})", "",
-                  "| Role | Company | Monthly USD | Location | Fit | Drafts | Found |",
-                  "|---|---|---|---|---|---|---|"]
+                  "| Role | Company | Monthly USD | Location | Signals | Fit | Drafts | Posted | Found |",
+                  "|---|---|---|---|---|---|---|---|---|"]
         for row in group:
             pay = f"{money(row['monthly_usd_min'])} to {money(row['monthly_usd_max'])}"
             if row["monthly_usd_min"] == row["monthly_usd_max"]:
                 pay = money(row["monthly_usd_max"])
             title = row["title"].replace("|", "/")
             lines.append(f"| [{title}]({row['url']}) | {row['company'].replace('|', '/')} | "
-                         f"{pay} | {row['location'].replace('|', '/') or 'Remote'} | "
-                         f"{row.get('fit') or ''} | {drafts(row)} | {row['first_seen']} |")
+                         f"{pay} | {row['location'].replace('|', '/') or 'Remote'} | {row.get('signals') or ''} | "
+                         f"{row.get('fit') or ''} | {drafts(row)} | {row['posted']} | {row['first_seen']} |")
         lines.append("")
     return "\n".join(lines)
