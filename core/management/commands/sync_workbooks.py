@@ -60,9 +60,10 @@ class Command(BaseCommand):
 
     def run_check(self, *, force):
         stamp = timezone.localtime().strftime("%H:%M")
-        result = excel_link.check(force=force, log=lambda msg: self.stdout.write(f"[{stamp}] {msg}"))
-        if result and result.report_path:
-            self.stdout.write(f"[{stamp}] Report: {result.report_path}")
+        results = excel_link.check(force=force, log=lambda msg: self.stdout.write(f"[{stamp}] {msg}"))
+        for workbook, result in results.items():
+            if result.report_path:
+                self.stdout.write(f"[{stamp}] Report for {workbook.name}: {result.report_path}")
 
     def show(self):
         for wb in LinkedWorkbook.objects.all():

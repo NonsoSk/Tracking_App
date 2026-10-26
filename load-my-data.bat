@@ -30,8 +30,8 @@ if not defined FILE1 goto :cancelled
 if not defined FILE2 call :pick FILE2 "Now choose the Recruitment Master workbook"
 if not defined FILE2 goto :cancelled
 echo  Files:
-echo    %FILE1%
-echo    %FILE2%
+echo    "%FILE1%"
+echo    "%FILE2%"
 echo.
 set "ANSWER="
 set /p "ANSWER= Type YES and press Enter to replace everything in the portal with these workbooks: "

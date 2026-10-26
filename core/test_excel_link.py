@@ -70,6 +70,9 @@ class ExcelLinkTests(TestCase):
         excel_link.link(paths or [self.master, self.cv])
         return excel_link.check(log=lambda *a: None)
 
+    def result_for(self, results, path):
+        return next(r for wb, r in results.items() if wb.path == str(Path(path).resolve()))
+
     def totals(self):
         return (Candidate.objects.count(), CBTResult.objects.count(), InterviewRecord.objects.count(),
                 Application.objects.count(), Requisition.objects.count())
@@ -79,10 +82,12 @@ class ExcelLinkTests(TestCase):
         first = self.totals()
         self.assertEqual(first[4], 2)
         self.assertTrue(all(w.state == "ok" and w.fingerprint for w in LinkedWorkbook.objects.all()))
-        self.assertIsNone(excel_link.check(log=lambda *a: None))  # nothing saved since
-        result = excel_link.check(force=True, log=lambda *a: None)  # loading the same files again adds nothing
+        self.assertEqual(excel_link.check(log=lambda *a: None), {})  # nothing saved since
+        results = excel_link.check(force=True, log=lambda *a: None)  # loading the same files again adds nothing
+        self.assertEqual(len(results), 2)
         self.assertEqual(self.totals(), first)
-        self.assertFalse(any(k for k, v in result.counts.items() if v and "repeated" not in k), result.counts)
+        for result in results.values():
+            self.assertFalse(any(k for k, v in result.counts.items() if v and "repeated" not in k), result.counts)
 
     def test_master_workbook_alone_can_be_followed(self):
         self.link_and_load(self.master)
@@ -105,7 +110,7 @@ class ExcelLinkTests(TestCase):
                          "Yes", 3, "B.Sc", "Chemistry", 2020, "PAC", "Sample University", "Second class upper", "", ""])
         self.save_master()
         self.save_cv()
-        result = excel_link.check(log=lambda *a: None)
+        result = self.result_for(excel_link.check(log=lambda *a: None), self.master)
 
         candidates, cbts, records, apps, reqs = self.totals()
         self.assertEqual((cbts, reqs), (before[1], before[4]))
@@ -149,11 +154,63 @@ class ExcelLinkTests(TestCase):
         req.refresh_from_db()
         self.assertIn(req.status, {Requisition.Status.CLOSED, Requisition.Status.FILLED})
 
+    def interview(self, ref, name, email, phone, day, result="Selected"):
+        return [ref, None, "Experienced", name, "Female", phone, email, datetime(2026, 9, day), "QAQC", "QA Panel",
+                None, None, None, 0.7, result, None, "Not Engaged"]
+
+    def test_several_files_with_the_same_kind_of_sheet_are_all_read(self):
+        # Each officer keeps their own interview records; the second file is linked first.
+        officer_a = os.path.join(self.dir, "Interviews - Officer A.xlsx")
+        officer_b = os.path.join(self.dir, "Interviews - Officer B.xlsx")
+        write(officer_a, [("Interviews", IV_HEADERS, [self.interview("Req_950", "Uche Alpha", "uche.a@example.com",
+                                                                    "2348011110001", 1)])])
+        write(officer_b, [("Interviews", IV_HEADERS, [self.interview("Req_950", "Bisi Beta", "bisi.b@example.com",
+                                                                    "2348011110002", 2)])])
+        self.reqs.append(["Req_950", datetime(2026, 8, 30), "Jane Requester", "IFZ", "QA/QC", "Operations Support",
+                          "Experienced_Role", "New Position", "Port Harcourt", "Analyst", "Senior Staff", 2, 2, 2, 0, 0,
+                          0, 0, 0, 2, "In Progress", None, None, None, None, "Coordinator One"])
+        self.save_master()
+        for path in (officer_a, officer_b):
+            self.settle(path)
+        excel_link.link([officer_a, officer_b, self.master])
+        excel_link.check(log=lambda *a: None)
+
+        for email in ("uche.a@example.com", "bisi.b@example.com"):
+            record = InterviewRecord.objects.get(candidate__email=email)
+            self.assertEqual(record.requisition.reference, "Req_950")  # the tracker was loaded first
+            self.assertTrue(Application.objects.filter(candidate__email=email, requisition__reference="Req_950").exists())
+        states = dict(LinkedWorkbook.objects.values_list("path", "state"))
+        self.assertEqual(set(states.values()), {"ok"})
+        self.assertIn("1 interview records",
+                      LinkedWorkbook.objects.get(path=str(Path(officer_b).resolve())).message)
+
+        # Only the file that changed is loaded again.
+        rows = [self.interview("Req_950", "Bisi Beta", "bisi.b@example.com", "2348011110002", 2, result="Rejected")]
+        write(officer_b, [("Interviews", IV_HEADERS, rows)])
+        self.settle(officer_b)
+        before = LinkedWorkbook.objects.get(path=str(Path(officer_a).resolve())).synced_at
+        excel_link.check(log=lambda *a: None)
+        self.assertEqual(LinkedWorkbook.objects.get(path=str(Path(officer_a).resolve())).synced_at, before)
+        self.assertEqual(InterviewRecord.objects.get(candidate__email="bisi.b@example.com").result, "rejected")
+        self.assertEqual(InterviewRecord.objects.filter(candidate__email="bisi.b@example.com").count(), 1)
+
+    def test_a_second_sheet_of_the_same_kind_in_one_workbook_is_reported(self):
+        both = os.path.join(self.dir, "Two interview sheets.xlsx")
+        write(both, [("Interviews 2025", IV_HEADERS, [self.interview("Req_900", "Uche Alpha", "uche.a@example.com",
+                                                                     "2348011110001", 1)]),
+                     ("Interviews 2026", IV_HEADERS, [self.interview("Req_900", "Bisi Beta", "bisi.b@example.com",
+                                                                     "2348011110002", 2)])])
+        self.settle(both)
+        result = self.result_for(self.link_and_load(both), both)
+        self.assertEqual(result.counts["sheets not read (a second sheet of the same kind; see report)"], 1)
+        self.assertIn("Interviews 2026", [issue[1] for issue in result.issues])
+        self.assertIn("1 sheets not read", LinkedWorkbook.objects.get().message)
+
     def test_recently_saved_and_missing_files(self):
         self.link_and_load(self.master)
         self.reqs[1][COORDINATOR] = "Someone Else"
         write(self.master, [("Manpower_Requisition_Summary", REQ_HEADERS, self.reqs)])  # saved just now
-        self.assertIsNone(excel_link.check(log=lambda *a: None))  # Excel may still be writing it
+        self.assertEqual(excel_link.check(log=lambda *a: None), {})  # Excel may still be writing it
         os.remove(self.master)
         excel_link.check(log=lambda *a: None)
         self.assertEqual(LinkedWorkbook.objects.get().state, "missing")

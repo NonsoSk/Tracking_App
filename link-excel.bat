@@ -1,7 +1,8 @@
 @echo off
 setlocal
-rem Links your recruitment workbooks so the portal refreshes itself whenever you save them in Excel.
-rem Double-click this file, or drag the Excel files onto it. Run it again to link different files.
+rem Links your recruitment workbooks so the portal refreshes itself whenever they are saved in Excel.
+rem Double-click this file, or drag any number of Excel files onto it. Run it again later to add more files:
+rem the files already linked stay linked.
 title Link Excel workbooks to the IEFCL Recruitment Portal
 cd /d "%~dp0"
 chcp 65001 >nul
@@ -15,35 +16,51 @@ echo.
 echo  LINK YOUR EXCEL WORKBOOKS
 echo  =========================
 echo  While the team still works in Excel, the portal can follow your workbooks:
-echo  each time you save one, the portal loads the changes a few minutes later.
+echo  each time one is saved, the portal loads the changes a few minutes later.
 echo    - new rows are added, rows you edit are updated, nothing is duplicated
 echo    - nothing you did in the portal is undone, and rows deleted in Excel stay in the portal
 echo.
-echo  Use the files where you keep working on them (for example your OneDrive or shared folder),
-echo  not a copy in Downloads.
+echo  Pick the files where the team keeps working on them (for example a synced OneDrive or
+echo  SharePoint folder), not a copy in Downloads. Close the portal window before you continue.
 echo.
-set "FILE1=%~1"
-set "FILE2=%~2"
-if not defined FILE1 call :pick FILE1 "Choose the Recruitment Master workbook"
-if not defined FILE1 goto :cancelled
-if not defined FILE2 (
-  set "ANSWER="
-  set /p "ANSWER= Also follow the CV file (CV Dump)? Type Y and press Enter, or just press Enter to skip: "
-)
-if not defined FILE2 if /i "%ANSWER%"=="Y" call :pick FILE2 "Choose the CV file (CV Dump)"
+set FILES=
+set COUNT=0
+:args
+if "%~1"=="" goto :first
+set FILES=%FILES% "%~1"
+set /a COUNT+=1
+shift
+goto :args
+
+:first
+if %COUNT% GTR 0 goto :link
+call :pick ONE "Choose a recruitment workbook (for example the Recruitment Master workbook)"
+if not defined ONE goto :cancelled
+set FILES="%ONE%"
+set COUNT=1
+echo    1. "%ONE%"
+
+:more
+set "ANSWER="
+set /p "ANSWER= Add another workbook (for example the CV file)? Type Y and press Enter, or just press Enter to finish: "
+if /i not "%ANSWER%"=="Y" goto :link
+call :pick ONE "Choose the next workbook"
+if not defined ONE goto :more
+set FILES=%FILES% "%ONE%"
+set /a COUNT+=1
+echo    %COUNT%. "%ONE%"
+goto :more
+
+:link
 echo.
 ".venv\Scripts\python.exe" manage.py migrate --noinput
 if errorlevel 1 goto :failed
-if defined FILE2 (
-  ".venv\Scripts\python.exe" manage.py sync_workbooks --link "%FILE1%" "%FILE2%"
-) else (
-  ".venv\Scripts\python.exe" manage.py sync_workbooks --link "%FILE1%"
-)
+".venv\Scripts\python.exe" manage.py sync_workbooks --link %FILES%
 if errorlevel 1 goto :failed
 echo.
 echo  Linked. From now on start-portal.bat also opens a small "Excel link" window that checks
 echo  the files every few minutes. Keep it open (minimised) while you use the portal.
-echo  You can see the state in the portal under Excel link.
+echo  You can see each file and when it was last loaded in the portal under Excel link.
 pause
 exit /b 0
 

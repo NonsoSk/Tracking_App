@@ -109,9 +109,14 @@ uploaded to GitHub.
 ## Keeping in step with Excel
 
 While the team still updates the workbooks in Excel, the portal can follow them so it is never out of date. On
-Windows, double-click `link-excel.bat` and pick the Recruitment Master workbook (and, if you like, the CV file). Pick
-the copies you keep working on, for example in OneDrive or a shared folder. Elsewhere:
-`python manage.py sync_workbooks --link <master>.xlsx [<cv file>.xlsx]`.
+Windows, double-click `link-excel.bat` and pick the Recruitment Master workbook, then answer **Y** to add the CV file
+or any other workbook, as many as you need (or drag them all onto `link-excel.bat`). Pick the copies the team keeps
+working on, for example in a synced OneDrive or SharePoint folder. Running it again later adds more files; the ones
+already linked stay. Elsewhere: `python manage.py sync_workbooks --link <file>.xlsx [<file>.xlsx ...]`.
+
+Any workbook holding at least one of the record sheets above can be linked, and several files may hold the same kind
+of sheet (for example, each officer's own interview records): each file is loaded on its own when it changes. Within
+one workbook, only the first sheet of each kind is read; a second one is listed in the report.
 
 From then on, `start-portal.bat` also opens a minimised **Excel link** window
 (`python manage.py sync_workbooks --watch`). It checks the files every `EXCEL_SYNC_MINUTES` (5) and, when one was

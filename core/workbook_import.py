@@ -314,7 +314,8 @@ def snapshot(instance) -> dict:
 
 
 # --------------------------------------------------------------------------- reading
-def read_sheets(paths, *, require_all=True) -> dict[str, Sheet]:
+def read_sheets(paths, *, require_all=True, skipped=None) -> dict[str, Sheet]:
+    """The record sheets in these files, by kind. A second sheet of a kind already found is listed in ``skipped``."""
     from openpyxl import load_workbook
 
     found: dict[str, Sheet] = {}
@@ -333,7 +334,11 @@ def read_sheets(paths, *, require_all=True) -> dict[str, Sheet]:
             labels = {header_key(h): re.sub(r"\s+", " ", str(h).replace("\xa0", " ")).strip()
                       for h in raw_headers if header_key(h)}
             kind = next((k for k, sig in SHEET_SIGNATURES.items() if sig <= set(headers)), None)
-            if not kind or kind in found:
+            if not kind:
+                continue
+            if kind in found:
+                if skipped is not None:
+                    skipped.append((os.path.basename(path), ws.title, kind, found[kind]))
                 continue
             data = []
             for number, values in enumerate(rows, start=2):
@@ -388,8 +393,14 @@ class WorkbookImporter:
     # -- main
     def run(self) -> ImportResult:
         self.log("Reading the workbooks...")
-        sheets = read_sheets(self.paths, require_all=self.require_all)
+        skipped = []
+        sheets = read_sheets(self.paths, require_all=self.require_all, skipped=skipped)
         self.sheets = sheets
+        for file, title, kind, used in skipped:
+            self.result.issues.append((file, title, "", "", "", f"Not read: a second {SHEET_LABELS[kind]} sheet. Only "
+                                       f"'{used.title}' ({used.file}) was read. Keep one sheet of each kind per "
+                                       "workbook, or load this one separately."))
+            self.result.counts["sheets not read (a second sheet of the same kind; see report)"] += 1
         for kind, sheet in sheets.items():
             self.log(f"  {SHEET_LABELS[kind]}: {len(sheet.rows):,} rows ({sheet.file} > {sheet.title})")
         with transaction.atomic():

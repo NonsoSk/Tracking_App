@@ -72,7 +72,7 @@ def describe(counts: dict) -> str:
 
 
 def check(*, force: bool = False, log=logger.info):
-    """Look at every linked workbook and load the ones saved with changes. Returns the import result, or None."""
+    """Look at every linked workbook and load the ones saved with changes. Returns {workbook: import result}."""
     now = timezone.now()
     due = []
     for workbook in LinkedWorkbook.objects.all():
@@ -100,39 +100,44 @@ def check(*, force: bool = False, log=logger.info):
             workbook.state, workbook.message = LinkedWorkbook.State.OK, "The file is back and unchanged."
         workbook.save(update_fields=["checked_at", "state", "message"])
     if not due:
-        return None
+        return {}
 
-    names = ", ".join(w.name for w, _ in due)
-    log(f"Refreshing from {names}...")
+    # One file at a time, so two files holding the same kind of sheet (say, each officer's interview records)
+    # are both read. Files with the requisition tracker go first, so interviews can find their requisitions.
+    due.sort(key=lambda item: "requisition tracker" not in item[0].sheets.lower())
+    results = {}
+    for workbook, modified in due:
+        result = load(workbook, modified, log)
+        if result:
+            results[workbook] = result
+    return results
+
+
+def load(workbook, modified, log):
+    """Load a copy of one workbook, so Excel can keep the file open and save it while the refresh runs."""
+    log(f"Refreshing from {workbook.name}...")
     with tempfile.TemporaryDirectory() as tmp:
-        # Load copies, so Excel can keep the files open and save them while the refresh runs.
-        copies = []
-        for n, (workbook, _) in enumerate(due):
-            folder = Path(tmp) / str(n)
-            folder.mkdir()
-            copies.append(Path(shutil.copy2(workbook.path, folder / workbook.name)))
+        copy = Path(shutil.copy2(workbook.path, Path(tmp) / workbook.name))
         try:
-            result = WorkbookImporter([str(c) for c in copies], replace=False, report_dir=str(report_dir()),
-                                      log=log, require_all=False).run()
+            result = WorkbookImporter([str(copy)], replace=False, report_dir=str(report_dir()), log=log,
+                                      require_all=False).run()
         except Exception as exc:  # noqa: BLE001 - a bad file must not stop the next check
             if isinstance(exc, WorkbookError):
                 message = str(exc)
             else:
                 logger.exception("Excel refresh failed")
                 message = f"The refresh failed: {exc}"
-            for workbook, _ in due:
-                workbook.state, workbook.message, workbook.refresh_requested = LinkedWorkbook.State.ERROR, message, False
-                workbook.save(update_fields=["state", "message", "refresh_requested"])
-            log(message)
+            workbook.state, workbook.message, workbook.refresh_requested = LinkedWorkbook.State.ERROR, message, False
+            workbook.save(update_fields=["state", "message", "refresh_requested"])
+            log(f"{workbook.name}: {message}")
             return None
-        digests = [fingerprint(c) for c in copies]
+        digest = fingerprint(copy)
     counts = {k: v for k, v in sorted(result.counts.items()) if v}
-    for (workbook, modified), digest in zip(due, digests):
-        workbook.fingerprint, workbook.file_modified_at, workbook.synced_at = digest, modified, timezone.now()
-        workbook.state, workbook.message, workbook.counts = LinkedWorkbook.State.OK, describe(counts), counts
-        workbook.report_path, workbook.refresh_requested = result.report_path, False
-        workbook.save()
-    log(describe(counts))
+    workbook.fingerprint, workbook.file_modified_at, workbook.synced_at = digest, modified, timezone.now()
+    workbook.state, workbook.message, workbook.counts = LinkedWorkbook.State.OK, describe(counts), counts
+    workbook.report_path, workbook.refresh_requested = result.report_path, False
+    workbook.save()
+    log(f"{workbook.name}: {describe(counts)}")
     return result
 
 
