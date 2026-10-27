@@ -1662,3 +1662,10 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 /* Screen: Excel link */
 .tips { margin: 0; padding-left: 1.2em; display: grid; gap: var(--s-12); }
 .break { overflow-wrap: anywhere; }
+
+/* Candidate: resume shown in the page */
+.resume-sheet { overflow: hidden; }
+.resume-sheet .sheet-h { flex-wrap: wrap; row-gap: var(--s-8); }
+.resume-frame { display: block; width: 100%; height: max(640px, calc(100vh - 260px)); border: 0; border-top: 1px solid var(--line); background: var(--surface); }
+@media (max-width: 767px) { .resume-frame { height: 75vh; } }
+.resume-mark { color: var(--primary); display: inline-flex; vertical-align: -2px; margin-left: 4px; }

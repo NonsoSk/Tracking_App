@@ -4,9 +4,13 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from candidates.resumes import Fetcher, acquire_lock, pending, release_lock
 from core import excel_link
 from core.models import LinkedWorkbook
 from core.workbook_import import WorkbookError
+
+
+RESUMES_PER_CHECK = 100
 
 
 class Command(BaseCommand):
@@ -60,10 +64,18 @@ class Command(BaseCommand):
 
     def run_check(self, *, force):
         stamp = timezone.localtime().strftime("%H:%M")
-        results = excel_link.check(force=force, log=lambda msg: self.stdout.write(f"[{stamp}] {msg}"))
+        log = lambda msg: self.stdout.write(f"[{stamp}] {msg}")  # noqa: E731
+        results = excel_link.check(force=force, log=log)
         for workbook, result in results.items():
             if result.report_path:
                 self.stdout.write(f"[{stamp}] Report for {workbook.name}: {result.report_path}")
+        # Resumes of applicants new in the applications dump, a few at a time (load-resumes.bat does many at once).
+        queue = pending()[:RESUMES_PER_CHECK]
+        if queue and acquire_lock():
+            try:
+                Fetcher(log=lambda msg: None).run(queue)
+            finally:
+                release_lock()
 
     def show(self):
         for wb in LinkedWorkbook.objects.all():

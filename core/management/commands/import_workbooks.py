@@ -11,8 +11,8 @@ from core.workbook_import import WorkbookError, WorkbookImporter
 
 
 class Command(BaseCommand):
-    help = ("Load the recruitment workbooks (CV file and recruitment master workbook). "
-            "With --replace, every existing record, demo data included, is removed first.")
+    help = ("Load the recruitment workbooks (CV file, recruitment master workbook and, optionally, the website "
+            "applications dump). With --replace, every existing record, demo data included, is removed first.")
 
     def add_arguments(self, parser):
         parser.add_argument("files", nargs="+", help="The .xlsx workbooks, in any order.")
@@ -26,8 +26,9 @@ class Command(BaseCommand):
         for name in options["files"]:
             if not Path(name).is_file():
                 raise CommandError(f"File not found: {name}")
+        # Replacing everything needs every record sheet; adding to the portal can take any of them.
         importer = WorkbookImporter(options["files"], replace=options["replace"], report_dir=options["report_dir"],
-                                    log=self.stdout.write)
+                                    log=self.stdout.write, require_all=options["replace"])
         try:
             result = importer.run()
         except WorkbookError as exc:
@@ -43,6 +44,8 @@ class Command(BaseCommand):
         self.stdout.write(f"  values not used (see report): {len(result.issues):,}")
         self.stdout.write(f"  contacts shared by different names (see report): {len(result.shared_contacts):,}")
         self.stdout.write(f"  names used by more than one person (see report): {len(result.same_names):,}")
+        if result.applications_held:
+            self.stdout.write(f"  website applications held for checking (see report): {len(result.applications_held):,}")
         if result.report_path:
             self.stdout.write(f"Report: {result.report_path}")
 

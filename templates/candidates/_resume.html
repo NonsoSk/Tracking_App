@@ -1,0 +1,49 @@
+{% load ds %}{% with u=request.user %}
+{% if resume and resume.is_pdf %}
+<section class="sheet resume-sheet" aria-labelledby="rs-h">
+  <div class="sheet-h">
+    {% icon "file-text" "ico-18" %}<h2 class="title" id="rs-h">Resume</h2>
+    <span class="small muted ellip">{{ resume.original_name|truncatechars:48 }} · {% if resume.source_url %}from the website application{% elif resume.uploaded_by %}added by {{ resume.uploaded_by.display_name }}{% else %}sent by the candidate{% endif %} · {{ resume.uploaded_at|date:"j M Y" }}</span>
+    <span class="spacer"></span>
+    {% if resume.original_file %}<a class="btn btn-ghost btn-sm" href="{% url 'candidates:document' resume.pk %}?original=1">{% icon "download" "ico-16" %} File as received</a>{% endif %}
+    <a class="btn btn-secondary btn-sm" href="{% url 'candidates:document' resume.pk %}" target="_blank" rel="noopener">{% icon "external-link" "ico-16" %} Full screen</a>
+  </div>
+  <iframe class="resume-frame" src="{% url 'candidates:document' resume.pk %}#view=FitH" title="Resume of {{ c.full_name }}"></iframe>
+</section>
+{% else %}
+<section class="sheet" aria-labelledby="rs-h">
+  <div class="sheet-h">{% icon "file-text" "ico-18" %}<h2 class="title" id="rs-h">Resume</h2></div>
+  <div class="sheet-b stack">
+    {% if resume %}
+      <div class="banner info"><span class="tile">{% icon "info" "ico-18" %}</span>
+        <div><b>This resume is a {{ resume.extension|upper|default:"file" }} file, not a PDF yet</b><span class="small">It is turned into a PDF the next time load-resumes runs. Until then, open it here.</span></div>
+        <a class="btn btn-secondary btn-sm" href="{% url 'candidates:document' resume.pk %}">{% icon "download" "ico-16" %} Open</a></div>
+    {% elif resume_waiting %}
+      <div class="banner {% if c.resume_error %}danger{% else %}warning{% endif %}"><span class="tile">{% icon "file-down" "ico-18" %}</span>
+        <div>{% if c.resume_error %}<b>The resume on the website could not be saved</b><span class="small">{{ c.resume_error }}{% if c.resume_checked_at %} (tried {{ c.resume_checked_at|date:"j M Y, H:i" }}){% endif %}</span>
+          {% else %}<b>The resume from the website application has not been saved yet</b><span class="small">load-resumes.bat saves all of them; or save this one now.</span>{% endif %}</div>
+        {% if u.is_hr %}<form method="post" action="{% url 'candidates:fetch_resume' c.pk %}" data-loading>{% csrf_token %}<button class="btn btn-secondary btn-sm" type="submit">{% icon "refresh-cw" "ico-16" %} {% if c.resume_error %}Try again{% else %}Save now{% endif %}</button></form>{% endif %}
+      </div>
+    {% else %}
+      <p class="small muted">No resume on file. Applicants who applied in person or by email have none until one is attached.</p>
+    {% endif %}
+    {% if u.is_hr or u.is_onboarding %}
+    <form method="post" enctype="multipart/form-data" action="{% url 'candidates:upload' c.pk %}" class="upload-row" data-loading>{% csrf_token %}
+      <input type="hidden" name="doc_type" value="cv">
+      <label class="dropzone" tabindex="0" data-list="resume-list">
+        <span class="tile">{% icon "cloud-upload" %}</span>
+        <span class="title">Attach {{ c.first_name|default:"the candidate" }}'s resume: drop it here or <u>browse</u></span>
+        <span class="help">PDF, Word or a photo of a paper CV. It is saved as a PDF and shows here.</span>
+        <input type="file" name="file" accept=".pdf,.doc,.docx,.odt,.rtf,.txt,.jpg,.jpeg,.png,.tif,.tiff,.webp,.bmp,.gif" required>
+      </label>
+      <div class="stack-8 upload-side">
+        <label class="check"><input type="checkbox" name="read_cv" class="form-check-input" checked> Read it and fill empty profile fields</label>
+        <div class="filelist" id="resume-list"></div>
+        <button class="btn btn-primary" type="submit">{% icon "upload" "ico-18" %} Attach resume</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endwith %}

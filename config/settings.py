@@ -220,6 +220,9 @@ AI_SERVER_FALLBACK = env_bool("AI_SERVER_FALLBACK", True)
 # Optional OCR for scanned CVs when AI is not configured.
 TESSERACT_CMD = env("TESSERACT_CMD")
 
+# LibreOffice, when it is not in the usual place, for turning Word resumes into PDF (Microsoft Word is used first).
+LIBREOFFICE_PATH = env("LIBREOFFICE_PATH", "")
+
 # Minutes between checks of the linked Excel workbooks (python manage.py sync_workbooks --watch).
 EXCEL_SYNC_MINUTES = env_int("EXCEL_SYNC_MINUTES", 5)
 

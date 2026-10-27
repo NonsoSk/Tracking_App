@@ -17,6 +17,7 @@ echo  ===============================
 echo  This puts the records from your two workbooks into the portal:
 echo    1. the CV file (CV Dump sheet)
 echo    2. the Recruitment Master workbook (requisitions, interview records, CBT results, staff list)
+echo    3. optionally, the website applications dump (Application Query), with each applicant's resume link
 echo.
 echo  Everything now in the portal is removed first, including all demo data and demo sign-ins,
 echo  so the portal holds only the records in these two workbooks. A backup copy is made first.
@@ -25,13 +26,20 @@ echo  Close the portal window (start-portal) before you continue.
 echo.
 set "FILE1=%~1"
 set "FILE2=%~2"
+set "FILE3=%~3"
 if not defined FILE1 call :pick FILE1 "Choose the CV file (CV Dump)"
 if not defined FILE1 goto :cancelled
 if not defined FILE2 call :pick FILE2 "Now choose the Recruitment Master workbook"
 if not defined FILE2 goto :cancelled
+if defined FILE3 goto :listed
+set "ANSWER="
+set /p "ANSWER= Also load the website applications dump (Application Query)? Type Y and press Enter, or just press Enter to skip: "
+if /i "%ANSWER%"=="Y" call :pick FILE3 "Choose the website applications dump (Application Query)"
+:listed
 echo  Files:
 echo    "%FILE1%"
 echo    "%FILE2%"
+if defined FILE3 echo    "%FILE3%"
 echo.
 set "ANSWER="
 set /p "ANSWER= Type YES and press Enter to replace everything in the portal with these workbooks: "
@@ -51,8 +59,14 @@ if exist "db.sqlite3" (
 echo.
 ".venv\Scripts\python.exe" manage.py migrate --noinput
 if errorlevel 1 goto :failed
+if defined FILE3 goto :withdump
 ".venv\Scripts\python.exe" manage.py import_workbooks "%FILE1%" "%FILE2%" --replace
 if errorlevel 1 goto :failed
+goto :imported
+:withdump
+".venv\Scripts\python.exe" manage.py import_workbooks "%FILE1%" "%FILE2%" "%FILE3%" --replace
+if errorlevel 1 goto :failed
+:imported
 echo.
 echo  Done. Start the portal with start-portal.bat and sign in with your own account.
 echo  The import report (values that could not be used, shared contacts, merged duplicates)

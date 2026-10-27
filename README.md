@@ -77,10 +77,12 @@ skill tags.
 
 ## Loading your recruitment workbooks
 
-On Windows, close the portal and double-click `load-my-data.bat` (or drag both workbooks onto it). It asks for the CV
-file and the Recruitment Master workbook, asks you to type YES, saves a backup of the database in `backups\`, removes
-**everything** in the portal (demo data and demo sign-ins included), loads the two workbooks and asks you to create your
-own HR Admin sign-in. Elsewhere: `python manage.py import_workbooks <cv file>.xlsx <master>.xlsx --replace`.
+On Windows, close the portal and double-click `load-my-data.bat` (or drag the workbooks onto it). It asks for the CV
+file, the Recruitment Master workbook and, optionally, the website applications dump (Application Query), asks you to
+type YES, saves a backup of the database in `backups\`, removes **everything** in the portal (demo data and demo
+sign-ins included), loads the workbooks and asks you to create your own HR Admin sign-in. Elsewhere:
+`python manage.py import_workbooks <cv file>.xlsx <master>.xlsx [<applications dump>.xlsx] --replace`. Without
+`--replace`, `import_workbooks` adds any of these files to what is already in the portal.
 
 Sheets are recognised by their column headings, so file and sheet names may change. Where each sheet goes:
 
@@ -90,6 +92,7 @@ Sheets are recognised by their column headings, so file and sheet names may chan
 | Recruitment_CBTs | **CBT results** on each person's profile (date, test, score out of total, company). |
 | Recruitment_Interview Records | **Interview records** on each person's profile and on the requisition (date, panel, score, result, community status, onboarding, join date). Where the Ref_ID matches a requisition, the person is also added to that requisition with the recorded outcome (hired, onboarding in progress, selected, on hold, rejected, declined, or *not engaged* when the requisition is closed). |
 | Manpower_Requisition_Summary | **Requisitions** (Req_Ref, company/business unit, department, band, category, classification, reason, positions, requester, coordinator, dates). Closed ones are *Filled* when everyone needed was onboarded, otherwise *Closed*; Pending and In Progress ones are *Approved* (not published on the careers page). The tracker's figures are shown on the requisition. |
+| ApplicationS Dump_Indorama (applications dump, optional) | **Talent database**: every website applicant, with their resume link (see *Resumes* below), date of birth, gender, qualification, class, course, institution, year, LGA and community, NYSC. Nothing is graded: the dump says nothing about which vacancy each person applied for. |
 | Retirement Forecast_3 Years Pro | **Staff & retirements** (staff number, name, company, business unit, location, department, grade, designation, category, work status, dates). **Salaries are never read or stored.** |
 | Report Weekly Summary, HR Metrics, Analysis, Dashboard | Not imported: they are calculations, not records. Offer records live in Excel's data model (another file), not in a sheet. |
 
@@ -105,6 +108,36 @@ the duplicates that were merged. Fix the workbook and run it again; the result r
 
 The workbooks, backups and reports hold personal data. They are kept out of git (`.gitignore`) and must never be
 uploaded to GitHub.
+
+### Website applicants and their resumes
+
+Each row of the applications dump is checked against the people already in the portal before anything is joined:
+
+* It joins a profile when the email or phone **and** the names agree, and no date of birth or gender disagrees (a
+  difference is accepted only when email, phone and names all agree; it is listed in the report and the portal keeps
+  its own value). People who applied twice with a new email are one profile when the full name, date of birth, gender
+  and course all agree.
+* When that is not clear (the email or phone matches more than one profile or someone with another name, only one name
+  matches and nothing else confirms it, or two applications for one profile disagree), the row is **held**: nothing is
+  changed, no second profile is made, and the row is listed under *Applications to check* in the import report with
+  the reason and the resume link.
+* Everyone else becomes a new profile. Empty fields are filled; nothing already in the portal is replaced.
+
+With the real files (October 2026): 14,573 rows gave 12,332 new profiles, 2,087 joined existing ones, 64 people had
+applied twice, and 88 rows were held for checking.
+
+**Resumes.** Double-click `load-resumes.bat` (or `python manage.py fetch_resumes`). It downloads every resume from its
+link on the website and files it in the candidate's folder **as a PDF**: Word files are converted by Microsoft Word
+when it is installed (otherwise LibreOffice), photos and scans by the portal itself, and the file as received is kept
+next to it. A resume already in the folder is not added again, and links that fail (removed from the website, audio
+files, web pages) are listed in a report and tried again the next day. Reading a resume only fills empty skills,
+tools, certifications and experience; names, contacts and dates of birth always come from the spreadsheets, and
+nothing is sent to AI. It can be stopped at any time and carries on next time; the first run takes an hour or more
+and the resumes need a few gigabytes of disk.
+
+The resume opens straight away in the **Resume** tab of the candidate's page. Anyone without one (people who applied
+in person or by email) has an **Attach resume** box there; Word files and photos attached by hand become PDFs too. The
+talent database can be filtered by *Resume on file* / *No resume yet*.
 
 ## Keeping in step with Excel
 
@@ -196,7 +229,9 @@ Scoring itself is **not** AI. It is a transparent weighted formula (below), so e
 
 ## How matching works
 
-Each application is scored out of 100:
+A candidate is graded only against the requirements of a vacancy they applied for, or that HR deliberately puts them
+forward for (*Consider for a vacancy*): never against other departments' vacancies, and profiles in the talent
+database without an application are not graded at all. Each application is scored out of 100:
 
 | Component | Experienced hire | Graduate trainee |
 |---|---|---|
@@ -220,6 +255,7 @@ requisition's requirements re-scores all of its applicants automatically.
 | `python manage.py send_retirement_alerts` | daily | Asks departments about staff retiring within `RETIREMENT_ALERT_MONTHS` (at most once every 90 days per person) |
 | `python manage.py send_reminders` | every 15–60 min | Interview reminders 24 hours ahead, chasers for overdue selection reports, expired-offer alerts |
 | `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes (see Keeping in step with Excel). `--watch` keeps checking; `start-portal.bat` runs it on Windows |
+| `python manage.py fetch_resumes` | after loading the applications dump | Saves the resumes from the website links as PDFs (`load-resumes.bat`). The Excel link window also saves up to 100 new ones each time it checks |
 | `python manage.py send_department_summaries` | every 15–60 min | Emails the candidate summary to departments for vacancies set to send it daily or weekly (once per day or week, from `SUMMARY_EMAIL_HOUR`) |
 | `python manage.py fetch_cv_emails` | every 15 min | Reads unread emails in the recruitment mailbox (IMAP) and adds their CV attachments. A requisition reference (e.g. `REQ-2026-0004`) or the vacancy title in the subject applies the CV to that vacancy |
 
@@ -266,6 +302,8 @@ In the admin you can change, without touching code:
   own servers.
 * Candidate summaries emailed to departments carry names, qualifications and scores, never email addresses or phone
   numbers.
+* Resumes are stored with the other candidate documents in `media/` on the portal's own computer or server, and are
+  only shown to staff allowed to see that candidate.
 
 ## Project layout
 
@@ -280,8 +318,8 @@ pipeline/        applications, matching, interviews, selection reports, decision
 careers/         public careers site and the candidate's personal application page
 templates/, static/   Design system UI (static/ds), all assets vendored, no CDN needed
 docs/            3D render spec sheets for the designer
-start-portal.bat, update-portal.bat, load-my-data.bat, link-excel.bat
-                 Windows: start, update, load your workbooks, follow them while you still use Excel
+start-portal.bat, update-portal.bat, load-my-data.bat, link-excel.bat, load-resumes.bat
+                 Windows: start, update, load your workbooks, follow them while you still use Excel, save resumes
 ```
 
 The design system and every component are shown at `/styleguide/` (signed in). The seven 3D objects appear as
@@ -294,11 +332,12 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 143 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 160 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
-duplicates), the compulsory requisition details, the job description review, and candidate summaries and department
-approvals. A smoke test loads the demo data and opens every screen as every role.
+duplicates), matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
+PDFs from a local test website, the compulsory requisition details, the job description review, and candidate
+summaries and department approvals. A smoke test loads the demo data and opens every screen as every role.
 
 ## Possible next steps
 

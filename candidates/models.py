@@ -77,6 +77,10 @@ class Candidate(models.Model):
     other_contacts = models.CharField(max_length=255, blank=True, help_text="Other phone numbers and emails on record.")
     source_records = models.JSONField(default=list, blank=True, editable=False,
                                       help_text="The spreadsheet rows this profile was imported from, exactly as recorded.")
+    # The resume on IEFCL's website, from the applications dump; fetch_resumes saves it in the folder as a PDF.
+    resume_url = models.CharField("Resume link", max_length=500, blank=True)
+    resume_error = models.CharField(max_length=255, blank=True, help_text="Why the resume could not be saved.")
+    resume_checked_at = models.DateTimeField(null=True, blank=True)
 
     consent_given = models.BooleanField(default=False, help_text="Candidate agreed to data processing (NDPA 2023).")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -180,6 +184,10 @@ class CandidateDocument(models.Model):
     reviewed_at = models.DateTimeField(null=True, blank=True)
     review_note = models.CharField(max_length=255, blank=True)
     is_parsed = models.BooleanField(default=False)
+    original_file = models.FileField(upload_to=document_upload_path, blank=True,
+                                     help_text="The file as received, when it was converted to PDF.")
+    source_url = models.CharField(max_length=500, blank=True, db_index=True, help_text="Where the file was fetched from.")
+    sha256 = models.CharField(max_length=64, blank=True, db_index=True, help_text="Fingerprint of the file as received.")
 
     class Meta:
         ordering = ["doc_type", "-uploaded_at"]
@@ -190,6 +198,10 @@ class CandidateDocument(models.Model):
     @property
     def extension(self) -> str:
         return os.path.splitext(self.original_name or self.file.name)[1].lower().lstrip(".")
+
+    @property
+    def is_pdf(self) -> bool:
+        return self.file.name.lower().endswith(".pdf")
 
     @property
     def icon(self) -> str:

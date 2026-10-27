@@ -40,7 +40,8 @@
 {% endif %}
 
 <div class="tabs profile-tabs" role="tablist" aria-label="Candidate" data-hash>
-  <button role="tab" type="button" id="t-profile" aria-controls="profile" aria-selected="true">Profile</button>
+  {% with first=resume.is_pdf %}<button role="tab" type="button" id="t-resume" aria-controls="resume" aria-selected="{% if first %}true{% else %}false{% endif %}"{% if not first %} tabindex="-1"{% endif %}>Resume{% if not resume %} <span class="count-badge">0</span>{% endif %}</button>
+  <button role="tab" type="button" id="t-profile" aria-controls="profile" aria-selected="{% if first %}false{% else %}true{% endif %}"{% if first %} tabindex="-1"{% endif %}>Profile</button>{% endwith %}
   <button role="tab" type="button" id="t-cv" aria-controls="cv" aria-selected="false" tabindex="-1">CV &amp; documents <span class="count-badge">{{ documents|length }}</span></button>
   <button role="tab" type="button" id="t-apps" aria-controls="applications" aria-selected="false" tabindex="-1">Applications <span class="count-badge">{{ applications|length }}</span></button>
   <button role="tab" type="button" id="t-records" aria-controls="records" aria-selected="false" tabindex="-1">CBTs &amp; interviews <span class="count-badge">{{ cbts|length|add:interview_records_count }}</span></button>
@@ -48,7 +49,12 @@
 </div>
 
 {# ----------------------- Profile ----------------------- #}
-<div role="tabpanel" id="profile" aria-labelledby="t-profile" class="tab-body">
+{# ----------------------- Resume ----------------------- #}
+<div role="tabpanel" id="resume" aria-labelledby="t-resume" class="tab-body"{% if not resume.is_pdf %} hidden{% endif %}>
+  {% include "candidates/_resume.html" %}
+</div>
+
+<div role="tabpanel" id="profile" aria-labelledby="t-profile" class="tab-body"{% if resume.is_pdf %} hidden{% endif %}>
   <div class="split">
     <div class="stack-24">
       <section class="sheet" aria-labelledby="pf-h">

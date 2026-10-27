@@ -5,6 +5,7 @@ referrals, bulk uploads of emailed / scanned CVs, and the email inbox reader.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -19,6 +20,7 @@ from core.text import merge_unique
 
 from .cv_parser import SUPPORTED_EXTENSIONS, parse_cv
 from .models import Candidate, CandidateDocument
+from .pdf import ConversionError, to_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +88,26 @@ def apply_parsed(candidate: Candidate, parsed: dict, *, overwrite: bool = False)
 
 
 def save_document(candidate, *, content: bytes, filename: str, doc_type=CandidateDocument.DocType.CV, user=None,
-                  application=None) -> CandidateDocument:
+                  application=None, source_url: str = "", pdf: bytes | None = None) -> CandidateDocument:
+    """File a document in the candidate's folder. A CV is stored as a PDF, so it opens inside the portal;
+    when it had to be converted, the file as received is kept too."""
+    name = os.path.basename(filename) or "document"
     document = CandidateDocument(
-        candidate=candidate, doc_type=doc_type, original_name=os.path.basename(filename)[:255],
+        candidate=candidate, doc_type=doc_type, original_name=name[:255], source_url=source_url[:500],
         uploaded_by=user if getattr(user, "is_authenticated", False) else None, application=application,
+        sha256=hashlib.sha256(content).hexdigest(),
     )
-    document.file.save(os.path.basename(filename), ContentFile(content), save=False)
+    if pdf is None and doc_type == CandidateDocument.DocType.CV:
+        try:
+            converted, changed = to_pdf(content)
+            pdf = converted if changed else None
+        except ConversionError as exc:
+            logger.info("CV for candidate %s kept as received: %s", candidate.pk, exc)
+    if pdf is not None:
+        document.original_file.save(name, ContentFile(content), save=False)
+        document.file.save(os.path.splitext(name)[0] + ".pdf", ContentFile(pdf), save=False)
+    else:
+        document.file.save(name, ContentFile(content), save=False)
     document.save()
     return document
 

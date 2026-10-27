@@ -14,6 +14,7 @@ urlpatterns = [
     path("<int:pk>/edit/", views.candidate_edit, name="edit"),
     path("<int:pk>/documents/upload/", views.upload_document, name="upload"),
     path("<int:pk>/apply/", views.add_to_requisition, name="add_to_requisition"),
+    path("<int:pk>/resume/fetch/", views.fetch_resume, name="fetch_resume"),
     path("documents/<int:pk>/", views.download_document, name="document"),
     path("documents/<int:pk>/reparse/", views.reparse_document, name="reparse"),
     path("documents/<int:pk>/review/", views.review_document_view, name="review_document"),

@@ -33,6 +33,7 @@ from collections import Counter, defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
+from datetime import timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import transaction
@@ -40,7 +41,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from candidates.models import Candidate, CandidateDocument, CBTResult, CommunityStatus
-from core.choices import DegreeClass, EducationLevel, EmploymentType
+from core.choices import DegreeClass, EducationLevel, EmploymentType, NyscStatus
 from core.models import Department, Employee, Notification
 from pipeline.models import (
     Activity, Application, InterviewRecord, MedicalCheck, Offer, Onboarding, OnboardingTask, Stage,
@@ -60,11 +61,14 @@ SHEET_SIGNATURES = {
     "interviews": {"ref_id", "name", "panel category", "remarks_query"},
     "cbt": {"surname", "firstname", "exam score", "category"},
     "staff": {"emp no", "emp name", "birth date", "department"},
+    "applications": {"full name", "email id", "phone #", "profile_link"},
 }
 SHEET_LABELS = {
     "cv": "CV list", "requisitions": "Manpower requisition tracker", "interviews": "Interview records",
-    "cbt": "CBT results", "staff": "Staff list (retirement forecast)",
+    "cbt": "CBT results", "staff": "Staff list (retirement forecast)", "applications": "Website applications",
 }
+# Not needed to load the portal from scratch (load-my-data takes them when given).
+OPTIONAL_SHEETS = {"applications"}
 
 # Values that mean "nothing recorded".
 BLANKS = {"", "nan", "none", "null", "n/a", "na", "nil", "-", "--", "not displayed", "not displayrd",
@@ -254,6 +258,41 @@ def state_name(value) -> str:
     return re.sub(r"\s+state$", "", text, flags=re.I).strip()
 
 
+def nysc_status(value, this_year) -> str:
+    """The NYSC column of the website applications: a year, a date, or words such as Yes, Not yet, Exemption."""
+    text = clean(value).lower()
+    if not text or text in {"no", "none", "nill"}:
+        return NyscStatus.NOT_YET if text == "no" else ""
+    if "exempt" in text:
+        return NyscStatus.EXEMPTED
+    if text in {"yes", "completed", "done"}:
+        return NyscStatus.COMPLETED
+    if text in {"not yet", "awaiting", "ongoing", "serving"}:
+        return NyscStatus.ONGOING if text in {"ongoing", "serving"} else NyscStatus.NOT_YET
+    year = re.search(r"(19|20)\d\d", text)
+    if year:
+        return NyscStatus.COMPLETED if int(year.group()) <= this_year else NyscStatus.ONGOING
+    return ""
+
+
+def resume_stamp(link: str):
+    """When the resume was uploaded: the website names files <unix time>-<name>."""
+    match = re.match(r"(\d{9,11})-", link.rsplit("/", 1)[-1])
+    if not match:
+        return None
+    moment = datetime.fromtimestamp(int(match.group(1)), tz=timezone.get_current_timezone())
+    return moment if datetime(2005, 1, 1, tzinfo=moment.tzinfo) <= moment <= timezone.now() else None
+
+
+def similar_text(a: str, b: str) -> bool:
+    """Course or school names written differently (Chemical Engineering / Chemical Engg., UNIPORT / Uniport)."""
+    words = lambda t: set(re.findall(r"[a-z]{3,}", t.lower())) - {"and", "the", "university", "of", "state"}  # noqa: E731
+    x, y = words(a), words(b)
+    if not x or not y:
+        return False
+    return x <= y or y <= x or len(x & y) / len(x | y) >= 0.5
+
+
 INTERVIEW_RESULTS = {
     "selected": InterviewRecord.Result.SELECTED, "rejected": InterviewRecord.Result.REJECTED,
     "on-hold": InterviewRecord.Result.ON_HOLD, "on hold": InterviewRecord.Result.ON_HOLD,
@@ -297,6 +336,23 @@ class PersonRow:
 
 
 @dataclass
+class Applicant:
+    """One or more rows of the website applications that are the same person."""
+
+    rows: list  # (excel row number, row)
+    name: str
+    emails: list
+    phones: list
+    facts: dict  # dob, gender, course, institution, grad_year, qualification
+    links: list  # resume links, oldest first
+    names: list = field(default_factory=list)  # the name as typed on each application
+
+    @property
+    def row_numbers(self) -> str:
+        return ", ".join(str(n) for n, _ in self.rows)
+
+
+@dataclass
 class ImportResult:
     counts: Counter = field(default_factory=Counter)
     removed: Counter = field(default_factory=Counter)
@@ -305,6 +361,8 @@ class ImportResult:
     placeholders: dict = field(default_factory=dict)
     merged: list = field(default_factory=list)  # (name, rows, sources)
     same_names: list = field(default_factory=list)  # (name, contacts of each person)
+    applications_matched: list = field(default_factory=list)  # (rows, name, email, candidate, basis, differences)
+    applications_held: list = field(default_factory=list)  # (rows, name, email, phone, resume link, reason)
     report_path: str = ""
 
 
@@ -347,7 +405,7 @@ def read_sheets(paths, *, require_all=True, skipped=None) -> dict[str, Sheet]:
                     data.append((number, record))
             found[kind] = Sheet(kind, os.path.basename(path), ws.title, labels, data)
         wb.close()
-    missing = [SHEET_LABELS[k] for k in SHEET_SIGNATURES if k not in found]
+    missing = [SHEET_LABELS[k] for k in SHEET_SIGNATURES if k not in found and k not in OPTIONAL_SHEETS]
     if missing and (require_all or not found):
         names = ", ".join(os.path.basename(str(p)) for p in paths)
         if not found:
@@ -409,6 +467,7 @@ class WorkbookImporter:
                 self.purge()
             self.departments = {}
             self.requisitions = {}
+            self.placeholders = set()
             self.load_departments(sheets)
             if "staff" in sheets:
                 self.load_staff(sheets["staff"])
@@ -416,6 +475,8 @@ class WorkbookImporter:
                 self.load_requisitions(sheets["requisitions"])
             if sheets.keys() & {"cv", "interviews", "cbt"}:
                 self.load_people(sheets)
+            if "applications" in sheets:
+                self.load_applications(sheets["applications"])
         if self.report_dir:
             self.result.report_path = write_report(self.result, self.report_dir)
         return self.result
@@ -425,6 +486,8 @@ class WorkbookImporter:
         removed = self.result.removed
         for doc in CandidateDocument.objects.exclude(file=""):
             doc.file.delete(save=False)
+            if doc.original_file:
+                doc.original_file.delete(save=False)
         for offer in Offer.objects.exclude(letter=""):
             offer.letter.delete(save=False)
         for medical in MedicalCheck.objects.exclude(report=""):
@@ -1068,6 +1131,313 @@ class WorkbookImporter:
                                             for i, t in enumerate(DEFAULT_ONBOARDING_TASKS)])
         self.result.counts["onboardings in progress"] += 1
 
+    # -- website applications
+    def load_applications(self, sheet: Sheet):
+        """Every applicant from the website becomes one profile with a resume link.
+
+        An application joins a profile already in the portal only when the evidence is clear: the same email
+        or phone and the same names, and no different date of birth or gender (unless email, phone and names
+        all agree). When it is not clear, the application is held in the report for HR to decide; nothing is
+        merged on a guess and no second profile is made for someone who may already be there.
+        """
+        self.log(f"Matching {len(sheet.rows):,} website applications to the candidates...")
+        people, held = self.group_applicants(sheet)
+        index = self.candidate_index()
+        matched, new = [], []
+        claims = defaultdict(list)
+        for person in people:
+            candidate, basis, differences, reason = self.match_applicant(person, index)
+            if reason:
+                held.append((person, reason))
+            elif candidate:
+                claims[candidate.pk].append((person, candidate, basis, differences))
+            else:
+                new.append(person)
+        for found in claims.values():
+            # Several applications for one profile: one person only if their birthdays and genders agree.
+            if len(found) == 1:
+                matched.append(found[0])
+                continue
+            agree = all(not any(a.facts[k] and b.facts[k] and a.facts[k] != b.facts[k] for k in ("dob", "gender"))
+                        for (a, *_), (b, *_) in zip(found, found[1:]))
+            if agree:
+                people_found = [p for p, *_ in found]
+                combined = Applicant(rows=[row for p in people_found for row in p.rows], name=people_found[-1].name,
+                                     emails=list(dict.fromkeys(e for p in people_found for e in p.emails)),
+                                     phones=list(dict.fromkeys(x for p in people_found for x in p.phones)),
+                                     facts=people_found[-1].facts, names=[n for p in people_found for n in p.names],
+                                     links=sorted({link for p in people_found for link in p.links},
+                                                  key=lambda link: resume_stamp(link) or timezone.now()))
+                matched.append((combined, found[0][1], " / ".join(sorted({b for _, _, b, _ in found})),
+                                sorted({d for *_, ds in found for d in ds})))
+                self.result.counts["website applications: same person applied more than once (one profile)"] += 1
+                continue
+            consistent = [f for f in found if not any(d.startswith(("date of birth", "gender")) for d in f[3])]
+            keep = consistent[0] if len(consistent) == 1 else None
+            if keep:
+                matched.append(keep)
+            for f in found:
+                if f is not keep:
+                    held.append((f[0], f"Another website application also matches {f[1].full_name} (#{f[1].pk}), "
+                                       "and their dates of birth or genders differ: which one is this person?"))
+        for person, reason in held:
+            self.result.applications_held.append((person.row_numbers, person.name, ", ".join(person.emails),
+                                                  ", ".join(person.phones), person.links[-1] if person.links else "",
+                                                  reason))
+        full = Candidate.objects.in_bulk([c.pk for _, c, _, _ in matched])
+        matched = [(person, full[c.pk], basis, differences) for person, c, basis, differences in matched]
+        updated = []
+        for person, candidate, basis, differences in matched:
+            before = snapshot(candidate)
+            self.fill_from_application(candidate, person, sheet)
+            if snapshot(candidate) != before:
+                updated.append(candidate)
+            self.result.applications_matched.append((person.row_numbers, person.name, ", ".join(person.emails),
+                                                     f"{candidate.full_name} (#{candidate.pk})", basis,
+                                                     "; ".join(differences)))
+        for candidate in updated:
+            candidate.save()
+        created = []
+        for person in new:
+            candidate = Candidate(source=Candidate.Source.IMPORT, consent_given=False, years_experience=None,
+                                  source_detail="Website application")
+            first, last = split_name(person.name)
+            candidate.first_name, candidate.last_name = first, last
+            self.fill_from_application(candidate, person, sheet)
+            created.append((candidate, person))
+        Candidate.objects.bulk_create([c for c, _ in created], batch_size=500)
+        dated = []
+        for candidate, person in created:
+            stamps = [resume_stamp(link) for link in person.links]
+            first_seen = min((s for s in stamps if s), default=None)
+            if first_seen:
+                candidate.created_at = first_seen
+                dated.append(candidate)
+        Candidate.objects.bulk_update(dated, ["created_at"], batch_size=500)
+        counts = self.result.counts
+        counts["website applications: new candidates"] += len(created)
+        counts["website applications: matched to candidates already in the portal"] += len(matched)
+        counts["website applications: profiles updated"] += len(updated)
+        counts["website applications: held for checking (see report)"] += len(held)
+
+    def group_applicants(self, sheet: Sheet):
+        """The rows that are one person: the same email; the same phone and names; or the same full name, date
+        of birth and gender with the same course or the same qualification and year (people who applied twice
+        with a new email). The same name and birthday without that is held, not merged."""
+        rows = []
+        for number, row in sheet.rows:
+            name = nice_name(row.get("full name"))
+            emails, phones = emails_in(row.get("email id")), phones_in(row.get("phone #"))
+            if not (name or emails or phones):
+                continue
+            year = to_number(row.get("year_of_graduation"))
+            facts = {
+                "dob": self.birth_date(sheet, number, "dob", row.get("dob")),
+                "gender": gender(row.get("gender")),
+                "course": clean(row.get("discipline")),
+                "institution": clean(row.get("institution")),
+                "grad_year": int(year) if year and 1950 <= year <= self.today.year + 1 else None,
+                "qualification": qualification(row.get("qualification")),
+            }
+            rows.append(Applicant([(number, row)], name, emails, phones, facts, [clean(row.get("profile_link"))]))
+        users = defaultdict(set)
+        for r in rows:
+            for contact in r.emails + r.phones:
+                users[contact].add(name_tokens(r.name))
+        shared = {c for c, names in users.items() if len(names) > PLACEHOLDER_LIMIT}
+        self.placeholders |= shared
+        for r in rows:
+            r.emails = [e for e in r.emails if e not in shared]
+            r.phones = [p for p in r.phones if p not in shared]
+
+        parent = list(range(len(rows)))
+
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        def conflict(a, b):
+            fa, fb = a.facts, b.facts
+            return any(fa[k] and fb[k] and fa[k] != fb[k] for k in ("dob", "gender"))
+
+        holders = defaultdict(list)
+        for i, r in enumerate(rows):
+            for contact in r.emails + r.phones:
+                for j in holders[contact]:
+                    if name_tokens(r.name) & name_tokens(rows[j].name) and not conflict(r, rows[j]):
+                        parent[find(i)] = find(j)
+                        break
+                holders[contact].append(i)
+        held = []
+        by_birth = defaultdict(list)
+        for i, r in enumerate(rows):
+            if full_name_key(r.name) and r.facts["dob"]:
+                by_birth[(full_name_key(r.name), r.facts["dob"])].append(i)
+        for indexes in by_birth.values():
+            first = indexes[0]
+            for i in indexes[1:]:
+                if find(i) == find(first):
+                    continue
+                a, b = rows[first].facts, rows[i].facts
+                same_study = similar_text(a["course"], b["course"]) or (
+                    a["qualification"] and a["qualification"] == b["qualification"] and a["grad_year"] == b["grad_year"])
+                if a["gender"] == b["gender"] and same_study:
+                    parent[find(i)] = find(first)
+                else:
+                    held.append((rows[i], f"Same full name and date of birth as row {rows[first].row_numbers} but a "
+                                          "different email, phone, gender or course: is it the same person?"))
+        held_ids = {id(r) for r, _ in held}
+        groups = defaultdict(list)
+        for i, r in enumerate(rows):
+            if id(r) not in held_ids:
+                groups[find(i)].append(r)
+        people = []
+        for members in groups.values():
+            members.sort(key=lambda r: resume_stamp(r.links[0]) or datetime.min.replace(tzinfo=dt_timezone.utc))
+            latest = members[-1]
+            person = Applicant(
+                rows=[row for m in members for row in m.rows], name=latest.name,
+                emails=list(dict.fromkeys(e for m in reversed(members) for e in m.emails)),
+                phones=list(dict.fromkeys(p for m in reversed(members) for p in m.phones)),
+                facts=dict(latest.facts), links=[link for m in members for link in m.links if link],
+            )
+            for key in person.facts:  # fill gaps from the older applications
+                if not person.facts[key]:
+                    person.facts[key] = next((m.facts[key] for m in reversed(members) if m.facts[key]),
+                                             person.facts[key])
+            person.names = [m.name for m in members if m.name]
+            if len(members) > 1:
+                self.result.counts["website applications: same person applied more than once (one profile)"] += 1
+            people.append(person)
+        return people, held
+
+    def candidate_index(self):
+        index = {"email": defaultdict(set), "phone": defaultdict(set), "birth": defaultdict(set), "people": {}}
+        fields = ("id", "first_name", "last_name", "email", "phone", "other_contacts", "date_of_birth", "gender",
+                  "course", "institution", "graduation_year", "highest_qualification")
+        for c in Candidate.objects.only(*fields):
+            index["people"][c.pk] = c
+            for e in emails_in(f"{c.email} {c.other_contacts}"):
+                index["email"][e].add(c.pk)
+            for p in phones_in(f"{c.phone}, {c.other_contacts}"):
+                index["phone"][p].add(c.pk)
+            if c.date_of_birth and full_name_key(c.full_name):
+                index["birth"][(full_name_key(c.full_name), c.date_of_birth)].add(c.pk)
+        return index
+
+    def match_applicant(self, person, index):
+        """(candidate, basis, differences, reason held). No candidate and no reason means a new profile."""
+        people = index["people"]
+        by_email = {pk for e in person.emails for pk in index["email"].get(e, ())}
+        by_phone = {pk for p in person.phones for pk in index["phone"].get(p, ())}
+        typed = person.names or [person.name]
+        names = [name_tokens(n) for n in typed]
+        keys = {full_name_key(n) for n in typed} - {""}
+
+        def shared_names(c):
+            return max(len(tokens & name_tokens(c.full_name)) for tokens in names)
+
+        contacts = by_email | by_phone
+        named = [pk for pk in contacts if shared_names(people[pk])]
+        if len(named) > 1:
+            listed = ", ".join(f"{people[pk].full_name} (#{pk})" for pk in sorted(named))
+            return None, "", [], f"The email or phone matches more than one profile: {listed}."
+        if not named and contacts:
+            other = people[min(contacts)]
+            return None, "", [], (f"Uses the email or phone of {other.full_name} (#{other.pk}), whose name is "
+                                  "different: is it the same person?")
+        f = person.facts
+        if named:
+            c = people[named[0]]
+            on_email, on_phone = c.pk in by_email, c.pk in by_phone
+            same_name = full_name_key(c.full_name) in keys
+            tokens = 3 if same_name else shared_names(c)
+        else:
+            births = index["birth"].get((full_name_key(person.name), f["dob"]), set()) if f["dob"] else set()
+            if not births:
+                return None, "", [], ""
+            c = people[min(births)]
+            if len(births) > 1 or not (f["gender"] and f["gender"] == c.gender and (
+                    similar_text(f["course"], c.course) or (f["grad_year"] and f["grad_year"] == c.graduation_year))):
+                return None, "", [], (f"Same full name and date of birth as {c.full_name} (#{c.pk}) but a different "
+                                      "email and phone, and the gender or course does not confirm it: is it the same "
+                                      "person?")
+            on_email = on_phone = same_name = False
+            tokens = 3
+        differences, conflicts, agreements = [], [], 0
+        checks = (("date of birth", f["dob"], c.date_of_birth, lambda a, b: a == b, True),
+                  ("gender", f["gender"], c.gender, lambda a, b: a == b, True),
+                  ("course", f["course"], c.course, similar_text, False),
+                  ("year of graduation", f["grad_year"], c.graduation_year, lambda a, b: a == b, False),
+                  ("institution", f["institution"], c.institution, similar_text, False))
+        for label, theirs, ours, same, hard in checks:
+            if not theirs or not ours:
+                continue
+            if same(theirs, ours):
+                agreements += label != "gender"
+            else:
+                differences.append(f"{label}: portal {ours}, website {theirs}")
+                if hard:
+                    conflicts.append(label)
+        if not on_email and not on_phone:
+            basis = "full name, date of birth, gender and course (new email and phone)"
+            return c, basis, differences, ""
+        basis = " + ".join(x for x in ("email" if on_email else "", "phone" if on_phone else "",
+                                         "full name" if same_name else f"{tokens} of the names") if x)
+        if conflicts:
+            if on_email and on_phone and tokens >= 2:
+                return c, basis, differences, ""
+            return None, "", [], (f"Matches {c.full_name} (#{c.pk}) by {basis}, but the "
+                                  f"{' and '.join(conflicts)} differ: " + "; ".join(differences) + ".")
+        if on_email and (tokens >= 2 or on_phone):
+            return c, basis, differences, ""
+        if on_email and agreements:
+            return c, basis, differences, ""
+        if on_phone and tokens >= 2:
+            return c, basis, differences, ""
+        return None, "", [], (f"Only the {'email' if on_email else 'phone number'} and one name match "
+                              f"{c.full_name} (#{c.pk}), and nothing else confirms it.")
+
+    def fill_from_application(self, candidate, person, sheet):
+        """Fill what is empty; never replace what is there. The rows are kept on the profile as recorded."""
+        def put(name, value):
+            if value not in (None, "") and getattr(candidate, name) in (None, ""):
+                setattr(candidate, name, value)
+
+        f = person.facts
+        latest = person.rows[-1][1]
+        put("email", person.emails[0][:254] if person.emails else "")
+        put("phone", person.phones[0] if person.phones else "")
+        known = {candidate.email.lower(), candidate.phone}
+        extra = [x for x in person.emails + person.phones if x not in known]
+        if extra:
+            have = [x.strip() for x in candidate.other_contacts.split(",") if x.strip()]
+            merged = list(dict.fromkeys(have + extra))
+            if merged != have:
+                candidate.other_contacts = ", ".join(merged)[:255]
+        put("date_of_birth", f["dob"])
+        put("gender", f["gender"])
+        put("highest_qualification", f["qualification"])
+        put("degree_class", degree_class(latest.get("marks_obtained")))
+        put("course", (f["course"] or "")[:150])
+        put("institution", (f["institution"] or "")[:200])
+        put("graduation_year", f["grad_year"])
+        put("nysc_status", nysc_status(latest.get("nysc_completion_year"), self.today.year))
+        lga = " / ".join(x for x in (clean(latest.get("local_govt")), clean(latest.get("community"))) if x)
+        put("lga", lga[:150])
+        put("source_detail", "Website application")
+        records = list(candidate.source_records or [])
+        for number, row in person.rows:
+            link = clean(row.get("profile_link"))
+            if not any(rec.get("sheet") == sheet.title and rec.get("link") == link for rec in records):
+                records.append({"file": sheet.file, "sheet": sheet.title, "row": number, "link": link,
+                                "values": sheet.original(row)})
+        candidate.source_records = records
+        if person.links and candidate.resume_url != person.links[-1]:
+            candidate.resume_url, candidate.resume_error = person.links[-1][:500], ""
+
 
 # --------------------------------------------------------------------------- report
 def write_report(result: ImportResult, folder) -> str:
@@ -1106,5 +1476,12 @@ def write_report(result: ImportResult, folder) -> str:
           result.same_names, [36, 120])
     sheet(wb.create_sheet("Duplicates merged"), ["Candidate", "Rows merged", "From"],
           result.merged, [40, 14, 50])
+    if result.applications_held or result.applications_matched:
+        sheet(wb.create_sheet("Applications to check"),
+              ["Rows", "Name", "Email", "Phone", "Resume link", "Why it was held (nothing was changed)"],
+              result.applications_held, [12, 32, 34, 26, 50, 110])
+        sheet(wb.create_sheet("Applications matched"),
+              ["Rows", "Name on the website", "Email", "Matched to", "Matched on", "Values that differ (kept as in the portal)"],
+              result.applications_matched, [12, 32, 34, 36, 40, 90])
     wb.save(path)
     return path

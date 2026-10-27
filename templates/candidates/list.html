@@ -25,6 +25,7 @@
     {% if channels %}<optgroup label="As recorded">{% for v in channels %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ v }}</option>{% endfor %}</optgroup>{% endif %}
     <optgroup label="Through the portal">{% for v, l in portal_sources %}{% if v != "import" %}<option value="portal:{{ v }}" {% if filters.source == "portal:"|add:v %}selected{% endif %}>{{ l }}</option>{% endif %}{% endfor %}</optgroup></select>
   <select name="record" class="select" aria-label="History"><option value="">Any history</option><option value="cbt" {% if filters.record == 'cbt' %}selected{% endif %}>Sat a CBT</option><option value="interviewed" {% if filters.record == 'interviewed' %}selected{% endif %}>Interviewed</option><option value="selected" {% if filters.record == 'selected' %}selected{% endif %}>Selected at interview</option><option value="hired" {% if filters.record == 'hired' %}selected{% endif %}>Hired</option></select>
+  <select name="resume" class="select" aria-label="Resume"><option value="">With or without a resume</option><option value="yes" {% if filters.resume == 'yes' %}selected{% endif %}>Resume on file</option><option value="no" {% if filters.resume == 'no' %}selected{% endif %}>No resume yet</option></select>
   <select name="community" class="select" aria-label="Community"><option value="">Any community status</option>{% for v, l in communities %}<option value="{{ v }}" {% if filters.community == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   <input class="input num" name="min_exp" value="{{ filters.min_exp }}" placeholder="Min. years" inputmode="decimal" aria-label="Minimum years of experience">
   <div class="row"><button class="btn btn-primary" type="submit">{% icon "search" "ico-18" %} Search</button>{% if filtered %}<a class="btn btn-ghost" href="?">Clear</a>{% endif %}</div>
@@ -39,7 +40,7 @@
     <tbody>
     {% for c in candidates %}
       <tr>
-        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a></b><span>{{ c.email|default:c.phone }}</span></div></div></td>
+        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>{% if c.has_resume %}<span class="resume-mark" data-tip="Resume on file">{% icon "file-text" "ico-14" label="Resume on file" %}</span>{% endif %}</b><span>{{ c.email|default:c.phone }}</span></div></div></td>
         <td class="nowrap" data-label="Qualification">{{ c.qualification_short }}<div class="small muted ellip">{{ c.course }}</div></td>
         <td class="num nowrap" data-label="Experience">{{ c.experience_label }}</td>
         <td data-label="Top skills"><div class="tags">{% for s in c.skills|slice:":2" %}<span class="tag">{{ s }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</div></td>

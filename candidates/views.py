@@ -4,9 +4,10 @@ import os
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from core.choices import EducationLevel
@@ -25,7 +26,10 @@ from .models import Candidate, CandidateDocument, CommunityStatus
 
 @hr_required
 def candidate_list(request):
-    qs = Candidate.objects.annotate(n_apps=Count("applications", distinct=True))
+    resumes = CandidateDocument.objects.filter(candidate=OuterRef("pk"), doc_type=CandidateDocument.DocType.CV)
+    qs = Candidate.objects.annotate(n_apps=Count("applications", distinct=True), has_resume=Exists(resumes))
+    if request.GET.get("resume") in {"yes", "no"}:
+        qs = qs.filter(has_resume=request.GET["resume"] == "yes")
     q = request.GET.get("q", "").strip()
     if q:
         for word in q.split()[:6]:
@@ -89,6 +93,9 @@ def candidate_detail(request, pk):
         "c": candidate, "applications": applications, "cbts": list(candidate.cbt_results.all()),
         "interview_records": interview_records, "interview_records_count": len(interview_records),
         "documents": candidate.documents.select_related("uploaded_by", "reviewed_by"),
+        "resume": candidate.latest_cv,
+        "resume_waiting": bool(candidate.resume_url) and not candidate.documents.filter(
+            source_url=candidate.resume_url).exists(),
         "upload_form": DocumentUploadForm(), "add_form": AddToRequisitionForm(),
         "activity": Activity.objects.filter(Q(candidate=candidate) | Q(application__candidate=candidate))
         .select_related("actor", "application__requisition").distinct()[:40],
@@ -143,7 +150,33 @@ def upload_document(request, pk):
             messages.warning(request, note)
     else:
         messages.success(request, "Document added to the candidate's folder.")
-    return redirect(candidate.get_absolute_url() + "#documents")
+    anchor = "#resume" if document.doc_type == CandidateDocument.DocType.CV else "#documents"
+    return redirect(candidate.get_absolute_url() + anchor)
+
+
+@hr_required
+@require_POST
+def fetch_resume(request, pk):
+    """Save this candidate's resume from the website now, instead of waiting for load-resumes."""
+    from .resumes import Fetcher, acquire_lock, release_lock
+
+    candidate = get_object_or_404(Candidate, pk=pk)
+    if not candidate.resume_url:
+        raise Http404
+    if not acquire_lock():
+        messages.info(request, "Resumes are being saved in another window right now. Try again in a minute.")
+        return redirect(candidate)
+    try:
+        stats = Fetcher(log=lambda msg: None).run([candidate])
+    finally:
+        release_lock()
+    candidate.refresh_from_db()
+    if stats["saved"] or stats["already there"]:
+        log("Resume saved from the website.", verb="documents", candidate=candidate, actor=request.user)
+        messages.success(request, "Resume saved as a PDF.")
+    else:
+        messages.error(request, f"The resume could not be saved: {candidate.resume_error}")
+    return redirect(candidate)
 
 
 @hr_required
@@ -172,16 +205,21 @@ def review_document_view(request, pk):
 
 
 @login_required
+@xframe_options_sameorigin
 def download_document(request, pk):
-    """Documents are personal data: they are only served to authorised staff."""
+    """Documents are personal data: they are only served to authorised staff. PDFs open in the page
+    (the resume viewer on the candidate's page shows them in a frame); ?original=1 gives the file as received."""
     document = get_object_or_404(CandidateDocument, pk=pk)
     ensure(can_view_candidate(request.user, document.candidate))
-    if not document.file or not os.path.exists(document.file.path):
+    stored = document.original_file if request.GET.get("original") and document.original_file else document.file
+    if not stored or not os.path.exists(stored.path):
         raise Http404("File missing")
-    content_type = mimetypes.guess_type(document.original_name or document.file.name)[0] or "application/octet-stream"
+    content_type = mimetypes.guess_type(stored.name)[0] or "application/octet-stream"
     inline = content_type in {"application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp", "text/plain"}
-    return FileResponse(document.file.open("rb"), content_type=content_type, as_attachment=not inline,
-                        filename=document.original_name or os.path.basename(document.file.name))
+    name = document.original_name or os.path.basename(stored.name)
+    if stored == document.file and document.original_file:
+        name = os.path.splitext(name)[0] + ".pdf"
+    return FileResponse(stored.open("rb"), content_type=content_type, as_attachment=not inline, filename=name)
 
 
 @hr_required
@@ -192,6 +230,8 @@ def delete_document(request, pk):
     log(f"Deleted {document.get_doc_type_display()} ({document.original_name}).", verb="documents",
         candidate=candidate, actor=request.user)
     document.file.delete(save=False)
+    if document.original_file:
+        document.original_file.delete(save=False)
     document.delete()
     messages.info(request, "Document deleted.")
     return redirect(candidate)
