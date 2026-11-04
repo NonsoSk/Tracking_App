@@ -119,6 +119,15 @@ class ApplicationsDumpTests(TestCase):
         workbook = excel_link.link([self.path])[0]
         self.assertEqual(workbook.sheets, "Website applications")
 
+    def test_state_and_country_columns_are_read_when_present(self):
+        headers = HEADERS + ["State", "Country"]
+        rows = [row("Ngozi Newperson", (1999, 9, 9), "Female", "ngozi@example.com", "08077776666", "1-n.pdf")
+                + ["Akwa-Ibom State", "Nigeria"]]
+        write(self.path, [("ApplicationS Dump_Indorama", headers, rows)])
+        WorkbookImporter([self.path], replace=False, report_dir=None, log=lambda m: None, require_all=False).run()
+        ngozi = Candidate.objects.get(email="ngozi@example.com")
+        self.assertEqual((ngozi.state_of_origin, ngozi.country, ngozi.region), ("Akwa Ibom", "Nigeria", "niger_delta"))
+
     def test_nysc_words(self):
         for value, expected in (("2021", "completed"), ("01/01/2025", "completed"), ("2031", "ongoing"),
                                 ("Yes", "completed"), ("Not yet", "not_yet"), ("Exemption", "exempted"),

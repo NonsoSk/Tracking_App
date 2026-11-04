@@ -1429,6 +1429,10 @@ class WorkbookImporter:
         put("institution", (f["institution"] or "")[:200])
         put("graduation_year", f["grad_year"])
         put("nysc_status", nysc_status(latest.get("nysc_completion_year"), self.today.year))
+        # Optional columns, when the applications sheet has them
+        put("state_of_origin", state_name(latest.get("state of origin") or latest.get("state_of_origin")
+                                          or latest.get("state"))[:80])
+        put("country", nice_name(latest.get("country") or latest.get("nationality"))[:60])
         lga = " / ".join(x for x in (clean(latest.get("local_govt")), clean(latest.get("community"))) if x)
         put("lga", lga[:150])
         put("source_detail", "Website application")
