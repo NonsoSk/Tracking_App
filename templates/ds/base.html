@@ -29,7 +29,7 @@
 <div class="app">
   <div class="app-main">
     <header class="toolbar{% block toolbar_class %}{% endblock %}">
-      {% block toolbar_start %}<a href="{% url 'core:dashboard' %}" aria-label="My tasks">{% logo %}</a>{% endblock %}
+      {% block toolbar_start %}<a href="{% url 'core:summary' %}" aria-label="Home">{% logo %}</a>{% endblock %}
       <nav class="crumbs" aria-label="Breadcrumb">{% block crumbs %}{% endblock %}</nav>
       <span class="spacer"></span>
       <button class="search-trigger wide-only" type="button" data-open="palette" aria-keyshortcuts="Control+K">{% icon "search" "ico-18" %}<span class="q">Search or jump to…</span><span class="kbd">Ctrl K</span></button>

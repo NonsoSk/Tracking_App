@@ -95,6 +95,8 @@ class DemoSmokeTests(TestCase):
             reverse("pipeline:interviews") + "?scope=past", reverse("candidates:refer"), reverse("accounts:profile"),
         ]
         if user.is_hr or user.is_department_user or user.is_management:
+            urls += ["/", "/?period=today", "/?period=7d", "/?period=all&region=none", "/?period=2025",
+                     "/?staff_q=a&department=1"]
             urls += [reverse("requisitions:list"), reverse("pipeline:applications"), reverse("core:employees"),
                      reverse("core:employees") + "?view=all", reverse("core:employees") + "?view=exits"]
             for req in requisitions_for(user):

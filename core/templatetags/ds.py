@@ -290,9 +290,12 @@ def _nav(user):
     from django.urls import reverse
 
     hiring = user.is_hr or user.is_department_user or user.is_management
-    items = [
-        {"label": "My tasks", "long": "My tasks", "url": reverse("core:dashboard"), "icon": "list-checks", "exact": True},
-    ]
+    items = []
+    if hiring:
+        items.append({"label": "Summary", "long": "Summary", "url": reverse("core:summary"), "icon": "layout-dashboard",
+                      "exact": True})
+    items.append({"label": "My tasks", "long": "My tasks", "url": reverse("core:dashboard"), "icon": "list-checks",
+                  "exact": True})
     if hiring:
         items += [
             {"label": "Roles", "long": "Requisitions", "url": reverse("requisitions:list"), "icon": "clipboard-list"},

@@ -78,6 +78,10 @@ def candidate_list(request):
     zone = request.GET.get("zone", "")
     if zone in ZONES:
         qs = qs.filter(state_of_origin__in=ZONES[zone])
+    # From the summary page: the people who applied (to a department), between two dates.
+    scope_note = summary_scope(request.GET)
+    if scope_note:
+        qs = qs.filter(scope_note.pop("q"))
     if record:
         qs = qs.distinct()
     # Who they are (applicants, staff, former staff) and where they are from. Each set of counts follows every
@@ -114,13 +118,57 @@ def candidate_list(request):
         "groups": groups, "group_total": sum(g["n"] for g in groups), "zones": list(ZONES),
         "group_query": without_region.urlencode(),
         "searching": any(v for k, v in without_region.items()),
-        "whos": whos, "who": who, "who_query": without_who.urlencode(),
+        "whos": whos, "who": who, "who_query": without_who.urlencode(), "scope_note": scope_note,
+        "scope_params": [(k, request.GET[k]) for k in ("applied", "department", "since", "until") if request.GET.get(k)],
         "countries": sorted(set(Candidate.objects.exclude(country="").values_list("country", flat=True))),
         "states": sorted(set(Candidate.objects.exclude(state_of_origin="").values_list("state_of_origin", flat=True))),
         "filtered": any(request.GET.get(k) for k in ("q", "skill", "highest_qualification", "source", "min_exp",
                                                      "record", "community", "resume", "region", "country", "state",
-                                                     "zone", "who")),
+                                                     "zone", "who", "applied", "department", "since",
+                                                     "until")),
     })
+
+
+def summary_scope(params) -> dict:
+    """The summary page's scope (applied=1, department, since, until) as a filter and a sentence, or {}."""
+    from datetime import date
+
+    from core.models import Department
+    from pipeline.models import Application
+
+    def day(key):
+        try:
+            return date.fromisoformat(params.get(key, ""))
+        except ValueError:
+            return None
+
+    since, until = day("since"), day("until")
+    department = Department.objects.filter(pk=params["department"]).first() \
+        if params.get("department", "").isdigit() else None
+    if not (params.get("applied") or department or since or until):
+        return {}
+    q = ~Q(source_detail=people.STAFF_LIST)
+    if department:
+        apps = Application.objects.filter(requisition__department=department)
+        if since:
+            apps = apps.filter(applied_at__date__gte=since)
+        if until:
+            apps = apps.filter(applied_at__date__lte=until)
+        q &= Q(pk__in=apps.values("candidate_id"))
+    else:
+        if since:
+            q &= Q(created_at__date__gte=since)
+        if until:
+            q &= Q(created_at__date__lte=until)
+    when = ""
+    if since and until:
+        when = f" on {since:%-d %b %Y}" if since == until else f" between {since:%-d %b %Y} and {until:%-d %b %Y}"
+    elif since:
+        when = f" since {since:%-d %b %Y}"
+    elif until:
+        when = f" until {until:%-d %b %Y}"
+    text = f"People who applied{f' to {department.name}' if department else ''}{when}"
+    return {"q": q, "text": text}
 
 
 @login_required

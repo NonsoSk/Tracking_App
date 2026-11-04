@@ -17,12 +17,17 @@
   </div>
 </header>
 
+{% if scope_note %}
+<div class="banner neutral-banner"><span class="tile">{% icon "layout-dashboard" "ico-18" %}</span><div><b>From the summary</b><span class="small">{{ scope_note.text }}.</span></div>
+  <a class="btn btn-secondary btn-sm" href="{% url 'candidates:list' %}">Show everyone</a></div>
+{% endif %}
 <nav class="tabs who-tabs" aria-label="Who to list">
   {% for w in whos %}<a href="?{% if who_query %}{{ who_query }}{% if w.value %}&amp;{% endif %}{% endif %}{% if w.value %}who={{ w.value }}{% endif %}"{% if who == w.value %} aria-current="page"{% endif %}>{{ w.label }} <span class="count-badge num">{{ w.n|intcomma }}</span></a>{% endfor %}
 </nav>
 
 <form class="sheet filters" method="get" role="search" aria-label="Search the talent database">
   {% if who %}<input type="hidden" name="who" value="{{ who }}">{% endif %}
+  {% for k, v in scope_params %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
   <div class="input-icon f-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Name, email, phone, course, school, state or any word in the CV" aria-label="Search"></div>
   <input class="input" name="skill" value="{{ filters.skill }}" placeholder="Skill, tool or certificate" aria-label="Skill, tool or certificate">
   <select name="highest_qualification" class="select" aria-label="Qualification"><option value="">Any qualification</option>{% for v, l in levels %}<option value="{{ v }}" {% if filters.highest_qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>

@@ -24,6 +24,97 @@ from .permissions import applications_for, hr_required, requisitions_for, role_r
 
 
 @login_required
+def summary(request):
+    """The home page: recruitment and staff at a glance. Heads of department see their own department."""
+    user = request.user
+    if not (user.is_hr or user.is_department_user or user.is_management):
+        return redirect("core:dashboard")
+    from candidates.regions import REGION_CHOICES
+    from core import overview
+    from core.templatetags.ds import STAGE_SHORT
+
+    fixed = not user.sees_all_departments
+    get = request.GET
+    department = user.department if fixed else (
+        Department.objects.filter(pk=get["department"]).first() if get.get("department", "").isdigit() else None)
+    region = get.get("region", "")
+    region = region if region in dict(REGION_CHOICES) or region == "none" else ""
+    channel = get.get("channel", "")[:80]
+    period = overview.period_for(get.get("period", "year"))
+    scope = overview.Scope(department=department, region=region, channel=channel, fixed_department=fixed)
+    context = {"scope": scope, "period": period, "periods": overview.PERIODS, "years": overview.year_options(),
+               "regions_choice": overview.REGION_LABELS.items(), "filters": get,
+               "filtered": any(get.get(k) for k in ("period", "department", "region", "channel"))}
+    channels = {}
+    for detail, source in _channel_sources():
+        value, label = overview.channel_of(detail, source)
+        channels[value] = label
+    context["channel_choices"] = sorted(channels.items(), key=lambda kv: kv[1].lower())
+    showing = [period.label.lower()]
+    if region:
+        showing.append(overview.REGION_LABELS[region].lower() if region != "none" else "no group recorded")
+    if channel:
+        showing.append(f"through {channels.get(channel, channel)}")
+    context["showing"] = ", ".join(showing)
+    if not fixed:
+        context["departments_choice"] = Department.objects.filter(is_active=True).order_by("name")
+    if fixed and not department:
+        context["no_department"] = True
+        return render(request, "core/summary.html", context)
+
+    s = overview.Summary(scope, period)
+    keep = get.copy()
+    for key in ("department", "staff_q"):
+        keep.pop(key, None)
+
+    def talent(**extra):
+        """The talent database, showing the same people as a figure here."""
+        if not user.is_hr:
+            return ""
+        params = {"applied": "1"}
+        if department:
+            params["department"] = department.pk
+        if period.start:
+            params["since"] = timezone.localtime(period.start).date().isoformat()
+            params["until"] = (timezone.localtime(period.end).date() - timedelta(days=1)).isoformat()
+        if region:
+            params["region"] = region
+        if channel:
+            params["source"] = channel
+        params.update(extra)
+        from urllib.parse import urlencode
+
+        return reverse("candidates:list") + "?" + urlencode(params)
+
+    regions = s.regions()
+    for row in regions:
+        row["url"] = talent(region=row["value"])
+    channel_rows = s.channels()
+    for row in channel_rows:
+        row["url"] = talent(source=row["value"]) if row["value"] else ""
+    pipeline = s.pipeline()
+    for row in pipeline:
+        row["short"] = STAGE_SHORT.get(row["value"], row["label"])
+    staff_q = get.get("staff_q", "").strip()[:60]
+    context.update({
+        "today": s.today(), "kpis": s.kpis(), "insights": s.insights(), "trend": s.trend(), "regions": regions,
+        "channels": channel_rows, "pipeline": pipeline, "pipeline_total": sum(r["n"] for r in pipeline),
+        "requisitions": s.requisition_summary(), "staff": s.staff_summary(staff_q if department else ""),
+        "dept_rows": s.departments() if not department else [], "keep_query": keep.urlencode(),
+        "applicants_total": sum(r["n"] for r in regions), "talent_url": talent(),
+    })
+    return render(request, "core/summary.html", context)
+
+
+def _channel_sources():
+    """Every (source as recorded, portal source) pair among applicants, for the channel filter."""
+    from candidates.models import Candidate
+    from candidates.people import STAFF_LIST
+
+    return Candidate.objects.exclude(source_detail=STAFF_LIST).order_by().values_list("source_detail", "source").distinct()
+
+
+@login_required
 def dashboard(request):
     user = request.user
     now = timezone.now()

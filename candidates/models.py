@@ -15,6 +15,11 @@ class CommunityStatus(models.TextChoices):
     NON_COMMUNITY = "non_community", "Non-community"
 
 
+# Short names of the portal's own channels (the talent database shows the source as recorded when there is one).
+SOURCE_SHORT = {"portal": "Careers page", "referral": "Referral", "email": "Emailed CV", "hard_copy": "Hard copy",
+                "agency": "Agency", "internal": "Internal", "import": "Spreadsheet"}
+
+
 class Candidate(models.Model):
     class Source(models.TextChoices):
         PORTAL = "portal", "Online application (careers page)"
@@ -139,8 +144,7 @@ class Candidate(models.Model):
     def source_short(self) -> str:
         if self.source_detail:
             return self.source_detail
-        return {"portal": "Careers page", "referral": "Referral", "email": "Emailed CV", "hard_copy": "Hard copy",
-                "agency": "Agency", "internal": "Internal", "import": "Spreadsheet"}.get(self.source, self.source)
+        return SOURCE_SHORT.get(self.source, self.source)
 
     @property
     def initials(self) -> str:

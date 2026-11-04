@@ -489,6 +489,13 @@
       moveIndicator(l);
     });
     $$("#toasts .toast").forEach(arm);
+    /* Filter forms that apply as soon as a choice changes */
+    $$("form[data-autosubmit]").forEach(function (form) {
+      form.classList.add("is-auto");
+      $$("select", form).forEach(function (s) {
+        s.addEventListener("change", function () { if (form.requestSubmit) form.requestSubmit(); else form.submit(); });
+      });
+    });
     $$("dialog.palette").forEach(initPalette);
     $$(".dropzone").forEach(initDropzone);
     $$(".enter").forEach(function (box) {

@@ -431,6 +431,9 @@ class Command(BaseCommand):
             task.done, task.done_by, task.done_at = True, users["onboarding"], now
             task.save()
 
+        from candidates.people import link_staff
+
+        link_staff()
         self.stdout.write(self.style.SUCCESS("Demo data loaded."))
         self.stdout.write("Sign in at /accounts/login/ with any of these usernames (password: %s):" % password)
         for username, first, last, role, dept, title in USERS:

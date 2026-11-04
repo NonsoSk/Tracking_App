@@ -201,11 +201,37 @@ following** (or run `sync_workbooks --unlink`). The records already loaded stay.
 | Role | Access |
 |---|---|
 | HR Admin, Recruiter | Everything: all requisitions, the talent database, CV intake, the whole workflow, exports, candidate summaries to departments. HR Admin also manages master data and the Excel link. |
-| Head of Department, Department Manager | Raise and track their department's requisitions and candidates, approve which shortlisted candidates move on to interviews, sit on panels, record decisions for their department, see their department's retirements. |
+| Head of Department, Department Manager | Raise and track their department's requisitions and candidates, approve which shortlisted candidates move on to interviews, sit on panels, record decisions for their department, see their department's retirements, and open the pages (resume and records) of their department's staff. |
 | Interviewer | Interviews they are on, and the selection report for those candidates. |
 | Management | All requisitions and candidates (read-only), offer reviews, and requisition approval if enabled. |
 | Onboarding team | Onboarding checklists and the new joiners' documents. |
 | Employee | Refer candidates and follow their own referrals. |
+
+### The summary (home page)
+
+HR, management and heads of department open the portal on **Summary**, before *My tasks*. Interviewers, the
+onboarding team and employees go straight to *My tasks*. One row of filters at the top scopes every figure on the page:
+**period** (today, last 7 or 30 days, this month, this year, an earlier year, all time), **department** (a head of
+department always sees their own), **group** (host, pipeline, jetty, Niger Delta...) and **channel** (how people
+applied). The page shows:
+
+- **Today**: how many applied (and through which channels), who is to be interviewed and at what time, and how many
+  were shortlisted.
+- **What stands out**: up to four plain sentences, e.g. applicants waiting more than two weeks to be screened,
+  requisitions waiting more than a week for approval, how this week compares with last, the share of applicants from
+  host, pipeline and jetty communities, staff retiring without a replacement requisition, interviews not yet confirmed.
+- **Figures**: requisitions raised, people who applied (against the period before), vacancy applications, shortlisted,
+  interviewed and hired.
+- **Charts**: people who applied over time, where they are from, how they applied, the pipeline by stage, and
+  requisitions by where they stand, with the open roles that have the most applicants.
+- **By department** (company view): open roles, applicants, shortlisted, hired and staff per department; click one to
+  see its summary. **Staff** (department view): current staff, retirements within a year, joiners and leavers, and a
+  searchable list whose names open each person's page.
+
+"People who applied" counts people, not applications: for the whole company, everyone who joined the talent database
+in the period (by the date their records give); for a department, everyone who applied to one of its vacancies.
+Profiles made only from the staff list are not counted. Clicking a group or channel opens the talent database
+showing exactly those people.
 
 ### Raising a requisition and publishing the job description
 
@@ -362,13 +388,14 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 179 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 185 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
 duplicates), the candidate groups and their filters, joining staff records to profiles and the applicant/staff/former
 staff tabs, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
 PDFs from a local test website, the compulsory requisition details, the job description review, and candidate
-summaries and department approvals. A smoke test loads the demo data and opens every screen as every role.
+summaries and department approvals, and the summary page (figures, filters, the department view and click-through
+counts). A smoke test loads the demo data and opens every screen as every role.
 
 ## Possible next steps
 

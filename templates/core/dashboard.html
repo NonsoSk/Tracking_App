@@ -116,7 +116,7 @@
           <span class="chip {% if e.months_to_retirement is not None and e.months_to_retirement <= 3 %}warning{% else %}neutral{% endif %}">{% icon "hourglass" %} {{ e.retirement_date|date:"j M Y" }}</span>
           <div class="pr-a">
             {% if u.can_raise_requisition %}<a class="btn btn-secondary btn-sm" href="{% url 'requisitions:create' %}?replace={{ e.pk }}">Raise replacement</a>{% endif %}
-            {% if u.is_hr %}<form method="post" action="{% url 'core:notify_replacement' e.pk %}">{% csrf_token %}<input type="hidden" name="next" value="/">
+            {% if u.is_hr %}<form method="post" action="{% url 'core:notify_replacement' e.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'core:dashboard' %}">
               <button class="btn btn-ghost btn-sm" type="submit" data-tip="Ask the department if they need a replacement">{% icon "send" "ico-16" %} Notify{% if e.replacement_notified_at %} again{% endif %}</button></form>{% endif %}
           </div>
         </div>

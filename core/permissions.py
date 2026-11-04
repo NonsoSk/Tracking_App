@@ -64,6 +64,11 @@ def can_view_candidate(user, candidate) -> bool:
         return True
     if candidate.referred_by_id == user.pk:
         return True
+    if user.is_department_user and user.department_id:
+        from core.models import Employee
+
+        if Employee.objects.filter(candidate=candidate, department_id=user.department_id).exists():
+            return True  # their own department's staff
     return applications_for(user).filter(candidate=candidate).exists()
 
 
