@@ -71,7 +71,7 @@ Open http://localhost:8000. With demo data, every account's password is **`Demo@
 
 The public careers page is at http://localhost:8000/careers/. Emails are printed in the terminal until SMTP is set up.
 
-For a real installation, skip `seed_demo` and create the first HR admin with `python manage.py createsuperuser`. Then, in
+For a real installation, skip `seed_demo` and create the first HR admin with `python manage.py createsuperuser` (`load-my-data.bat` asks for it too). Forgot a password? Close the portal and double-click `reset-password.bat`: it lists the sign-in accounts and sets a new password for the one you choose (or creates the HR admin if there is none). Then, in
 **Master data & users** (`/admin/`), add departments, users (with a role and department), standard job roles and extra
 skill tags.
 
@@ -318,8 +318,9 @@ pipeline/        applications, matching, interviews, selection reports, decision
 careers/         public careers site and the candidate's personal application page
 templates/, static/   Design system UI (static/ds), all assets vendored, no CDN needed
 docs/            3D render spec sheets for the designer
-start-portal.bat, update-portal.bat, load-my-data.bat, link-excel.bat, load-resumes.bat
-                 Windows: start, update, load your workbooks, follow them while you still use Excel, save resumes
+start-portal.bat, update-portal.bat, load-my-data.bat, link-excel.bat, load-resumes.bat, reset-password.bat
+                 Windows: start, update, load your workbooks, follow them while you still use Excel, save resumes,
+                 set a new password
 ```
 
 The design system and every component are shown at `/styleguide/` (signed in). The seven 3D objects appear as
