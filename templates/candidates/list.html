@@ -26,10 +26,23 @@
     <optgroup label="Through the portal">{% for v, l in portal_sources %}{% if v != "import" %}<option value="portal:{{ v }}" {% if filters.source == "portal:"|add:v %}selected{% endif %}>{{ l }}</option>{% endif %}{% endfor %}</optgroup></select>
   <select name="record" class="select" aria-label="History"><option value="">Any history</option><option value="cbt" {% if filters.record == 'cbt' %}selected{% endif %}>Sat a CBT</option><option value="interviewed" {% if filters.record == 'interviewed' %}selected{% endif %}>Interviewed</option><option value="selected" {% if filters.record == 'selected' %}selected{% endif %}>Selected at interview</option><option value="hired" {% if filters.record == 'hired' %}selected{% endif %}>Hired</option></select>
   <select name="resume" class="select" aria-label="Resume"><option value="">With or without a resume</option><option value="yes" {% if filters.resume == 'yes' %}selected{% endif %}>Resume on file</option><option value="no" {% if filters.resume == 'no' %}selected{% endif %}>No resume yet</option></select>
+  <select name="region" class="select" aria-label="Group"><option value="">Any group</option>{% for g in groups %}<option value="{{ g.value }}" {% if filters.region == g.value %}selected{% endif %}>{{ g.label }}</option>{% endfor %}</select>
+  <select name="state" class="select" aria-label="State"><option value="">Any state</option>{% for v in states %}<option value="{{ v }}" {% if filters.state == v %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+  <select name="zone" class="select" aria-label="Zone"><option value="">Any zone</option>{% for v in zones %}<option value="{{ v }}" {% if filters.zone == v %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+  <select name="country" class="select" aria-label="Country"><option value="">Any country</option>{% for v in countries %}<option value="{{ v }}" {% if filters.country == v %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
   <select name="community" class="select" aria-label="Community"><option value="">Any community status</option>{% for v, l in communities %}<option value="{{ v }}" {% if filters.community == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   <input class="input num" name="min_exp" value="{{ filters.min_exp }}" placeholder="Min. years" inputmode="decimal" aria-label="Minimum years of experience">
   <div class="row"><button class="btn btn-primary" type="submit">{% icon "search" "ico-18" %} Search</button>{% if filtered %}<a class="btn btn-ghost" href="?">Clear</a>{% endif %}</div>
 </form>
+
+<section class="sheet group-strip" aria-labelledby="gs-h">
+  <div class="sheet-h"><h2 class="title" id="gs-h">Where they are from</h2><span class="spacer"></span><span class="small muted">{% if searching %}Of the candidates matching your search{% else %}All candidates{% endif %}. Click a group to list them.</span></div>
+  <div class="sheet-b group-cards">
+    {% for g in groups %}<a class="group-card{% if filters.region == g.value %} is-on{% endif %}{% if not g.n %} is-empty{% endif %}" href="?{% if group_query %}{{ group_query }}&amp;{% endif %}region={{ g.value }}"{% if filters.region == g.value %} aria-current="true"{% endif %}>
+      <span class="gc-n num">{{ g.n|intcomma }}</span><span class="gc-l">{{ g.label }}</span>
+      <span class="gc-bar" aria-hidden="true"><i style="width:{% widthratio g.n group_total 100 %}%"></i></span></a>{% endfor %}
+  </div>
+</section>
 
 <section class="sheet" aria-labelledby="tl-h">
   <div class="sheet-h"><h2 class="title" id="tl-h">Candidates</h2><span class="count">{{ total|intcomma }}</span>{% if page.paginator.num_pages > 1 %}<span class="small muted">{{ page.start_index|intcomma }}–{{ page.end_index|intcomma }}</span>{% endif %}<span class="spacer"></span>

@@ -19,6 +19,7 @@
       <p class="ph-meta">{{ c.current_job_title|default:"" }}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}{% if c.location %}{% if c.current_job_title or c.current_employer %} · {% endif %}{{ c.location }}{% endif %}</p>
       <div class="tags">
         <span class="chip neutral no-dot" title="{{ c.get_source_display }}">{% icon c.source|source_icon %} {{ c.source_short }}</span>
+        {% if c.region %}<a class="chip brand no-dot" href="{% url 'candidates:list' %}?region={{ c.region }}" title="{{ c.region_note }}">{% icon "map-pin" %} {{ c.get_region_display }}</a>{% endif %}
         {% if c.email %}<a class="chip neutral no-dot" href="mailto:{{ c.email }}">{% icon "mail" %} {{ c.email }}</a>{% endif %}
         {% if c.phone %}<a class="chip neutral no-dot" href="tel:{{ c.phone }}">{% icon "phone" %} {{ c.phone }}</a>{% endif %}
         {% if c.linkedin_url %}<a class="chip neutral no-dot" href="{{ c.linkedin_url }}" target="_blank" rel="noopener">{% icon "external-link" %} LinkedIn</a>{% endif %}
@@ -69,7 +70,9 @@
             <div><dt>NYSC</dt><dd>{{ c.get_nysc_status_display|default:"—" }}</dd></div>
             <div><dt>Experience</dt><dd>{% if c.years_experience is None %}Not recorded{% else %}{{ c.years_experience|floatformat:"-1" }} years{% endif %}</dd></div>
             <div><dt>Source</dt><dd>{{ c.source_detail|default:c.get_source_display }}</dd></div>
-            {% if c.state_of_origin %}<div><dt>State</dt><dd>{{ c.state_of_origin }}</dd></div>{% endif %}
+            {% if c.region %}<div><dt>Group</dt><dd title="{{ c.region_note }}">{{ c.get_region_display }}</dd></div>{% endif %}
+            {% if c.state_of_origin %}<div><dt>State</dt><dd>{{ c.state_of_origin }}{% if c.zone %} · {{ c.zone }}{% endif %}</dd></div>{% endif %}
+            {% if c.country and c.country != "Nigeria" %}<div><dt>Country</dt><dd>{{ c.country }}</dd></div>{% endif %}
             {% if c.lga %}<div><dt>LGA / community</dt><dd>{{ c.lga }}</dd></div>{% endif %}
             {% if c.community_status %}<div><dt>Community status</dt><dd>{{ c.get_community_status_display }}</dd></div>{% endif %}
             {% if c.relevant_experience is not None %}<div><dt>Relevant experience</dt><dd>{{ c.relevant_experience|yesno:"Yes,No" }}</dd></div>{% endif %}

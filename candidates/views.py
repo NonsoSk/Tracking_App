@@ -22,6 +22,7 @@ from .forms import (AddToRequisitionForm, CandidateForm, DocumentUploadForm, Int
                     SpreadsheetImportForm)
 from .intake import find_existing, ingest_cv, parse_document, save_document
 from .models import Candidate, CandidateDocument, CommunityStatus
+from .regions import REGION_CHOICES, ZONES
 
 
 @hr_required
@@ -64,18 +65,45 @@ def candidate_list(request):
     skill = request.GET.get("skill", "").strip()
     if skill:
         qs = qs.filter(Q(skills__icontains=skill) | Q(tools__icontains=skill) | Q(certifications__icontains=skill))
+    country = request.GET.get("country", "")
+    if country:
+        qs = qs.filter(country=country)
+    state = request.GET.get("state", "")
+    if state:
+        qs = qs.filter(state_of_origin=state)
+    zone = request.GET.get("zone", "")
+    if zone in ZONES:
+        qs = qs.filter(state_of_origin__in=ZONES[zone])
     if record:
         qs = qs.distinct()
+    # At a glance: how many of the people found are in each group (before choosing a group).
+    found = Candidate.objects.filter(pk__in=qs.order_by().values("pk"))
+    by_group = dict(found.order_by().values_list("region").annotate(n=Count("id")))
+    groups = [{"value": v, "label": label, "n": by_group.get(v, 0)} for v, label in REGION_CHOICES]
+    groups.append({"value": "none", "label": "Not recorded", "n": by_group.get("", 0)})
+    region = request.GET.get("region", "")
+    if region == "none":
+        qs = qs.filter(region="")
+    elif region:
+        qs = qs.filter(region=region)
     page = Paginator(qs.order_by("-created_at", "-id"), 100).get_page(request.GET.get("page"))
     channels = sorted(set(Candidate.objects.exclude(source_detail="").values_list("source_detail", flat=True)))
     params = request.GET.copy()
     params.pop("page", None)
+    without_region = params.copy()
+    without_region.pop("region", None)
     return render(request, "candidates/list.html", {
         "candidates": page, "page": page, "q": q, "levels": EducationLevel.choices, "filters": request.GET,
         "total": page.paginator.count, "channels": channels, "portal_sources": Candidate.Source.choices,
         "communities": CommunityStatus.choices, "query": params.urlencode(),
+        "groups": groups, "group_total": sum(g["n"] for g in groups), "zones": list(ZONES),
+        "group_query": without_region.urlencode(),
+        "searching": any(v for k, v in without_region.items()),
+        "countries": sorted(set(Candidate.objects.exclude(country="").values_list("country", flat=True))),
+        "states": sorted(set(Candidate.objects.exclude(state_of_origin="").values_list("state_of_origin", flat=True))),
         "filtered": any(request.GET.get(k) for k in ("q", "skill", "highest_qualification", "source", "min_exp",
-                                                     "record", "community")),
+                                                     "record", "community", "resume", "region", "country", "state",
+                                                     "zone")),
     })
 
 

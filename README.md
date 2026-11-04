@@ -139,6 +139,19 @@ The resume opens straight away in the **Resume** tab of the candidate's page. An
 in person or by email) has an **Attach resume** box there; Word files and photos attached by hand become PDFs too. The
 talent database can be filtered by *Resume on file* / *No resume yet*.
 
+### Where candidates are from
+
+Every candidate is put in a group: **Host community, Pipeline community, Jetty community, Niger Delta, Other states**
+or **Outside Nigeria**. The group comes from the recruitment records when a column says it: any column whose heading
+mentions community, tag, region, zone, catchment or category and holds a value such as "Host", "Pipeline community",
+"Jetty" or "Niger Delta" (and the interview records' *Community Query*, where "Community" means a host community).
+Otherwise the state decides: one of the nine Niger Delta states (Abia, Akwa Ibom, Bayelsa, Cross River, Delta, Edo,
+Imo, Ondo, Rivers), another Nigerian state, or outside Nigeria. HR can set the group by hand on the profile; the
+workbook loads then leave it alone (clear it to go back to what the records say).
+
+The talent database shows how many candidates are in each group, for the whole database or for any search, and can be
+filtered by group, state, zone (North Central … South West) and country.
+
 ## Keeping in step with Excel
 
 While the team still updates the workbooks in Excel, the portal can follow them so it is never out of date. On
@@ -333,10 +346,10 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 160 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 169 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
-duplicates), matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
+duplicates), the candidate groups and their filters, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
 PDFs from a local test website, the compulsory requisition details, the job description review, and candidate
 summaries and department approvals. A smoke test loads the demo data and opens every screen as every role.
 

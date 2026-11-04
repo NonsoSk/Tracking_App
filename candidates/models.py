@@ -7,6 +7,8 @@ from django.urls import reverse
 
 from core.choices import DegreeClass, EducationLevel, NyscStatus
 
+from .regions import REGION_CHOICES
+
 
 class CommunityStatus(models.TextChoices):
     COMMUNITY = "community", "Host community"
@@ -68,8 +70,13 @@ class Candidate(models.Model):
     parsed_at = models.DateTimeField(null=True, blank=True)
 
     # Recorded in IEFCL's recruitment spreadsheets
-    state_of_origin = models.CharField(max_length=80, blank=True)
+    state_of_origin = models.CharField("State", max_length=80, blank=True)
     lga = models.CharField("LGA / community", max_length=150, blank=True)
+    country = models.CharField(max_length=60, blank=True)
+    # Host / pipeline / jetty community, Niger Delta, other states, outside Nigeria (see candidates/regions.py)
+    region = models.CharField("Group", max_length=20, choices=REGION_CHOICES, blank=True, db_index=True)
+    region_note = models.CharField("How the group was decided", max_length=120, blank=True)
+    region_fixed = models.BooleanField(default=False, help_text="Set by HR: imports leave the group alone.")
     community_status = models.CharField(max_length=20, choices=CommunityStatus.choices, blank=True)
     source_detail = models.CharField("Source as recorded", max_length=80, blank=True,
                                      help_text="E.g. IFZ website, Internal Portal, PAC, Proten.")
@@ -95,6 +102,18 @@ class Candidate(models.Model):
 
     def get_absolute_url(self):
         return reverse("candidates:detail", args=[self.pk])
+
+    def save(self, *args, **kwargs):
+        from . import regions
+
+        regions.apply(self)
+        super().save(*args, **kwargs)
+
+    @property
+    def zone(self) -> str:
+        from .regions import zone_of
+
+        return zone_of(self.state_of_origin)
 
     @property
     def full_name(self) -> str:

@@ -1670,3 +1670,14 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 .resume-frame { display: block; width: 100%; height: max(640px, calc(100vh - 260px)); border: 0; border-top: 1px solid var(--line); background: var(--surface); }
 @media (max-width: 767px) { .resume-frame { height: 75vh; } }
 .resume-mark { color: var(--primary); display: inline-flex; vertical-align: -2px; margin-left: 4px; }
+
+/* Talent: how many candidates are in each group */
+.group-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--s-12); }
+.group-card { display: grid; gap: 4px; padding: var(--s-12) var(--s-16); border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; }
+.group-card:hover { border-color: var(--primary); }
+.group-card.is-on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.group-card.is-empty { opacity: .6; }
+.group-card .gc-n { font-size: 24px; font-weight: 800; line-height: 1.1; }
+.group-card .gc-l { font-size: var(--fs-small); color: var(--text-2); }
+.group-card .gc-bar { height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.group-card .gc-bar i { display: block; height: 100%; background: var(--primary); }

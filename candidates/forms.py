@@ -24,10 +24,18 @@ class CandidateForm(BootstrapMixin, forms.ModelForm):
             "first_name", "last_name", "email", "phone", "gender", "date_of_birth", "location", "linkedin_url",
             "highest_qualification", "course", "institution", "graduation_year", "degree_class", "nysc_status",
             "years_experience", "current_employer", "current_job_title", "skills", "tools", "certifications",
-            "summary", "source", "referred_by", "referral_note",
+            "summary", "source", "referred_by", "referral_note", "state_of_origin", "lga", "country", "region",
         ]
         widgets = {"date_of_birth": DateInput(), "summary": forms.Textarea(attrs={"rows": 3}),
                    "referral_note": forms.Textarea(attrs={"rows": 2})}
+        help_texts = {"region": "Leave empty to take it from the recruitment records (the community column, or the "
+                                "state). A group chosen here is kept when the workbooks are loaded again."}
+
+    def save(self, commit=True):
+        if "region" in self.changed_data:
+            self.instance.region_fixed = bool(self.instance.region)
+            self.instance.region_note = "Set by HR" if self.instance.region else ""
+        return super().save(commit)
 
 
 class DocumentUploadForm(BootstrapMixin, forms.Form):

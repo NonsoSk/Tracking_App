@@ -477,6 +477,10 @@ class WorkbookImporter:
                 self.load_people(sheets)
             if "applications" in sheets:
                 self.load_applications(sheets["applications"])
+            if sheets.keys() & {"cv", "interviews", "cbt", "applications"}:
+                from candidates.regions import assign_all
+
+                assign_all(log=self.log)
         if self.report_dir:
             self.result.report_path = write_report(self.result, self.report_dir)
         return self.result
