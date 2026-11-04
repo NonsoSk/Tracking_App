@@ -89,6 +89,24 @@ class ExcelLinkTests(TestCase):
         for result in results.values():
             self.assertFalse(any(k for k, v in result.counts.items() if v and "repeated" not in k), result.counts)
 
+    def test_the_same_records_in_several_workbooks_are_loaded_once(self):
+        # A second workbook holding copies of the same sheets (as when files are combined).
+        copy = os.path.join(self.dir, "Unified recruitment database.xlsx")
+        write(copy, [("CVs", CV_HEADERS, self.cvs), ("Requisitions", REQ_HEADERS, self.reqs),
+                     ("Interviews", IV_HEADERS, self.ivs), ("CBTs", CBT_HEADERS, self.cbts),
+                     ("Staff", STAFF_HEADERS, staff_rows())])
+        self.settle(copy)
+        self.link_and_load(self.master, self.cv)
+        once = self.totals()
+        from core.models import Employee
+
+        staff = Employee.objects.count()
+        excel_link.link([copy])
+        excel_link.check(log=lambda *a: None)
+        self.assertEqual(self.totals(), once)
+        self.assertEqual(Employee.objects.count(), staff)
+        self.assertEqual(LinkedWorkbook.objects.count(), 3)
+
     def test_master_workbook_alone_can_be_followed(self):
         self.link_and_load(self.master)
         self.assertEqual(Requisition.objects.count(), 2)
