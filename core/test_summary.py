@@ -34,6 +34,11 @@ def local_day(stamp):
     return datetime.fromtimestamp(stamp, tz=dt_timezone.utc).astimezone(timezone.get_current_timezone()).date()
 
 
+def figures(ctx):
+    """The large figures on both cards, by key."""
+    return {f["key"]: f["value"] for card in ctx["figure_cards"] for f in card["figures"]}
+
+
 class PeriodTests(TestCase):
     def test_windows_and_the_period_before(self):
         today = date(2026, 3, 31)
@@ -97,48 +102,66 @@ class SummaryMatchesExcelTests(TestCase):
 
     def test_all_time_figures_equal_the_workbook(self):
         ctx = self.page("?period=all")
-        kpis = {k["label"]: k for k in ctx["kpis"]}
-        self.assertEqual(kpis["Requisitions"]["value"], len(self.tracker))
-        self.assertEqual(kpis["Requisitions"]["note"], f"{self.tracker_sum('Manpower Required')} positions")
-        self.assertEqual(kpis["Shortlisted for interview"]["value"], self.tracker_sum("Shortlisted for Interview"))
-        self.assertEqual(kpis["Onboarded"]["value"], self.tracker_sum("Onboarded  #"))
-        funnel = {s["label"]: s["n"] for s in ctx["funnel"]["steps"]}
-        self.assertEqual(funnel, {"Participants": self.tracker_sum("Participants"),
-                                  "Shortlisted": self.tracker_sum("Shortlisted for Interview"),
-                                  "Selected": self.tracker_sum("Selected"), "Onboarded": self.tracker_sum("Onboarded  #")})
-        self.assertEqual((ctx["funnel"]["rejected"], ctx["funnel"]["on_hold"], ctx["funnel"]["in_progress"]),
-                         (self.tracker_sum("Rejected"), self.tracker_sum("On-Hold"), self.tracker_sum("In Progres")))
+        f = figures(ctx)
+        self.assertEqual(f["requisitions"], len(self.tracker))
+        self.assertEqual(f["positions"], self.tracker_sum("Manpower Required"))
+        self.assertEqual(f["shortlisted"], self.tracker_sum("Shortlisted for Interview"))
+        self.assertEqual(f["onboarded"], self.tracker_sum("Onboarded  #"))
+        self.assertEqual(f["filled"], round(self.tracker_sum("Onboarded  #") / self.tracker_sum("Manpower Required") * 100))
+        # Days to fill: Requisition Date to Closing Date of the closed requisitions, as written in the tracker.
+        closed = [(r["Closing Date"] - r["Requisition Date"]).days for r in self.tracker if r["Closing Date"]]
+        self.assertEqual(f["days"], round(sum(closed) / len(closed)))
         # The status exactly as the tracker writes it, not the portal's own status names.
-        self.assertEqual({s["label"]: s["n"] for s in ctx["statuses"]}, dict(Counter(r["Status"] for r in self.tracker)))
+        subs = {x["key"]: x["sub"] for x in ctx["figure_cards"][0]["figures"]}
+        for status, n in Counter(r["Status"] for r in self.tracker).items():
+            self.assertIn(f"{n} {status.lower()}", subs["requisitions"])
         dated_interviews = [r for r in iv_rows() if r[IV_HEADERS.index("Date")]]
-        self.assertEqual(kpis["Interviews"]["value"], len(dated_interviews))
-        self.assertEqual(kpis["Interviews"]["note"],
-                         f"{sum(1 for r in dated_interviews if r[IV_HEADERS.index('Remarks_Query')] == 'Selected')} selected")
+        self.assertEqual(f["interviews"], len(dated_interviews))
+        # Month by month: each series adds up to the tracker column.
+        totals = Counter()
+        for group in ctx["monthly"]["groups"]:
+            for v in group["values"]:
+                totals[v["label"]] += v["n"]
+        self.assertEqual(dict(totals), {"Participants": self.tracker_sum("Participants"),
+                                        "Shortlisted": self.tracker_sum("Shortlisted for Interview"),
+                                        "Onboarded": self.tracker_sum("Onboarded  #")})
+        # The open requisitions table shows each open tracker row exactly.
+        open_rows = [r for r in self.tracker if r["Status"].lower() != "closed"]
+        table = {r["req"].reference: r for r in ctx["pipeline"]["rows"]}
+        self.assertEqual(set(table), {r["Req_Ref"] for r in open_rows})
+        for r in open_rows:
+            row = table[r["Req_Ref"]]
+            self.assertEqual((row["positions"], row["participants"], row["shortlisted"], row["selected"],
+                              row["onboarded"], row["in_progress"]),
+                             (r["Manpower Required"], r["Participants"], r["Shortlisted for Interview"], r["Selected"],
+                              r["Onboarded  #"], r["In Progres"]))
         active = [r for r in staff_rows() if not r[STAFF_HEADERS.index("Release Date")]]
-        self.assertEqual(kpis["Current staff"]["value"], len(active))
+        self.assertEqual({s["label"]: s["value"] for s in ctx["staff"]}["current staff"], len(active))
 
     def test_a_year_counts_only_what_excel_dates_in_that_year(self):
         ctx = self.page("?period=2025")
-        kpis = {k["label"]: k["value"] for k in ctx["kpis"]}
-        self.assertEqual(kpis["Requisitions"], sum(1 for r in self.tracker if r["Requisition Date"].year == 2025))
-        self.assertEqual(kpis["Onboarded"], self.tracker_sum("Onboarded  #", 2025))
-        self.assertEqual(kpis["Interviews"], sum(1 for r in iv_rows() if r[IV_HEADERS.index("Date")].year == 2025))
+        f = figures(ctx)
+        self.assertEqual(f["requisitions"], sum(1 for r in self.tracker if r["Requisition Date"].year == 2025))
+        self.assertEqual(f["onboarded"], self.tracker_sum("Onboarded  #", 2025))
+        self.assertEqual(f["interviews"], sum(1 for r in iv_rows() if r[IV_HEADERS.index("Date")].year == 2025))
         # Applicants by the moment in their resume link: Uche applied in 2025, Ngozi in 2024.
-        self.assertEqual(kpis["Applicants"], 1)
-        self.assertEqual(self.page("?period=2024")["kpis"][1]["value"], 1)
+        self.assertEqual(f["applicants"], 1)
+        self.assertEqual(figures(self.page("?period=2024"))["applicants"], 1)
         # People in the CV list have no date in Excel: never counted as applying in a year, but counted overall.
         cv_people = Candidate.objects.filter(applied_on=None).exclude(source_detail="Staff list").count()
         self.assertGreater(cv_people, 0)
         self.assertEqual(ctx["undated_applicants"], cv_people)
-        self.assertEqual(self.page("?period=all")["kpis"][1]["value"],
+        self.assertIn(f"{cv_people} applicants with no date in Excel are under All time",
+                      ctx["figure_cards"][1]["source"])
+        self.assertEqual(figures(self.page("?period=all"))["applicants"],
                          Candidate.objects.exclude(source_detail="Staff list").count())
 
     def test_nothing_is_dated_by_the_day_it_was_loaded(self):
         ctx = self.page("?period=today")
         today = {t["label"]: t["value"] for t in ctx["today"]}
-        self.assertEqual(today, {"Applied": 0, "Interviews": 0, "CBTs": 0, "Requisitions received": 0})
-        self.assertEqual({k["label"]: k["value"] for k in ctx["kpis"]}["Applicants"], 0)
-        self.assertEqual(ctx["trend"]["total"], 0)
+        self.assertEqual(today, {"applied": 0, "interviews": 0, "CBTs": 0, "requisitions received": 0})
+        self.assertEqual(figures(ctx)["applicants"], 0)
+        self.assertTrue(ctx["monthly"]["empty"])
 
     def test_dates_and_retirement_follow_the_workbook(self):
         ada = Application.objects.get(candidate__first_name="Ada", requisition__reference="Req_900")
@@ -151,14 +174,28 @@ class SummaryMatchesExcelTests(TestCase):
         req = Requisition.objects.get(reference="Req_901")
         self.assertEqual(timezone.localtime(req.submitted_at).date(), date(2026, 8, 10))
 
-    def test_group_figures_open_the_same_people_in_the_talent_database(self):
+    def test_community_totals_open_the_same_people_in_the_talent_database(self):
+        Candidate.objects.filter(email="ngozi.web@example.com").update(region="host", region_fixed=True)
+        Candidate.objects.filter(email="uche.web@example.com").update(region="pipeline", region_fixed=True)
         ctx = self.page("?period=all")
-        for r in ctx["regions"]:
-            if r["n"]:
-                self.assertEqual(self.client.get(r["url"]).context["total"], r["n"], r["label"])
-        self.assertEqual(self.client.get(ctx["talent_url"]).context["total"], ctx["applicants_total"])
+        series = {s["value"]: s for s in ctx["sources"]["series"]}
+        people = Candidate.objects.exclude(source_detail="Staff list")
+        for value in ("host", "pipeline", "jetty"):
+            self.assertEqual(series[value]["n"], people.filter(region=value).count(), value)
+            self.assertEqual(self.client.get(series[value]["url"]).context["total"], series[value]["n"], value)
+        bars = {g["label"]: [v["n"] for v in g["values"]] for g in ctx["sources"]["groups"]}
+        self.assertEqual(bars["Website application"], [1, 1, 0])
+        self.assertEqual(sum(sum(b) for b in bars.values()), sum(series[v]["n"] for v in series))
+        self.assertEqual(self.client.get(ctx["talent_url"]).context["total"], figures(ctx)["applicants"])
         year = self.page("?period=2025")
-        self.assertEqual(self.client.get(year["talent_url"]).context["total"], year["applicants_total"])
+        self.assertEqual(self.client.get(year["talent_url"]).context["total"], figures(year)["applicants"])
+
+    def test_the_page_draws_without_errors(self):
+        for query in ("", "?period=today", "?period=7d", "?period=30d", "?period=month", "?period=2025",
+                      "?period=all", "?region=none", "?channel=Website application"):
+            response = self.client.get("/" + query)
+            self.assertEqual(response.status_code, 200, query)
+            self.assertContains(response, "Current hiring pipeline")
 
 
 class SummaryAccessTests(TestCase):
@@ -196,18 +233,19 @@ class SummaryAccessTests(TestCase):
     def test_portal_requisitions_count_with_their_own_figures(self):
         self.client.force_login(self.hr)
         ctx = self.client.get("/?period=month").context
-        kpis = {k["label"]: k["value"] for k in ctx["kpis"]}
-        self.assertEqual((kpis["Requisitions"], kpis["Shortlisted for interview"], kpis["Interviews"]), (2, 1, 1))
-        self.assertEqual({s["label"]: s["n"] for s in ctx["statuses"]}, {"Awaiting approval": 1, "Open": 1})
-        self.assertEqual({t["label"]: t["value"] for t in ctx["today"]}["Applied"], 3 - 1)  # the staff page is no applicant
+        f = figures(ctx)
+        self.assertEqual((f["requisitions"], f["positions"], f["shortlisted"], f["interviews"]), (2, 4, 1, 1))
+        self.assertEqual(ctx["figure_cards"][0]["figures"][0]["sub"], "1 awaiting approval · 1 open")
+        self.assertEqual({t["label"]: t["value"] for t in ctx["today"]}["applied"], 2)  # the staff page is no applicant
 
     def test_a_head_of_department_sees_only_their_department(self):
         self.client.force_login(self.hod)
         ctx = self.client.get("/?department=%d" % self.fin.pk).context  # cannot switch department
         self.assertEqual(ctx["scope"].department, self.prod)
-        kpis = {k["label"]: k["value"] for k in ctx["kpis"]}
-        self.assertEqual((kpis["Requisitions"], kpis["Applicants"], kpis["Current staff"]), (1, 1, 1))
-        self.assertIsNone(ctx["depts"])
+        f = figures(ctx)
+        self.assertEqual((f["requisitions"], f["applicants"]), (1, 1))
+        self.assertEqual({s["label"]: s["value"] for s in ctx["staff"]}["current staff"], 1)
+        self.assertEqual([r["req"] for r in ctx["pipeline"]["rows"]], [self.req])
         # Their staff's pages open; another department's staff do not.
         self.assertEqual(self.client.get(reverse("candidates:detail", args=[self.joseph_page.pk])).status_code, 200)
         self.assertEqual(self.client.get(reverse("candidates:detail", args=[self.efe.pk])).status_code, 403)

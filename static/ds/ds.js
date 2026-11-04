@@ -489,6 +489,12 @@
       moveIndicator(l);
     });
     $$("#toasts .toast").forEach(arm);
+    /* A clock that keeps time (the summary board) */
+    $$("[data-clock]").forEach(function (el) {
+      function tick() { var d = new Date(); el.textContent = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
+      tick();
+      setInterval(tick, 15000);
+    });
     /* Filter forms that apply as soon as a choice changes */
     $$("form[data-autosubmit]").forEach(function (form) {
       form.classList.add("is-auto");

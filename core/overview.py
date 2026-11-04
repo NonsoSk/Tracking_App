@@ -1,13 +1,13 @@
 """The summary page: what the linked Excel workbooks say, at a glance, for the company or one department.
 
 Every figure is a value from Excel, dated by the date Excel gives it, never by the day it was loaded:
-- requisitions, their status, positions and the recruitment funnel (participants, shortlisted for interview,
-  selected, onboarded, rejected, on hold, in progress): the requisition tracker, row by row, as written there,
-  dated by the Requisition Date;
+- requisitions, their status, positions, days to fill and the recruitment figures (participants, shortlisted for
+  interview, selected, onboarded, in progress): the requisition tracker, row by row, as written there, dated by the
+  Requisition Date (days to fill: Requisition Date to Closing Date);
 - interviews: the interview records, by their Date; CBTs: the CBT results, by their Date;
 - applicants: people (one per person, however many rows), by their application date (see candidates/dates.py),
-  with the group (host, pipeline...) and the channel their rows give;
-- staff: the staff list (Join Date, Release Date and its own Years to Retirement).
+  with the group (host, pipeline, jetty...) and the channel their rows give;
+- staff: the staff list (Release Date and its own Years to Retirement).
 Requisitions, applications and interviews created in the portal itself are added with their own dates. A record
 with no date in Excel is counted under "All time" only, and the page says how many there are.
 """
@@ -17,14 +17,12 @@ from __future__ import annotations
 import calendar
 import math
 import os
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 
 from django.db.models import Count, Q
-from django.db.models.functions import TruncMonth, TruncYear
 from django.utils import timezone
-from django.utils.html import format_html
 
 from candidates.models import SOURCE_SHORT, CBTResult, Candidate
 from candidates.people import STAFF_LIST
@@ -34,29 +32,31 @@ from requisitions.models import Requisition
 
 from .models import Department, Employee, LinkedWorkbook
 from .text import day_text
-from .workbook_import import clean, header_key, to_number
+from .workbook_import import clean, header_key, to_date, to_number
 
 PERIODS = [("today", "Today"), ("7d", "Last 7 days"), ("30d", "Last 30 days"), ("month", "This month"),
            ("year", "This year"), ("all", "All time")]
 REGION_LABELS = dict(REGION_CHOICES) | {"none": "Not recorded"}
+LOCAL_GROUPS = [("host", "Host"), ("pipeline", "Pipeline"), ("jetty", "Jetty")]
 PAST_APPLIED = [s.value for s in Stage if s != Stage.APPLIED]
-# The tracker's own columns: (key, the headings it may have, label).
+# The tracker's own columns: (key, the headings it may have).
 TRACKER = [
-    ("positions", ("manpower required",), "Positions"),
-    ("participants", ("participants",), "Participants"),
-    ("shortlisted", ("shortlisted for interview",), "Shortlisted"),
-    ("selected", ("selected",), "Selected"),
-    ("onboarded", ("onboarded #", "onboarded"), "Onboarded"),
-    ("rejected", ("rejected",), "Rejected"),
-    ("on_hold", ("on-hold", "on hold"), "On hold"),
-    ("in_progress", ("in progres", "in progress"), "In progress"),
+    ("positions", ("manpower required",)),
+    ("participants", ("participants",)),
+    ("shortlisted", ("shortlisted for interview",)),
+    ("selected", ("selected",)),
+    ("onboarded", ("onboarded #", "onboarded")),
+    ("rejected", ("rejected",)),
+    ("on_hold", ("on-hold", "on hold")),
+    ("in_progress", ("in progres", "in progress")),
 ]
-FUNNEL = ["participants", "shortlisted", "selected", "onboarded"]
+MONTHLY = [("participants", "Participants"), ("shortlisted", "Shortlisted"), ("onboarded", "Onboarded")]
 # Requisitions raised in the portal (not in the tracker), in the tracker's words where they exist.
 PORTAL_STATUS = {"submitted": "Awaiting approval", "returned": "Awaiting approval", "pending_management":
                  "Awaiting approval", "approved": "Open", "open": "Open", "on_hold": "On hold", "filled": "Filled",
                  "closed": "Closed", "cancelled": "Closed"}
 STATUS_ORDER = ["Pending", "In progress", "Awaiting approval", "Open", "On hold", "Closed", "Filled"]
+DONE = {"Closed", "Filled"}
 
 
 def midnight(day: date) -> datetime:
@@ -69,7 +69,7 @@ def same_day(day: date, year: int, month: int) -> date:
 
 @dataclass
 class Period:
-    """The days [first, end); None for all time."""
+    """The days [first, end); None for all time. ``step`` is how the chart groups them."""
     key: str
     label: str
     first: date | None = None
@@ -102,15 +102,19 @@ def period_for(key: str, today: date | None = None) -> Period:
     if key == "today":
         return Period(key, "Today", today, tomorrow, today - timedelta(days=1), today,
                       chart_first=today - timedelta(days=13), chart_end=tomorrow, prev_label="yesterday")
-    if key in {"7d", "30d"}:
-        days = 7 if key == "7d" else 30
-        first = today - timedelta(days=days - 1)
-        return Period(key, dict(PERIODS)[key], first, tomorrow, first - timedelta(days=days), first,
-                      prev_label=f"the {days} days before")
+    if key == "7d":
+        first = today - timedelta(days=6)
+        return Period(key, "Last 7 days", first, tomorrow, first - timedelta(days=7), first,
+                      prev_label="the 7 days before")
+    if key == "30d":
+        first = today - timedelta(days=29)
+        return Period(key, "Last 30 days", first, tomorrow, first - timedelta(days=30), first, step="week",
+                      prev_label="the 30 days before")
     if key == "month":
         last = today.replace(day=1) - timedelta(days=1)
         return Period(key, "This month", today.replace(day=1), tomorrow, last.replace(day=1),
-                      same_day(today, last.year, last.month) + timedelta(days=1), prev_label="last month")
+                      same_day(today, last.year, last.month) + timedelta(days=1), step="week",
+                      prev_label="last month")
     if key.isdigit() and len(key) == 4 and 2000 <= int(key) < today.year:
         year = int(key)
         return Period(key, key, date(year, 1, 1), date(year + 1, 1, 1), date(year - 1, 1, 1), date(year, 1, 1),
@@ -120,6 +124,9 @@ def period_for(key: str, today: date | None = None) -> Period:
     return Period("year", "This year", today.replace(month=1, day=1), tomorrow, date(today.year - 1, 1, 1),
                   same_day(today, today.year - 1, today.month) + timedelta(days=1), step="month",
                   prev_label="last year")
+
+
+ALL_TIME = Period("all", "All time", step="year")
 
 
 def channel_of(source_detail: str, source: str) -> tuple[str, str]:
@@ -139,12 +146,32 @@ def tracker_row(requisition) -> dict | None:
     if not values:
         return None
     row = {}
-    for key, headings, _ in TRACKER:
+    for key, headings in TRACKER:
         number = to_number(next((values[h] for h in headings if h in values), None))
         row[key] = int(number) if number is not None else 0
     status = clean(values.get("status"))
     row["status"] = status[:1].upper() + status[1:].lower() if status else "Not recorded"
+    raised, closed = to_date(values.get("requisition date")), to_date(values.get("closing date"))
+    row["days_to_fill"] = (closed - raised).days if raised and closed and closed >= raised else None
     return row
+
+
+def nice_scale(top: int, steps: int = 4) -> tuple[int, list[int]]:
+    """A round axis maximum and its ticks (top first), e.g. 37 -> 40, [40, 30, 20, 10, 0]."""
+    if top <= 0:
+        return 1, [1, 0]
+    raw = top / steps
+    magnitude = 10 ** math.floor(math.log10(raw)) if raw >= 1 else 1
+    step = next(m * magnitude for m in (1, 2, 2.5, 5, 10) if m * magnitude >= raw)
+    step = max(1, int(math.ceil(step)))
+    ceiling = step * math.ceil(top / step)
+    return ceiling, list(range(ceiling, -1, -step))
+
+
+def tick_marks(ticks: list[int]) -> list[dict]:
+    """Each tick with its distance from the top of the plot, in percent (top tick 0, zero 100)."""
+    last = max(len(ticks) - 1, 1)
+    return [{"value": t, "pos": round(i / last * 100, 3)} for i, t in enumerate(ticks)]
 
 
 @dataclass
@@ -202,9 +229,11 @@ class Summary:
         for r in reqs:
             row = tracker_row(r)
             if row is None:
-                row = {key: counts.get(r.pk, {}).get(key, 0) for key, _, _ in TRACKER}
+                row = {key: counts.get(r.pk, {}).get(key, 0) for key, _ in TRACKER}
                 row["positions"] = r.positions
                 row["status"] = PORTAL_STATUS.get(r.status, r.get_status_display())
+                row["days_to_fill"] = ((r.closed_at - r.submitted_at).days if r.closed_at and r.submitted_at
+                                       and r.closed_at >= r.submitted_at else None)
             row["req"] = r
             out.append(row)
         self._rows[cache_key] = out
@@ -212,7 +241,7 @@ class Summary:
 
     @staticmethod
     def totals(rows) -> dict:
-        return {key: sum(r[key] for r in rows) for key, _, _ in TRACKER}
+        return {key: sum(r[key] for r in rows) for key, _ in TRACKER}
 
     def undated_requisitions(self) -> int:
         return self.requisitions().filter(submitted_at__isnull=True).count() if self.period.first else 0
@@ -254,188 +283,150 @@ class Summary:
         return self.staff().filter(status=Employee.Status.ACTIVE, retirement_date__gte=self.today,
                                    retirement_date__lte=self.today + timedelta(days=365))
 
-    # ------------------------------------------------------------------ sections
-    def kpis(self) -> list[dict]:
+    # ------------------------------------------------------------------ the two columns of large figures
+    def requisition_figures(self) -> list[dict]:
+        rows = self.rows()
+        t = self.totals(rows)
+        found = Counter(r["status"] for r in rows)
+        order = {s: i for i, s in enumerate(STATUS_ORDER)}
+        statuses = " · ".join(f"{n:,} {s.lower()}" for s, n in sorted(found.items(),
+                                                                      key=lambda kv: (order.get(kv[0], 99), -kv[1])))
+        days = [r["days_to_fill"] for r in rows if r["days_to_fill"] is not None]
+        filled = round(t["onboarded"] / t["positions"] * 100) if t["positions"] else None
+        return [
+            {"key": "requisitions", "value": len(rows), "label": "Requisitions", "sub": statuses},
+            {"key": "positions", "value": t["positions"], "label": "Positions",
+             "sub": f"{t['in_progress']:,} in progress"},
+            {"key": "days", "value": round(sum(days) / len(days)) if days else None, "label": "Days to fill",
+             "sub": (f"Average of {len(days):,} closed requisition{'s' if len(days) != 1 else ''}" if days
+                     else "No closed requisitions with both dates")},
+            {"key": "filled", "value": filled, "unit": "%", "label": "Positions filled",
+             "sub": f"{t['onboarded']:,} onboarded of {t['positions']:,}"},
+        ]
+
+    def applicant_figures(self) -> list[dict]:
         p = self.period
         t = self.totals(self.rows())
         applicants = self.applicants().count()
-        delta, tone = "", ""
+        sub = "On these requisitions" if self.scope.department else "Each person counted once"
         if p.prev_first:
             before = self.applicants(Period("prev", "", p.prev_first, p.prev_end)).count()
             if before:
                 pct = round((applicants - before) / before * 100)
-                delta = f"{'+' if pct > 0 else ''}{pct}% vs {p.prev_label}"
-                tone = "up" if pct > 0 else "down" if pct < 0 else ""
+                sub = f"{'+' if pct > 0 else ''}{pct}% vs {p.prev_label}"
         records = self.interview_records(p)
-        interviews = records.count() + self.portal_interviews(p).count()
         selected = records.filter(result=InterviewRecord.Result.SELECTED).count()
-        fill = f" ({round(t['onboarded'] / t['positions'] * 100)}%)" if t["positions"] else ""
         return [
-            {"label": "Requisitions", "value": len(self.rows()), "icon": "clipboard-list",
-             "note": f"{t['positions']:,} position{'s' if t['positions'] != 1 else ''}",
-             "source": "Tracker · Requisition Date"},
-            {"label": "Applicants", "value": applicants, "icon": "users", "tone": tone,
-             "note": delta or ("On these requisitions" if self.scope.department else "Each person counted once"),
-             "source": "On its requisitions" if self.scope.department else "CV list, website · date applied"},
-            {"label": "Shortlisted for interview", "value": t["shortlisted"], "icon": "star",
-             "note": f"of {t['participants']:,} participants", "source": "Tracker"},
-            {"label": "Interviews", "value": interviews, "icon": "messages-square",
-             "note": f"{selected:,} selected", "source": "Interview records · Date"},
-            {"label": "Onboarded", "value": t["onboarded"], "icon": "user-check",
-             "note": f"of {t['positions']:,} positions{fill}", "source": "Tracker · Onboarded #"},
-            {"label": "Current staff", "value": self.staff().filter(status=Employee.Status.ACTIVE).count(),
-             "icon": "id-card", "note": f"{self.retiring().count():,} retire within 12 months", "source": "Staff list"},
+            {"key": "applicants", "value": applicants, "label": "Applicants", "sub": sub},
+            {"key": "shortlisted", "value": t["shortlisted"], "label": "Shortlisted for interview",
+             "sub": f"of {t['participants']:,} participants"},
+            {"key": "interviews", "value": records.count() + self.portal_interviews(p).count(), "label": "Interviews",
+             "sub": f"{selected:,} selected"},
+            {"key": "onboarded", "value": t["onboarded"], "label": "Onboarded",
+             "sub": f"{round(t['onboarded'] / t['selected'] * 100)}% of the {t['selected']:,} selected"
+             if t["selected"] else "None selected yet"},
         ]
 
+    # ------------------------------------------------------------------ month by month (grouped columns)
+    def _bucket(self, day: date, step: str):
+        if step == "day":
+            return day
+        if step == "week":
+            return day - timedelta(days=day.weekday())
+        if step == "month":
+            return (day.year, day.month)
+        return day.year
+
+    def monthly(self) -> dict:
+        """Participants, shortlisted and onboarded by when their requisition was raised (tracker figures)."""
+        p = self.period
+        step = p.step
+        window = Period("chart", "", p.chart_first, p.chart_end)
+        sums = {}
+        for r in self.rows(window):
+            if not r["req"].submitted_at:
+                continue
+            b = self._bucket(timezone.localtime(r["req"].submitted_at).date(), step)
+            for key, _ in MONTHLY:
+                sums.setdefault(b, Counter())[key] += r[key]
+        groups = []
+        if step in {"day", "week"}:
+            day = self._bucket(p.chart_first, step)
+            while day < p.chart_end:
+                label = str(day.day) if step == "day" else f"{day.day} {day:%b}"
+                full = day_text(day, weekday=True) if step == "day" else f"Week of {day_text(day)}"
+                groups.append((day, label, full))
+                day += timedelta(days=1 if step == "day" else 7)
+        elif step == "month":
+            year, month = p.chart_first.year, p.chart_first.month
+            while date(year, month, 1) < p.chart_end:
+                groups.append(((year, month), calendar.month_abbr[month], f"{calendar.month_name[month]} {year}"))
+                year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        else:
+            years = sorted(sums) or [self.today.year]
+            for year in range(max(years[0], self.today.year - 9), self.today.year + 1):
+                groups.append((year, str(year), str(year)))
+        top = max([v for c in sums.values() for v in c.values()] + [0])
+        ceiling, ticks = nice_scale(top)
+        out = []
+        for key, label, full in groups:
+            values = [{"label": name, "n": sums.get(key, Counter())[k],
+                       "pct": round(sums.get(key, Counter())[k] / ceiling * 100, 1)} for k, name in MONTHLY]
+            out.append({"label": label, "full": full, "values": values})
+        every = max(1, math.ceil(len(out) / 12))
+        for i, g in enumerate(out):
+            g["show"] = i % every == 0 or i == len(out) - 1
+        title = {"day": "Day by day", "week": "Week by week", "month": "Month by month", "year": "Year by year"}[step]
+        return {"title": title, "groups": out, "series": [name for _, name in MONTHLY], "ticks": tick_marks(ticks),
+                "empty": top == 0, "span": "Last 14 days" if p.key == "today" else p.label}
+
+    # ------------------------------------------------------------------ open requisitions (the table)
+    def pipeline(self, limit: int = 6) -> dict:
+        open_rows = [r for r in self.rows(ALL_TIME) if r["status"] not in DONE]
+        open_rows.sort(key=lambda r: (-r["participants"], -(r["req"].submitted_at or midnight(date(2000, 1, 1)))
+                                      .timestamp()))
+        return {"rows": open_rows[:limit], "more": max(0, len(open_rows) - limit),
+                "total": self.totals(open_rows), "count": len(open_rows)}
+
+    # ------------------------------------------------------------------ sources by community (grouped columns)
+    def sources(self, limit: int = 6) -> dict:
+        """How host, pipeline and jetty applicants applied (channel), with each group's total."""
+        applicants = self.applicants()
+        by_group = dict(applicants.values_list("region").annotate(n=Count("id")).order_by())
+        found = {}
+        for detail, source, region, n in (applicants.filter(region__in=[g for g, _ in LOCAL_GROUPS])
+                                          .values_list("source_detail", "source", "region")
+                                          .annotate(n=Count("id")).order_by()):
+            value, label = channel_of(detail, source)
+            found.setdefault(value, {"label": label, "counts": Counter()})["counts"][region] += n
+        channels = sorted(found.values(), key=lambda c: -sum(c["counts"].values()))[:limit]
+        top = max([n for c in channels for n in c["counts"].values()] + [0])
+        ceiling, ticks = nice_scale(top)
+        groups = [{"label": c["label"], "values": [{"label": name, "n": c["counts"][g],
+                                                    "pct": round(c["counts"][g] / ceiling * 100, 1)}
+                                                   for g, name in LOCAL_GROUPS]} for c in channels]
+        others = [(label, by_group.get(value, 0)) for value, label in REGION_CHOICES if value not in dict(LOCAL_GROUPS)]
+        others.append(("Not recorded", by_group.get("", 0)))
+        return {"groups": groups, "ticks": tick_marks(ticks), "empty": top == 0,
+                "series": [{"value": g, "label": name, "n": by_group.get(g, 0)} for g, name in LOCAL_GROUPS],
+                "others": [(label, n) for label, n in others if n], "others_total": sum(n for _, n in others)}
+
+    # ------------------------------------------------------------------ the bar along the bottom
     def today_figures(self) -> list[dict]:
         day = Period("today", "Today", self.today, self.today + timedelta(days=1))
         items = []
         if not self.scope.department:
-            items.append({"label": "Applied", "value": self.applicants(day).count()})
-        items.append({"label": "Interviews", "value": self.interview_records(day).count()
+            items.append({"label": "applied", "value": self.applicants(day).count()})
+        items.append({"label": "interviews", "value": self.interview_records(day).count()
                       + self.portal_interviews(day).count()})
         if not self.scope.department:
             items.append({"label": "CBTs", "value": self.cbts(day).count()})
-        items.append({"label": "Requisitions received", "value": len(self.rows(day))})
+        items.append({"label": "requisitions received", "value": len(self.rows(day))})
         return items
 
-    def funnel(self) -> dict:
-        t = self.totals(self.rows())
-        top = max([t[k] for k in FUNNEL] + [0])
-        steps = [{"label": label, "n": t[key], "bar": round(t[key] / top * 100, 1) if top else 0,
-                  "of": round(t[key] / t["participants"] * 100) if t["participants"] and key != "participants" else None}
-                 for key, _, label in TRACKER if key in FUNNEL]
-        return {"steps": steps, "positions": t["positions"], "rejected": t["rejected"], "on_hold": t["on_hold"],
-                "in_progress": t["in_progress"], "total": top}
-
-    def statuses(self) -> list[dict]:
-        found = Counter(r["status"] for r in self.rows())
-        order = {s: i for i, s in enumerate(STATUS_ORDER)}
-        rows = [{"label": s, "n": n} for s, n in sorted(found.items(), key=lambda kv: (order.get(kv[0], 99), -kv[1]))]
-        return _shares(rows)
-
-    def departments(self, limit: int = 8) -> dict:
-        by = defaultdict(lambda: {"n": 0, "positions": 0, "onboarded": 0})
-        for r in self.rows():
-            d = by[r["req"].department]
-            d["n"] += 1
-            d["positions"] += r["positions"]
-            d["onboarded"] += r["onboarded"]
-        rows = sorted(({"department": k, "label": k.name, **v} for k, v in by.items()),
-                      key=lambda x: (-x["n"], x["label"]))
-        return {"rows": _shares(rows[:limit]), "more": max(0, len(rows) - limit)}
-
-    def trend(self) -> dict:
-        """People who applied (company) or interviews (department), by day, month or year."""
-        p = self.period
-        window = Period("chart", "", p.chart_first, p.chart_end)
-        counts = Counter()
-        if self.scope.department:
-            title = "Interviews"
-            for d in self.interview_records(window).values_list("interview_date", flat=True):
-                counts[self._bucket(d)] += 1
-            for m in self.portal_interviews(window).values_list("scheduled_at", flat=True):
-                counts[self._bucket(timezone.localtime(m).date())] += 1
-        else:
-            title = "People who applied"
-            if p.step == "day":
-                found = self.applicants(window).values_list("applied_on").annotate(n=Count("id")).order_by()
-            else:
-                trunc = TruncMonth if p.step == "month" else TruncYear
-                found = (self.applicants(window).exclude(applied_on=None).annotate(b=trunc("applied_on"))
-                         .values_list("b").annotate(n=Count("id")).order_by())
-            for d, n in found:
-                if d:
-                    counts[self._bucket(d)] += n
-        bars = []
-        if p.step == "day":
-            day = p.chart_first
-            while day < p.chart_end:
-                bars.append({"label": str(day.day), "full": day_text(day, weekday=True), "n": counts.get(day, 0)})
-                day += timedelta(days=1)
-        elif p.step == "month":
-            year, month = p.chart_first.year, p.chart_first.month
-            while date(year, month, 1) < p.chart_end:
-                bars.append({"label": calendar.month_abbr[month], "full": f"{calendar.month_name[month]} {year}",
-                             "n": counts.get((year, month), 0)})
-                year, month = (year + 1, 1) if month == 12 else (year, month + 1)
-        else:
-            years = sorted(counts) or [self.today.year]
-            for year in range(max(years[0], self.today.year - 9), self.today.year + 1):
-                bars.append({"label": str(year), "full": str(year), "n": counts.get(year, 0)})
-        top = max([b["n"] for b in bars] + [0])
-        every = max(1, math.ceil(len(bars) / 12))
-        for i, b in enumerate(bars):
-            b["pct"] = round(b["n"] / top * 100, 1) if top else 0
-            b["show"] = i % every == 0 or i == len(bars) - 1
-        label = "Last 14 days" if p.key == "today" else {"day": "By day", "month": "By month", "year": "By year"}[p.step]
-        return {"title": title, "bars": bars, "top": top, "total": sum(b["n"] for b in bars), "label": label,
-                "busiest": max(bars, key=lambda b: b["n"]) if top else None}
-
-    def _bucket(self, d):
-        if isinstance(d, datetime):
-            d = timezone.localtime(d).date() if timezone.is_aware(d) else d.date()
-        return d if self.period.step == "day" else (d.year, d.month) if self.period.step == "month" else d.year
-
-    def regions(self) -> list[dict]:
-        found = dict(self.applicants().values_list("region").annotate(n=Count("id")).order_by())
-        rows = [{"value": v, "label": label, "n": found.get(v, 0)} for v, label in REGION_CHOICES]
-        rows.append({"value": "none", "label": "Not recorded", "n": found.get("", 0)})
-        return _shares(rows)
-
-    def channels(self, limit: int = 6) -> list[dict]:
-        found = {}
-        for detail, source, n in (self.applicants().values_list("source_detail", "source").annotate(n=Count("id"))
-                                  .order_by()):
-            value, label = channel_of(detail, source)
-            found.setdefault(value, {"value": value, "label": label, "n": 0})["n"] += n
-        rows = sorted(found.values(), key=lambda r: -r["n"])
-        if len(rows) > limit:
-            rest = rows[limit - 1:]
-            rows = rows[:limit - 1] + [{"value": "", "label": f"Other ({len(rest)} channels)",
-                                        "n": sum(r["n"] for r in rest)}]
-        return _shares(rows)
-
     def staff_figures(self) -> list[dict]:
-        staff, p = self.staff(), self.period
-        return [
-            {"label": "Current staff", "value": staff.filter(status=Employee.Status.ACTIVE).count()},
-            {"label": "Retire within 12 months", "value": self.retiring().count()},
-            {"label": "Joined", "value": staff.filter(p.dates("date_of_employment")).exclude(
-                date_of_employment=None).count()},
-            {"label": "Left", "value": staff.exclude(status=Employee.Status.ACTIVE).filter(p.dates("exit_date"))
-             .exclude(exit_date=None).count()},
-        ]
-
-    def highlights(self) -> list[dict]:
-        out = []
-        pending = [r for r in self.rows(Period("all", "All time")) if r["status"] in {"Pending", "Awaiting approval"}]
-        if pending:
-            oldest = min((r["req"].submitted_at for r in pending if r["req"].submitted_at), default=None)
-            out.append({"icon": "clipboard-list", "text": format_html(
-                "<b>{}</b> requisition{} pending in the tracker{}.", f"{len(pending):,}",
-                "s are" if len(pending) != 1 else " is",
-                format_html("; the oldest was raised on {}", day_text(timezone.localtime(oldest).date()))
-                if oldest else "")})
-        t = self.totals(self.rows())
-        if t["positions"]:
-            out.append({"icon": "user-check", "text": format_html(
-                "<b>{}</b> of <b>{}</b> positions onboarded ({}%) on requisitions raised {}.", f"{t['onboarded']:,}",
-                f"{t['positions']:,}", round(t["onboarded"] / t["positions"] * 100),
-                self.period.label.lower() if self.period.first else "so far")})
-        regions = {r["value"]: r for r in self.regions()}
-        total = sum(r["n"] for r in regions.values())
-        local = sum(regions[g]["n"] for g in ("host", "pipeline", "jetty"))
-        if total and local:
-            out.append({"icon": "map-pin", "text": format_html(
-                "Host, pipeline and jetty communities: <b>{}%</b> of applicants.", round(local / total * 100))})
-        n = self.retiring().count()
-        if n:
-            uncovered = self.retiring().filter(replacement_requisitions__isnull=True).count()
-            out.append({"icon": "hourglass", "text": format_html(
-                "<b>{}</b> {} within 12 months{}.", n, "staff retire" if n != 1 else "staff member retires",
-                format_html("; <b>{}</b> without a replacement requisition", uncovered) if uncovered else "")})
-        return out[:3]
+        return [{"label": "current staff", "value": self.staff().filter(status=Employee.Status.ACTIVE).count()},
+                {"label": "retire within 12 months", "value": self.retiring().count()}]
 
 
 def data_status() -> dict | None:
@@ -456,16 +447,6 @@ def data_status() -> dict | None:
         tone, text = "success", "In step with Excel"
     return {"tone": tone, "text": text, "books": books,
             "loaded": max((b.synced_at for b in books if b.synced_at), default=None)}
-
-
-def _shares(rows: list[dict]) -> list[dict]:
-    """Each row's share of the total (pct) and its bar length against the largest row (bar)."""
-    total = sum(r["n"] for r in rows)
-    top = max([r["n"] for r in rows] + [0])
-    for r in rows:
-        r["pct"] = round(r["n"] / total * 100) if total else 0
-        r["bar"] = round(r["n"] / top * 100, 1) if top else 0
-    return rows
 
 
 def year_options() -> list[str]:

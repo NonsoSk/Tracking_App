@@ -1,0 +1,15 @@
+{% load humanize %}{# Grouped columns: one hue per series, in a fixed order within each group, a round y axis and a tooltip on every column. #}
+<figure class="gchart{% if chart.groups|length > 8 %} many{% endif %}" style="--groups: {{ chart.groups|length }}">
+  <div class="gc-y" aria-hidden="true">{% for t in chart.ticks %}<span style="top: {{ t.pos }}%">{{ t.value|intcomma }}</span>{% endfor %}</div>
+  <div class="gc-plot" role="img" aria-label="{{ caption }}">
+    {% for t in chart.ticks %}<i class="gc-line" style="top: {{ t.pos }}%"></i>{% endfor %}
+    <div class="gc-groups">
+      {% for g in chart.groups %}<div class="gc-group">{% for v in g.values %}<span class="gc-bar s{{ forloop.counter }}" tabindex="0" data-tip="{% if g.full %}{{ g.full }}{% else %}{{ g.label }}{% endif %} · {{ v.label }}: {{ v.n|intcomma }}"><i style="height: {{ v.pct }}%"></i></span>{% endfor %}</div>{% endfor %}
+    </div>
+  </div>
+  <div class="gc-x" aria-hidden="true">{% for g in chart.groups %}<span title="{{ g.label }}">{% if g.show is not False %}{{ g.label }}{% endif %}</span>{% endfor %}</div>
+  <div class="sr-only"><table><caption>{{ caption }}</caption>
+    <thead><tr><th scope="col"></th>{% for v in chart.groups.0.values %}<th scope="col">{{ v.label }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for g in chart.groups %}<tr><th scope="row">{% if g.full %}{{ g.full }}{% else %}{{ g.label }}{% endif %}</th>{% for v in g.values %}<td>{{ v.n }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table></div>
+</figure>

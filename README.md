@@ -212,14 +212,19 @@ following** (or run `sync_workbooks --unlink`). The records already loaded stay.
 HR, management and heads of department open the portal on **Summary**, before *My tasks*; interviewers, the
 onboarding team and employees go straight to *My tasks*. A head of department sees only their own department. One
 row of filters scopes the page: **period** (today, last 7 or 30 days, this month, this year, an earlier year, all
-time), **department**, **group** (host, pipeline, jetty, Niger Delta...) and **channel**. The page is a grid of cards:
+time), **department**, **group** (host, pipeline, jetty, Niger Delta...) and **channel**. The page is a dark display
+board, laid out like a wall dashboard:
 
-- **Six headline figures**: requisitions (and positions), applicants, shortlisted for interview, interviews (and
-  selected), onboarded (of positions), current staff (and retirements within 12 months).
-- **Today**, **What stands out** (up to three sentences) and **Staff** (current, retiring, joined, left).
-- **Charts**: people who applied over time (interviews, for a department), where applicants are from, the
-  recruitment funnel, how they applied, requisitions by status and requisitions by department.
-- **Where these figures come from**: each linked workbook, and whether the portal is in step with it.
+- **Requisitions**: requisitions (with their status as the tracker writes it), positions, days to fill and positions
+  filled, in large figures.
+- **Applicants**: applicants, shortlisted for interview, interviews and onboarded, in large figures.
+- **Month by month** (day, week or year by year, following the period): participants, shortlisted and onboarded by when
+  the requisition was raised.
+- **Current hiring pipeline**: the open requisitions with the most participants, with positions, participants,
+  shortlisted, selected, onboarded and in progress, and a total row.
+- **Host, pipeline and jetty applicants**: how each group applied, with each group's total (click a total to list them).
+- Along the bottom: today's figures, staff (current, retiring within 12 months) and the time; at the top, whether the
+  portal is in step with the linked workbooks.
 
 Every figure is what Excel says, dated by the dates written in Excel, never by the day the workbook was loaded. Each
 card names its source:
@@ -394,7 +399,7 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 189 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 192 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
 duplicates), the candidate groups and their filters, joining staff records to profiles and the applicant/staff/former

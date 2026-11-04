@@ -82,21 +82,25 @@ def summary(request):
         params.update(extra)
         return reverse("candidates:list") + "?" + urlencode(params)
 
-    regions = s.regions()
-    for row in regions:
-        row["url"] = talent(region=row["value"])
-    channel_rows = s.channels()
-    for row in channel_rows:
-        row["url"] = talent(source=row["value"]) if row["value"] else ""
-    keep = get.copy()
-    keep.pop("department", None)
+    sources = s.sources()
+    for series in sources["series"]:
+        series["url"] = talent(region=series["value"])
+    undated = s.undated_applicants()
+    applicant_source = ("Candidates on the department's requisitions; shortlisted and onboarded from the tracker"
+                        if department else "People by the date they applied; shortlisted and onboarded from the "
+                        "tracker; interviews from the interview records")
+    if undated and period.first:
+        applicant_source += f". {undated:,} applicant{'s' if undated != 1 else ''} with no date in Excel are under All time"
     context.update({
-        "kpis": s.kpis(), "today": s.today_figures(), "highlights": s.highlights(), "staff": s.staff_figures(),
-        "trend": s.trend(), "regions": regions, "applicants_total": sum(r["n"] for r in regions),
-        "channels": channel_rows, "funnel": s.funnel(), "statuses": s.statuses(),
-        "depts": None if department else s.departments(), "keep_query": keep.urlencode(),
-        "undated_applicants": s.undated_applicants(), "undated_requisitions": s.undated_requisitions(),
-        "talent_url": talent(), "person_filters": bool(region or channel),
+        "figure_cards": [
+            {"title": "Requisitions", "figures": s.requisition_figures(),
+             "source": "Requisition tracker, by Requisition Date; days to fill run to the Closing Date"},
+            {"title": "Applicants", "figures": s.applicant_figures(), "source": applicant_source},
+        ],
+        "monthly": s.monthly(), "pipeline": s.pipeline(), "sources": sources, "today": s.today_figures(),
+        "staff": s.staff_figures(), "undated_applicants": undated,
+        "undated_requisitions": s.undated_requisitions(), "talent_url": talent(),
+        "person_filters": bool(region or channel), "now": timezone.localtime(),
     })
     return render(request, "core/summary.html", context)
 
