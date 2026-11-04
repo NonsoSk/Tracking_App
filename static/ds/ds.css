@@ -643,6 +643,7 @@ a.task.is-urgent:hover { box-shadow: var(--slab-2), var(--bevel), inset 3px 0 0 
   background: var(--b); border: 1px solid var(--l); color: var(--text-2); }
 .banner .tile { background: var(--surface); color: var(--c); }
 .banner b { color: var(--text); display: block; }
+.banner .small b { display: inline; }
 .banner.success { --c: var(--success-ink); --b: var(--success-bg); --l: var(--success-line); }
 .banner.warning { --c: var(--warning-ink); --b: var(--warning-bg); --l: var(--warning-line); }
 .banner.danger { --c: var(--danger-ink); --b: var(--danger-bg); --l: var(--danger-line); }
