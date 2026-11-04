@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 from core.choices import EducationLevel
 from core.models import Employee
 from core.permissions import can_view_candidate, ensure, hr_required, safe_next
-from core.text import split_list
+from core.text import day_text, split_list
 from core.views import read_table
 from pipeline.matching import rescore_candidate
 from pipeline.models import Activity
@@ -162,11 +162,11 @@ def summary_scope(params) -> dict:
             q &= Q(applied_on__lte=until)
     when = ""
     if since and until:
-        when = f" on {since:%-d %b %Y}" if since == until else f" between {since:%-d %b %Y} and {until:%-d %b %Y}"
+        when = f" on {day_text(since)}" if since == until else f" between {day_text(since)} and {day_text(until)}"
     elif since:
-        when = f" since {since:%-d %b %Y}"
+        when = f" since {day_text(since)}"
     elif until:
-        when = f" until {until:%-d %b %Y}"
+        when = f" until {day_text(until)}"
     text = (f"Candidates on {department.name}'s requisitions raised{when}" if department
             else f"People who applied{when}")
     return {"q": q, "text": text}

@@ -280,7 +280,10 @@ def resume_stamp(link: str):
     match = re.match(r"(\d{9,11})-", link.rsplit("/", 1)[-1])
     if not match:
         return None
-    moment = datetime.fromtimestamp(int(match.group(1)), tz=timezone.get_current_timezone())
+    try:
+        moment = datetime.fromtimestamp(int(match.group(1)), tz=timezone.get_current_timezone())
+    except (OverflowError, OSError, ValueError):  # Windows refuses times far outside its range
+        return None
     return moment if datetime(2005, 1, 1, tzinfo=moment.tzinfo) <= moment <= timezone.now() else None
 
 

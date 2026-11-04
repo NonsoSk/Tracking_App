@@ -33,6 +33,7 @@ from pipeline.models import Application, Interview, InterviewRecord, Stage
 from requisitions.models import Requisition
 
 from .models import Department, Employee, LinkedWorkbook
+from .text import day_text
 from .workbook_import import clean, header_key, to_number
 
 PERIODS = [("today", "Today"), ("7d", "Last 7 days"), ("30d", "Last 30 days"), ("month", "This month"),
@@ -350,7 +351,7 @@ class Summary:
         if p.step == "day":
             day = p.chart_first
             while day < p.chart_end:
-                bars.append({"label": str(day.day), "full": day.strftime("%a %-d %b %Y"), "n": counts.get(day, 0)})
+                bars.append({"label": str(day.day), "full": day_text(day, weekday=True), "n": counts.get(day, 0)})
                 day += timedelta(days=1)
         elif p.step == "month":
             year, month = p.chart_first.year, p.chart_first.month
@@ -414,7 +415,7 @@ class Summary:
             out.append({"icon": "clipboard-list", "text": format_html(
                 "<b>{}</b> requisition{} pending in the tracker{}.", f"{len(pending):,}",
                 "s are" if len(pending) != 1 else " is",
-                format_html("; the oldest was raised on {}", timezone.localtime(oldest).strftime("%-d %b %Y"))
+                format_html("; the oldest was raised on {}", day_text(timezone.localtime(oldest).date()))
                 if oldest else "")})
         t = self.totals(self.rows())
         if t["positions"]:

@@ -215,3 +215,32 @@ class DemoSmokeTests(TestCase):
                          "onboarding", "hired"} <= stages)
         self.assertEqual(Requisition.objects.get(title="Laboratory Analyst").status, "filled")
         self.assertTrue(Employee.objects.filter(staff_id="IE0990").exists())
+
+
+class PortabilityTests(TestCase):
+    """The portal runs on Windows: date formats that only work on Linux must never appear in the code."""
+
+    def test_no_platform_specific_date_formats(self):
+        import re
+        from pathlib import Path
+
+        from django.conf import settings
+
+        root = Path(settings.BASE_DIR)
+        found = []
+        for path in root.rglob("*.py"):
+            if any(part.startswith(".") or part in {"node_modules", "site-packages"} for part in path.parts):
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if re.search(r"%[-#][a-zA-Z]", line):  # the dash flag fails on Windows, the hash flag on Linux
+                    found.append(f"{path.relative_to(root)}:{number}")
+        self.assertEqual(found, [], "Use core.text.day_text instead of these date formats")
+
+    def test_day_text(self):
+        from datetime import date
+
+        from core.text import day_text
+
+        self.assertEqual(day_text(date(2026, 11, 4)), "4 Nov 2026")
+        self.assertEqual(day_text(date(2026, 11, 4), weekday=True), "Wed 4 Nov 2026")
+

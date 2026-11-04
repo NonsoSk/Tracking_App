@@ -128,3 +128,10 @@ def best_match(term: str, candidates: list[str], threshold: float = 0.8) -> tupl
 def find_in_text(term: str, text_norm: str, extra_aliases=None) -> bool:
     """True when the term (or an alias) appears as a phrase in normalised text."""
     return any(len(v) >= 2 and contains_phrase(text_norm, v) for v in variants(term, extra_aliases))
+
+
+def day_text(day, weekday: bool = False) -> str:
+    """'4 Nov 2026' (or 'Wed 4 Nov 2026'): the day without a leading zero, on Windows as well as Linux.
+    (strftime's no-padding flag only works on Linux, so it is never used.)"""
+    text = f"{day.day} {day:%b %Y}"
+    return f"{day:%a} {text}" if weekday else text
