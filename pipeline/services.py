@@ -583,6 +583,12 @@ def complete_onboarding(onboarding, *, actor=None):
     onboarding.save()
     candidate = app.candidate
     staff_id = onboarding.staff_id or f"NEW-{app.pk:05d}"
+    from candidates.people import is_empty_staff_profile
+
+    existing = Employee.objects.filter(staff_id=staff_id).select_related("candidate").first()
+    placeholder = existing.candidate if existing and existing.candidate_id not in (None, candidate.pk) else None
+    Employee.objects.filter(candidate=candidate).exclude(staff_id=staff_id).update(
+        candidate=None, link_fixed=True, link_note=f"Rejoined as staff number {staff_id}"[:120])
     Employee.objects.update_or_create(
         staff_id=staff_id,
         defaults={
@@ -590,8 +596,11 @@ def complete_onboarding(onboarding, *, actor=None):
             "email": candidate.email, "department": app.requisition.department, "job_title": app.requisition.title,
             "grade": app.requisition.grade, "date_of_birth": candidate.date_of_birth,
             "date_of_employment": onboarding.start_date or timezone.localdate(),
+            "candidate": candidate, "link_note": "Hired through the portal", "link_fixed": True,
         },
     )
+    if placeholder and is_empty_staff_profile(placeholder):
+        placeholder.delete()  # the profile the staff list made for them before onboarding was finished
     move_to_stage(app, Stage.HIRED, actor=actor, note="Onboarding complete.")
     requisition = app.requisition
     if requisition.hired_count >= requisition.positions and requisition.status not in {"filled", "closed"}:

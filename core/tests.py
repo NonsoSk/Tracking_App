@@ -65,6 +65,7 @@ class RetirementTests(TestCase):
         employee = Employee.objects.get(staff_id="F1")
         self.assertEqual(employee.department, dept)
         self.assertEqual(employee.date_of_birth, date(1970, 3, 12))
+        self.assertEqual(employee.candidate.full_name, "Ada Obi")  # a page in the talent database
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")

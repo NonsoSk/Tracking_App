@@ -1681,3 +1681,17 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 .group-card .gc-l { font-size: var(--fs-small); color: var(--text-2); }
 .group-card .gc-bar { height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
 .group-card .gc-bar i { display: block; height: 100%; background: var(--primary); }
+
+/* Talent database: who a person is to IEFCL (staff, former staff, hired) */
+.who-tabs { margin-bottom: var(--s-16); }
+.chip.who-chip { height: 22px; font-size: 12px; margin-left: var(--s-8); vertical-align: 1px; }
+.staff-facts { margin-top: 0; }
+.maybe-list { display: grid; gap: var(--s-8); margin: var(--s-12) 0 0; padding: 0; list-style: none; }
+.maybe-list li { display: flex; flex-wrap: wrap; gap: var(--s-8) var(--s-12); align-items: center; padding: var(--s-8) var(--s-12); border: 1px solid var(--line); border-radius: var(--r-md); }
+.maybe-list .spacer { flex: 1; }
+@media (max-width: 640px) {
+  .who-tabs { flex-wrap: wrap; column-gap: var(--s-16); }
+  .who-tabs > a { padding: 10px 0; }
+  .who-tabs .indicator { display: none; }
+  .who-tabs > a[aria-current="page"] { box-shadow: inset 0 -2.5px 0 var(--primary); }
+}

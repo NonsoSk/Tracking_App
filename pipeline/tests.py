@@ -204,6 +204,7 @@ class WorkflowTests(TestCase):
         self.assertEqual((self.app.stage, self.app.status), (Stage.HIRED, Application.Status.HIRED))
         self.assertEqual(self.req.status, Requisition.Status.FILLED)
         self.assertTrue(Employee.objects.filter(staff_id="IE9999", department=self.dept).exists())
+        self.assertEqual(Employee.objects.get(staff_id="IE9999").candidate, self.app.candidate)  # their staff page
 
     def test_offer_review_revise_creates_new_version(self):
         offer = self._to_offer()

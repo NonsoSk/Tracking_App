@@ -74,6 +74,13 @@ class Employee(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     exit_date = models.DateField(null=True, blank=True)
     replacement_notified_at = models.DateTimeField(null=True, blank=True)
+    # The person's profile in the talent database (their applications, CBTs, interviews and resume).
+    candidate = models.OneToOneField("candidates.Candidate", null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="staff_record")
+    link_note = models.CharField("How the profile was found", max_length=120, blank=True)
+    link_fixed = models.BooleanField(default=False, help_text="Linked or unlinked by HR: automatic linking leaves it.")
+
+    EXITED = {Status.RESIGNED, Status.RETIRED, Status.TERMINATED, Status.TRANSFERRED}
 
     class Meta:
         ordering = ["last_name", "first_name"]

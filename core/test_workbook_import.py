@@ -221,7 +221,9 @@ class WorkbookImportTests(TestCase):
         self.assertEqual(dan.interview_records.count(), 2)
         # One email per person and one phone per person
         self.assertEqual(Candidate.objects.filter(email="dan.iv@example.com").count(), 1)
-        self.assertEqual(Candidate.objects.count(), 10)
+        self.assertEqual(Candidate.objects.exclude(source_detail="Staff list").count(), 10)
+        # The two people on the staff list applied under no matching name: each gets a staff page of their own.
+        self.assertEqual(Candidate.objects.filter(source_detail="Staff list").count(), 2)
         self.assertEqual(Candidate.objects.get(first_name="Olu").cbt_results.count(), 2)
 
     def test_placeholder_phone_is_never_used(self):

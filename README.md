@@ -152,6 +152,22 @@ workbook loads then leave it alone (clear it to go back to what the records say)
 The talent database shows how many candidates are in each group, for the whole database or for any search, and can be
 filtered by group, state, zone (North Central … South West) and country.
 
+### Applicants, current staff and former staff
+
+The talent database lists everyone in one place, under four tabs: **Everyone**, **Applicants not hired yet**,
+**Current staff** and **Exited or retired** (resigned, retired, dismissed or transferred), each with its count. The
+tabs work together with every other filter and search. Clicking a name opens the person's page: their resume, profile,
+applications, CBTs and interviews, and for staff a **Staff record** card (staff number, status, department, job
+title, grade, date joined, retirement date). Names on *Retirements & exits* open the same page.
+
+Each staff-list record is joined to the person's profile only when it is clearly the same person: the same date of
+birth and the same name (in any order; a middle name may be missing), or the same email and name, or the same name
+and a hire through recruitment that started on the day they joined. Anyone else on the staff list gets a profile of
+their own (source "Staff list"), so everyone has a page. When other profiles have the same name, that page lists them
+for HR with a **Same person: join** button; any profile also has an **On the staff list?** box to join a staff number
+by hand, and a staff page has **Not the same person? Unlink**. HR's choices are kept by later workbook loads. Someone
+hired through the portal is joined to their new staff record when onboarding is completed.
+
 ## Keeping in step with Excel
 
 While the team still updates the workbooks in Excel, the portal can follow them so it is never out of date. On
@@ -346,10 +362,11 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 169 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 179 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
-duplicates), the candidate groups and their filters, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
+duplicates), the candidate groups and their filters, joining staff records to profiles and the applicant/staff/former
+staff tabs, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
 PDFs from a local test website, the compulsory requisition details, the job description review, and candidate
 summaries and department approvals. A smoke test loads the demo data and opens every screen as every role.
 

@@ -4,6 +4,7 @@ import os
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,6 +12,7 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from core.choices import EducationLevel
+from core.models import Employee
 from core.permissions import can_view_candidate, ensure, hr_required, safe_next
 from core.text import split_list
 from core.views import read_table
@@ -21,6 +23,7 @@ from pipeline.services import create_application, log, review_document
 from .forms import (AddToRequisitionForm, CandidateForm, DocumentUploadForm, IntakeForm, ReferralForm,
                     SpreadsheetImportForm)
 from .intake import find_existing, ingest_cv, parse_document, save_document
+from . import people
 from .models import Candidate, CandidateDocument, CommunityStatus
 from .regions import REGION_CHOICES, ZONES
 
@@ -28,7 +31,8 @@ from .regions import REGION_CHOICES, ZONES
 @hr_required
 def candidate_list(request):
     resumes = CandidateDocument.objects.filter(candidate=OuterRef("pk"), doc_type=CandidateDocument.DocType.CV)
-    qs = Candidate.objects.annotate(n_apps=Count("applications", distinct=True), has_resume=Exists(resumes))
+    qs = Candidate.objects.annotate(n_apps=Count("applications", distinct=True), has_resume=Exists(resumes),
+                                    is_hired=people.hired()).select_related("staff_record")
     if request.GET.get("resume") in {"yes", "no"}:
         qs = qs.filter(has_resume=request.GET["resume"] == "yes")
     q = request.GET.get("q", "").strip()
@@ -76,22 +80,33 @@ def candidate_list(request):
         qs = qs.filter(state_of_origin__in=ZONES[zone])
     if record:
         qs = qs.distinct()
-    # At a glance: how many of the people found are in each group (before choosing a group).
-    found = Candidate.objects.filter(pk__in=qs.order_by().values("pk"))
-    by_group = dict(found.order_by().values_list("region").annotate(n=Count("id")))
+    # Who they are (applicants, staff, former staff) and where they are from. Each set of counts follows every
+    # other filter, so the numbers always add up to what clicking them lists.
+    who = request.GET.get("who", "")
+    who = who if who in dict(people.WHO_CHOICES) else ""
+    region = request.GET.get("region", "")
+    in_region = qs.filter(region="" if region == "none" else region) if region else qs
+    in_who = qs.filter(people.who_filter(who)) if who else qs
+
+    def found(subset):
+        return Candidate.objects.filter(pk__in=subset.order_by().values("pk"))
+
+    by_group = dict(found(in_who).order_by().values_list("region").annotate(n=Count("id")))
     groups = [{"value": v, "label": label, "n": by_group.get(v, 0)} for v, label in REGION_CHOICES]
     groups.append({"value": "none", "label": "Not recorded", "n": by_group.get("", 0)})
-    region = request.GET.get("region", "")
-    if region == "none":
-        qs = qs.filter(region="")
-    elif region:
-        qs = qs.filter(region=region)
+    by_who = found(in_region).annotate(is_hired=people.hired()).aggregate(
+        everyone=Count("id"), **{value: Count("id", filter=people.who_filter(value)) for value, _ in people.WHO_CHOICES})
+    whos = [{"value": "", "label": "Everyone", "n": by_who["everyone"]}] + [
+        {"value": value, "label": label, "n": by_who[value]} for value, label in people.WHO_CHOICES]
+    qs = in_region.filter(people.who_filter(who)) if who else in_region
     page = Paginator(qs.order_by("-created_at", "-id"), 100).get_page(request.GET.get("page"))
     channels = sorted(set(Candidate.objects.exclude(source_detail="").values_list("source_detail", flat=True)))
     params = request.GET.copy()
     params.pop("page", None)
     without_region = params.copy()
     without_region.pop("region", None)
+    without_who = params.copy()
+    without_who.pop("who", None)
     return render(request, "candidates/list.html", {
         "candidates": page, "page": page, "q": q, "levels": EducationLevel.choices, "filters": request.GET,
         "total": page.paginator.count, "channels": channels, "portal_sources": Candidate.Source.choices,
@@ -99,11 +114,12 @@ def candidate_list(request):
         "groups": groups, "group_total": sum(g["n"] for g in groups), "zones": list(ZONES),
         "group_query": without_region.urlencode(),
         "searching": any(v for k, v in without_region.items()),
+        "whos": whos, "who": who, "who_query": without_who.urlencode(),
         "countries": sorted(set(Candidate.objects.exclude(country="").values_list("country", flat=True))),
         "states": sorted(set(Candidate.objects.exclude(state_of_origin="").values_list("state_of_origin", flat=True))),
         "filtered": any(request.GET.get(k) for k in ("q", "skill", "highest_qualification", "source", "min_exp",
                                                      "record", "community", "resume", "region", "country", "state",
-                                                     "zone")),
+                                                     "zone", "who")),
     })
 
 
@@ -113,12 +129,16 @@ def candidate_detail(request, pk):
     ensure(can_view_candidate(request.user, candidate))
     applications = candidate.applications.select_related("requisition", "requisition__department")
     interview_records = list(candidate.interview_records.select_related("requisition"))
+    staff = people.staff_record(candidate)
     from pipeline import presentation
 
     return render(request, "candidates/detail.html", {
         "cv_fields": presentation.cv_fields(candidate), "cv_terms": presentation.cv_terms(candidate),
         "term_groups": presentation.term_groups(candidate, {}),
         "c": candidate, "applications": applications, "cbts": list(candidate.cbt_results.all()),
+        "staff": staff, "staff_only": bool(staff) and people.is_empty_staff_profile(candidate),
+        "maybe_same": people.possible_profiles(staff) if staff and request.user.is_hr
+        and people.is_empty_staff_profile(candidate) else [],
         "interview_records": interview_records, "interview_records_count": len(interview_records),
         "documents": candidate.documents.select_related("uploaded_by", "reviewed_by"),
         "resume": candidate.latest_cv,
@@ -129,6 +149,66 @@ def candidate_detail(request, pk):
         .select_related("actor", "application__requisition").distinct()[:40],
     })
 
+
+
+@hr_required
+@require_POST
+def link_staff(request, pk):
+    """Join a staff record (by staff number) to this profile, so the staff member's page shows their resume,
+    applications and records. A profile the staff list made just for them, with nothing else on it, is removed."""
+    candidate = get_object_or_404(Candidate, pk=pk)
+    back = redirect(candidate.get_absolute_url() + "#profile")
+    staff_id = request.POST.get("staff_id", "").strip()
+    employee = Employee.objects.filter(staff_id__iexact=staff_id).select_related("candidate").first() if staff_id else None
+    if not employee:
+        messages.error(request, f"No one on the staff list has staff number “{staff_id}”.")
+        return back
+    current = people.staff_record(candidate)
+    if current and current.pk == employee.pk:
+        messages.info(request, f"Staff number {employee.staff_id} is already joined to this profile.")
+        return back
+    if current:
+        messages.error(request, f"This profile is already joined to staff number {current.staff_id}. "
+                                "Unlink that first if it is wrong.")
+        return back
+    old = employee.candidate
+    if old and not people.is_empty_staff_profile(old):
+        messages.error(request, f"Staff number {employee.staff_id} is joined to another profile ({old.full_name}, "
+                                f"#{old.pk}) that holds applications, records or documents. Open that profile and "
+                                "unlink it first.")
+        return back
+    with transaction.atomic():
+        employee.candidate, employee.link_fixed = candidate, True
+        employee.link_note = f"Joined by {request.user.display_name}"[:120]
+        employee.save(update_fields=["candidate", "link_fixed", "link_note"])
+        if old:
+            old.delete()
+    log(f"Joined to staff record {employee.staff_id} ({employee.full_name}).", verb="profile", candidate=candidate,
+        actor=request.user)
+    messages.success(request, f"{employee.full_name} ({employee.staff_id}) is now joined to this profile.")
+    return back
+
+
+@hr_required
+@require_POST
+def unlink_staff(request, pk):
+    """Undo a wrong join: the staff record gets a profile of its own again, and stays off automatic joining."""
+    candidate = get_object_or_404(Candidate, pk=pk)
+    employee = people.staff_record(candidate)
+    if not employee or people.is_empty_staff_profile(candidate):
+        messages.info(request, "There is nothing to unlink on this profile.")
+        return redirect(candidate.get_absolute_url() + "#profile")
+    with transaction.atomic():
+        own = people.own_profile(employee)
+        own.save()
+        employee.candidate, employee.link_fixed = own, True
+        employee.link_note = f"Unlinked by {request.user.display_name}"[:120]
+        employee.save(update_fields=["candidate", "link_fixed", "link_note"])
+    log(f"Staff record {employee.staff_id} ({employee.full_name}) unlinked from this profile.", verb="profile",
+        candidate=candidate, actor=request.user)
+    messages.success(request, f"Staff number {employee.staff_id} is no longer joined to {candidate.full_name}. "
+                              "It now has a profile of its own.")
+    return redirect(candidate.get_absolute_url() + "#profile")
 
 @hr_required
 def candidate_edit(request, pk):

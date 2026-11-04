@@ -14,10 +14,11 @@
   <div class="ph-row">
     {% avatar c "xl" %}
     <div class="ph-id">
-      <div class="eyebrow">Candidate · added {{ c.created_at|date:"j M Y" }}</div>
+      <div class="eyebrow">{% if staff.status == "active" %}Staff{% elif staff %}Former staff{% else %}Candidate{% endif %} · added {{ c.created_at|date:"j M Y" }}</div>
       <h1 id="who">{{ c.full_name }}</h1>
       <p class="ph-meta">{{ c.current_job_title|default:"" }}{% if c.current_employer %} at {{ c.current_employer }}{% endif %}{% if c.location %}{% if c.current_job_title or c.current_employer %} · {% endif %}{{ c.location }}{% endif %}</p>
       <div class="tags">
+        {% people_chip c %}
         <span class="chip neutral no-dot" title="{{ c.get_source_display }}">{% icon c.source|source_icon %} {{ c.source_short }}</span>
         {% if c.region %}<a class="chip brand no-dot" href="{% url 'candidates:list' %}?region={{ c.region }}" title="{{ c.region_note }}">{% icon "map-pin" %} {{ c.get_region_display }}</a>{% endif %}
         {% if c.email %}<a class="chip neutral no-dot" href="mailto:{{ c.email }}">{% icon "mail" %} {{ c.email }}</a>{% endif %}
@@ -34,6 +35,14 @@
     </div>
   </div>
 </section>
+
+{% if staff_only and u.is_hr %}
+<div class="banner neutral-banner"><span class="tile">{% icon "link" "ico-18" %}</span><div><b>Made from the staff list: no application is joined to it yet</b>
+  <span class="small">{% if maybe_same %}These profiles have the same name. If one of them is {{ c.full_name }}, join it: their resume, applications and records will then show on their staff page, and this empty profile is removed.{% else %}No other profile has this name. If {{ c.first_name|default:"this person" }} applied under another name, open that profile and join staff number {{ staff.staff_id }} to it (Profile tab, “On the staff list?”).{% endif %}</span>
+  {% if maybe_same %}<ul class="maybe-list">{% for m in maybe_same %}<li><a href="{{ m.get_absolute_url }}"><b>{{ m.full_name }}</b></a><span class="small muted">{{ m.email|default:m.phone|default:"No contact" }}{% if m.date_of_birth %} · born {{ m.date_of_birth|date:"j M Y" }}{% endif %} · {{ m.source_short }}{% if m.resume_url or m.latest_cv %} · resume on file{% endif %}</span><span class="spacer"></span>
+    <form method="post" action="{% url 'candidates:link_staff' m.pk %}" data-confirm="Join staff number {{ staff.staff_id }} ({{ c.full_name }}) to {{ m.full_name }}'s profile? Only do this if they are the same person.">{% csrf_token %}<input type="hidden" name="staff_id" value="{{ staff.staff_id }}"><button class="btn btn-secondary btn-sm" type="submit" data-confirm-tone="primary" data-confirm-label="Join">{% icon "link" "ico-16" %} Same person: join</button></form></li>{% endfor %}</ul>{% endif %}
+</div></div>
+{% endif %}
 
 {% if c.parse_notes %}
 <div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Please check what was read from the CV</b><span class="small">{{ c.parse_notes|linebreaksbr }}</span></div>
@@ -58,6 +67,28 @@
 <div role="tabpanel" id="profile" aria-labelledby="t-profile" class="tab-body"{% if resume.is_pdf %} hidden{% endif %}>
   <div class="split">
     <div class="stack-24">
+      {% if staff %}
+      <section class="sheet" aria-labelledby="st-h">
+        <div class="sheet-h"><h2 class="title" id="st-h">Staff record</h2>{% people_chip c %}<span class="spacer"></span>
+          {% if u.sees_all_departments %}<a class="btn btn-ghost btn-sm" href="{% url 'core:employees' %}?view=all&amp;q={{ staff.staff_id|urlencode }}">{% icon "users" "ico-16" %} Staff list</a>{% endif %}</div>
+        <div class="sheet-b">
+          <dl class="facts facts-grid staff-facts">
+            <div><dt>Staff number</dt><dd>{{ staff.staff_id }}</dd></div>
+            <div><dt>Status</dt><dd>{{ staff.get_status_display }}{% if staff.exit_date %} · {{ staff.exit_date|date:"j M Y" }}{% endif %}</dd></div>
+            <div><dt>Department</dt><dd>{{ staff.department|default:"—" }}</dd></div>
+            <div><dt>Job title</dt><dd>{{ staff.job_title|default:"—" }}</dd></div>
+            {% if staff.grade %}<div><dt>Grade</dt><dd>{{ staff.grade }}</dd></div>{% endif %}
+            {% if staff.category %}<div><dt>Category</dt><dd>{{ staff.category }}{% if staff.work_status %} · {{ staff.work_status }}{% endif %}</dd></div>{% endif %}
+            {% if staff.company or staff.business_unit %}<div><dt>Company</dt><dd>{{ staff.company|default:"" }}{% if staff.company and staff.business_unit %} · {% endif %}{{ staff.business_unit }}</dd></div>{% endif %}
+            {% if staff.location %}<div><dt>Location</dt><dd>{{ staff.location }}</dd></div>{% endif %}
+            <div><dt>Joined</dt><dd>{{ staff.date_of_employment|date:"j M Y"|default:"—" }}</dd></div>
+            {% if staff.status == "active" and staff.retirement_date %}<div><dt>Retirement due</dt><dd>{{ staff.retirement_date|date:"j M Y" }}</dd></div>{% endif %}
+          </dl>
+          <p class="small muted">How it was matched: {{ staff.link_note|default:"not recorded" }}.</p>
+          {% if u.is_hr and not staff_only %}<form method="post" action="{% url 'candidates:unlink_staff' c.pk %}" data-confirm="Unlink staff number {{ staff.staff_id }} from {{ c.full_name }}? The staff record gets a profile of its own and is not joined again automatically.">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit" data-confirm-label="Unlink">{% icon "x" "ico-16" %} Not the same person? Unlink</button></form>{% endif %}
+        </div>
+      </section>
+      {% endif %}
       <section class="sheet" aria-labelledby="pf-h">
         <div class="sheet-h"><h2 class="title" id="pf-h">Profile</h2><span class="spacer"></span>
           <span class="small muted">{% if c.parse_method %}Filled by {{ c.get_parse_method_display|lower }}{% if c.parsed_at %} {{ c.parsed_at|naturaltime }}{% endif %}{% endif %}</span></div>
@@ -113,6 +144,17 @@
           {% empty %}<p class="small muted">No skills recorded yet.</p>{% endfor %}
         </div>
       </section>
+      {% if u.is_hr and not staff %}
+      <section class="sheet" aria-labelledby="sj-h">
+        <div class="sheet-h"><h2 class="title" id="sj-h">On the staff list?</h2></div>
+        <div class="sheet-b stack">
+          <p class="small muted">If {{ c.first_name|default:"this person" }} works or worked at IEFCL and their staff record was not joined to this profile automatically, enter their staff number.</p>
+          <form method="post" action="{% url 'candidates:link_staff' c.pk %}" class="row">{% csrf_token %}
+            <input class="input" name="staff_id" required placeholder="Staff number" aria-label="Staff number" autocomplete="off">
+            <button class="btn btn-secondary" type="submit">{% icon "link" "ico-16" %} Join</button></form>
+        </div>
+      </section>
+      {% endif %}
     </aside>
   </div>
 </div>

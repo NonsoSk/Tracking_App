@@ -1,5 +1,5 @@
 {% extends "ds/base.html" %}
-{% load ds humanize %}
+{% load ds portal humanize %}
 {% block title %}Talent database{% endblock %}
 {% block crumbs %}<span aria-current="page">Talent database</span>{% endblock %}
 {% block primary_action %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-16" %} Upload CVs</a>{% endblock %}
@@ -8,7 +8,7 @@
   <div>
     <div class="eyebrow">Talent</div>
     <h1>Talent database</h1>
-    <p class="lede">{{ total|intcomma }} candidate{{ total|pluralize }}: everyone who applied, sat a CBT, was interviewed, was referred or sent a CV.</p>
+    <p class="lede">{{ total|intcomma }} {% if who == "staff" %}current staff{% elif who == "former" %}former staff{% elif who == "applicants" %}applicant{{ total|pluralize }} not hired yet{% else %}{% if total == 1 %}person{% else %}people{% endif %}: everyone who applied, sat a CBT, was interviewed, was referred or sent a CV, and everyone on the staff list{% endif %}.</p>
     <p class="calm">{% calm_note %}</p>
   </div>
   <div class="actions">
@@ -17,7 +17,12 @@
   </div>
 </header>
 
+<nav class="tabs who-tabs" aria-label="Who to list">
+  {% for w in whos %}<a href="?{% if who_query %}{{ who_query }}{% if w.value %}&amp;{% endif %}{% endif %}{% if w.value %}who={{ w.value }}{% endif %}"{% if who == w.value %} aria-current="page"{% endif %}>{{ w.label }} <span class="count-badge num">{{ w.n|intcomma }}</span></a>{% endfor %}
+</nav>
+
 <form class="sheet filters" method="get" role="search" aria-label="Search the talent database">
+  {% if who %}<input type="hidden" name="who" value="{{ who }}">{% endif %}
   <div class="input-icon f-q">{% icon "search" "ico-18" %}<input class="input" name="q" value="{{ q }}" placeholder="Name, email, phone, course, school, state or any word in the CV" aria-label="Search"></div>
   <input class="input" name="skill" value="{{ filters.skill }}" placeholder="Skill, tool or certificate" aria-label="Skill, tool or certificate">
   <select name="highest_qualification" class="select" aria-label="Qualification"><option value="">Any qualification</option>{% for v, l in levels %}<option value="{{ v }}" {% if filters.highest_qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
@@ -36,7 +41,7 @@
 </form>
 
 <section class="sheet group-strip" aria-labelledby="gs-h">
-  <div class="sheet-h"><h2 class="title" id="gs-h">Where they are from</h2><span class="spacer"></span><span class="small muted">{% if searching %}Of the candidates matching your search{% else %}All candidates{% endif %}. Click a group to list them.</span></div>
+  <div class="sheet-h"><h2 class="title" id="gs-h">Where they are from</h2><span class="spacer"></span><span class="small muted">{% if searching %}Of the people in this list{% else %}Everyone{% endif %}. Click a group to list them.</span></div>
   <div class="sheet-b group-cards">
     {% for g in groups %}<a class="group-card{% if filters.region == g.value %} is-on{% endif %}{% if not g.n %} is-empty{% endif %}" href="?{% if group_query %}{{ group_query }}&amp;{% endif %}region={{ g.value }}"{% if filters.region == g.value %} aria-current="true"{% endif %}>
       <span class="gc-n num">{{ g.n|intcomma }}</span><span class="gc-l">{{ g.label }}</span>
@@ -45,7 +50,7 @@
 </section>
 
 <section class="sheet" aria-labelledby="tl-h">
-  <div class="sheet-h"><h2 class="title" id="tl-h">Candidates</h2><span class="count">{{ total|intcomma }}</span>{% if page.paginator.num_pages > 1 %}<span class="small muted">{{ page.start_index|intcomma }}–{{ page.end_index|intcomma }}</span>{% endif %}<span class="spacer"></span>
+  <div class="sheet-h"><h2 class="title" id="tl-h">{% for w in whos %}{% if w.value == who %}{{ w.label }}{% endif %}{% endfor %}</h2><span class="count">{{ total|intcomma }}</span>{% if page.paginator.num_pages > 1 %}<span class="small muted">{{ page.start_index|intcomma }}–{{ page.end_index|intcomma }}</span>{% endif %}<span class="spacer"></span>
     <div class="seg" data-seg role="group" aria-label="Row density"><button type="button" aria-pressed="true" data-set-density="comfortable" data-target="talent-table">{% icon "rows-2" "ico-16" %}<span class="sr-only">Comfortable</span></button><button type="button" aria-pressed="false" data-set-density="compact" data-target="talent-table">{% icon "rows-3" "ico-16" %}<span class="sr-only">Compact</span></button></div></div>
   {% if candidates %}
   <div class="table-wrap stack-sm pipe-table" id="talent-table" data-density="comfortable"><table class="table">
@@ -53,7 +58,7 @@
     <tbody>
     {% for c in candidates %}
       <tr>
-        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>{% if c.has_resume %}<span class="resume-mark" data-tip="Resume on file">{% icon "file-text" "ico-14" label="Resume on file" %}</span>{% endif %}</b><span>{{ c.email|default:c.phone }}</span></div></div></td>
+        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>{% if c.has_resume %}<span class="resume-mark" data-tip="Resume on file">{% icon "file-text" "ico-14" label="Resume on file" %}</span>{% endif %}{% people_chip c %}</b><span>{{ c.email|default:c.phone }}</span></div></div></td>
         <td class="nowrap" data-label="Qualification">{{ c.qualification_short }}<div class="small muted ellip">{{ c.course }}</div></td>
         <td class="num nowrap" data-label="Experience">{{ c.experience_label }}</td>
         <td data-label="Top skills"><div class="tags">{% for s in c.skills|slice:":2" %}<span class="tag">{{ s }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</div></td>

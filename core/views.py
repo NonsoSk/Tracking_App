@@ -311,6 +311,9 @@ def import_employees(request):
             _, was_created = Employee.objects.update_or_create(staff_id=staff_id, defaults=defaults)
             created += was_created
             updated += not was_created
+        from candidates.people import link_staff
+
+        link_staff()  # every staff member gets a page in the talent database
         messages.success(request, f"Imported staff list: {created} added, {updated} updated, {skipped} skipped.")
         return redirect("core:employees")
     return render(request, "core/import_employees.html", {"form": form})

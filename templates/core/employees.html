@@ -37,7 +37,7 @@
     <tbody>
     {% for e in employees %}
       <tr>
-        <td><div class="who">{% avatar e "sm" %}<div class="who-t"><b>{{ e.full_name }}</b><span>{{ e.staff_id }}{% if e.business_unit %} · {{ e.business_unit }}{% endif %}{% if e.grade %} · {{ e.grade }}{% endif %}{% if e.department %} · {{ e.department }}{% endif %}</span></div></div></td>
+        <td><div class="who">{% avatar e "sm" %}<div class="who-t"><b>{% if e.candidate_id and request.user.sees_all_departments %}<a href="{% url 'candidates:detail' e.candidate_id %}">{{ e.full_name }}</a>{% else %}{{ e.full_name }}{% endif %}</b><span>{{ e.staff_id }}{% if e.business_unit %} · {{ e.business_unit }}{% endif %}{% if e.grade %} · {{ e.grade }}{% endif %}{% if e.department %} · {{ e.department }}{% endif %}</span></div></div></td>
         <td data-label="Job title">{{ e.job_title|default:"—" }}</td>
         <td class="nowrap" data-label="Retirement">{% if e.retirement_date %}<b class="num">{{ e.retirement_date|date:"j M Y" }}</b>{% if e.status == 'active' %}<div>{% if e.retirement_date < today %}<span class="chip danger">Overdue</span>{% elif e.months_to_retirement <= 6 %}<span class="chip warning">In {{ e.months_to_retirement }} month{{ e.months_to_retirement|pluralize }}</span>{% else %}<span class="small muted">In {{ e.months_to_retirement }} months</span>{% endif %}</div>{% endif %}{% else %}<span class="small muted">Date of birth missing</span>{% endif %}</td>
         <td data-label="Status"><span class="chip {{ e.status|tone:'employee' }}">{{ e.get_status_display }}</span>{% if e.exit_date %}<div class="small muted">{{ e.exit_date|date:"j M Y" }}</div>{% endif %}</td>
