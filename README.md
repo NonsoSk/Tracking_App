@@ -209,29 +209,35 @@ following** (or run `sync_workbooks --unlink`). The records already loaded stay.
 
 ### The summary (home page)
 
-HR, management and heads of department open the portal on **Summary**, before *My tasks*. Interviewers, the
-onboarding team and employees go straight to *My tasks*. One row of filters at the top scopes every figure on the page:
-**period** (today, last 7 or 30 days, this month, this year, an earlier year, all time), **department** (a head of
-department always sees their own), **group** (host, pipeline, jetty, Niger Delta...) and **channel** (how people
-applied). The page shows:
+HR, management and heads of department open the portal on **Summary**, before *My tasks*; interviewers, the
+onboarding team and employees go straight to *My tasks*. A head of department sees only their own department. One
+row of filters scopes the page: **period** (today, last 7 or 30 days, this month, this year, an earlier year, all
+time), **department**, **group** (host, pipeline, jetty, Niger Delta...) and **channel**. The page is a grid of cards:
 
-- **Today**: how many applied (and through which channels), who is to be interviewed and at what time, and how many
-  were shortlisted.
-- **What stands out**: up to four plain sentences, e.g. applicants waiting more than two weeks to be screened,
-  requisitions waiting more than a week for approval, how this week compares with last, the share of applicants from
-  host, pipeline and jetty communities, staff retiring without a replacement requisition, interviews not yet confirmed.
-- **Figures**: requisitions raised, people who applied (against the period before), vacancy applications, shortlisted,
-  interviewed and hired.
-- **Charts**: people who applied over time, where they are from, how they applied, the pipeline by stage, and
-  requisitions by where they stand, with the open roles that have the most applicants.
-- **By department** (company view): open roles, applicants, shortlisted, hired and staff per department; click one to
-  see its summary. **Staff** (department view): current staff, retirements within a year, joiners and leavers, and a
-  searchable list whose names open each person's page.
+- **Six headline figures**: requisitions (and positions), applicants, shortlisted for interview, interviews (and
+  selected), onboarded (of positions), current staff (and retirements within 12 months).
+- **Today**, **What stands out** (up to three sentences) and **Staff** (current, retiring, joined, left).
+- **Charts**: people who applied over time (interviews, for a department), where applicants are from, the
+  recruitment funnel, how they applied, requisitions by status and requisitions by department.
+- **Where these figures come from**: each linked workbook, and whether the portal is in step with it.
 
-"People who applied" counts people, not applications: for the whole company, everyone who joined the talent database
-in the period (by the date their records give); for a department, everyone who applied to one of its vacancies.
-Profiles made only from the staff list are not counted. Clicking a group or channel opens the talent database
-showing exactly those people.
+Every figure is what Excel says, dated by the dates written in Excel, never by the day the workbook was loaded. Each
+card names its source:
+
+| Figure | From Excel |
+|---|---|
+| Requisitions, positions, status | The tracker row by row: *Manpower Required* and *Status* exactly as written, by *Requisition Date* |
+| Funnel: participants, shortlisted, selected, onboarded, rejected, on hold, in progress | The tracker's own columns of those names, added up |
+| Interviews | The interview records, by their *Date* (*Remarks_Query* for selected) |
+| CBTs | The CBT results, by their *Date* |
+| Applicants | People (each once, however many rows), by the date they applied: the moment in the resume link on the website applications (the website names each resume `<time>-<name>`), or an application-date column (Date Applied, Application Date, Submission Date, Timestamp...) |
+| Group, channel | The Community, LGA/Community Tag and State columns; the Source column |
+| Staff | The staff list: *Release Date*, *Join Date*, and the retirement age it gives (*Age* + *Years to Retirement*) |
+
+A record Excel gives no date (for example, the CV list has no application date) is counted under **All time** only,
+and the card says how many there are. Requisitions, applications and interviews created in the portal itself are
+added with their own dates. Hire dates are the interview records' *Join Date* only. Clicking a group or channel
+opens the talent database showing exactly the people counted.
 
 ### Raising a requisition and publishing the job description
 
@@ -388,14 +394,15 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 185 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 189 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
 duplicates), the candidate groups and their filters, joining staff records to profiles and the applicant/staff/former
 staff tabs, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
 PDFs from a local test website, the compulsory requisition details, the job description review, and candidate
-summaries and department approvals, and the summary page (figures, filters, the department view and click-through
-counts). A smoke test loads the demo data and opens every screen as every role.
+summaries and department approvals, and the summary page (each figure checked against the workbook rows, dates only
+from Excel, the department view, click-through counts). A smoke test loads the demo data and opens every screen as
+every role.
 
 ## Possible next steps
 

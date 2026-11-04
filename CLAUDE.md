@@ -19,8 +19,9 @@ remove an item from this list once it is done.
    installed (`TESSERACT_CMD` on Windows), and job descriptions are built from the requisition without AI.
 2. **Data-protection sign-off for AI.** With AI on, CV content is sent to Anthropic. They need approval from IEFCL's
    data-protection/IT/legal owner before enabling it. With no key, everything stays in-house.
-3. **Retirement rule.** It currently assumes age 60 or 35 years of service, whichever comes first. They need to confirm
-   IEFCL's policy and set `RETIREMENT_AGE` / `RETIREMENT_MAX_SERVICE_YEARS` in `.env`.
+3. **Retirement rule.** Retirement dates follow the staff list's own *Age* + *Years to Retirement*. Only for staff
+   rows without them does the portal assume age 60 or 35 years of service, whichever comes first. They need to confirm
+   IEFCL's policy and set `RETIREMENT_AGE` / `RETIREMENT_MAX_SERVICE_YEARS` in `.env` for those rows.
 4. **Not built yet:** automatic Microsoft Teams meeting creation (Microsoft Graph) and Microsoft 365 sign-in (Entra ID).
    Today, HR pastes a Teams link or a free video room is created, and staff use portal usernames.
 5. **Hosting.** IEFCL IT has to host it: Docker Compose (Postgres + web + scheduler), HTTPS, SMTP via Microsoft 365, the

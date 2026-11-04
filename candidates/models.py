@@ -4,6 +4,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 from core.choices import DegreeClass, EducationLevel, NyscStatus
 
@@ -83,6 +84,9 @@ class Candidate(models.Model):
     region_note = models.CharField("How the group was decided", max_length=120, blank=True)
     region_fixed = models.BooleanField(default=False, help_text="Set by HR: imports leave the group alone.")
     community_status = models.CharField(max_length=20, choices=CommunityStatus.choices, blank=True)
+    applied_on = models.DateField("Date applied", null=True, blank=True, db_index=True, editable=False,
+                                  help_text="From the records (Excel), never the day they were loaded; empty when "
+                                            "no date was recorded.")
     source_detail = models.CharField("Source as recorded", max_length=80, blank=True,
                                      help_text="E.g. IFZ website, Internal Portal, PAC, Proten.")
     relevant_experience = models.BooleanField(null=True, blank=True)
@@ -110,8 +114,11 @@ class Candidate(models.Model):
 
     def save(self, *args, **kwargs):
         from . import regions
+        from .dates import PORTAL_CHANNELS
 
         regions.apply(self)
+        if self._state.adding and self.applied_on is None and self.source in PORTAL_CHANNELS:
+            self.applied_on = timezone.localdate()  # applied through the portal today
         super().save(*args, **kwargs)
 
     @property

@@ -5,6 +5,28 @@ from django.db import models
 from django.utils import timezone
 
 
+def retirement_date_for(born, joined, retirement_age=None):
+    """The staff list's own retirement age when it gives one; otherwise the rule in the settings
+    (RETIREMENT_AGE, or RETIREMENT_MAX_SERVICE_YEARS of service, whichever comes first)."""
+    if born and retirement_age:
+        return add_years(born, retirement_age)
+    rules = settings.RECRUITMENT
+    dates = []
+    if born:
+        dates.append(add_years(born, rules["RETIREMENT_AGE"]))
+    if joined and rules["RETIREMENT_MAX_SERVICE_YEARS"]:
+        dates.append(add_years(joined, rules["RETIREMENT_MAX_SERVICE_YEARS"]))
+    return min(dates) if dates else None
+
+
+def implied_retirement_age(age, years_left):
+    """Age + Years to Retirement on the staff list, when both are there and sensible."""
+    if age is None or years_left is None:
+        return None
+    total = int(round(float(age) + float(years_left)))
+    return total if 45 <= total <= 75 else None
+
+
 def add_years(d: date, years: int) -> date:
     try:
         return d.replace(year=d.year + years)
@@ -74,6 +96,9 @@ class Employee(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     exit_date = models.DateField(null=True, blank=True)
     replacement_notified_at = models.DateTimeField(null=True, blank=True)
+    retirement_age = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="As the staff list gives it (Age + Years to Retirement). Empty: the "
+                                         "retirement rule in the settings is used.")
     # The person's profile in the talent database (their applications, CBTs, interviews and resume).
     candidate = models.OneToOneField("candidates.Candidate", null=True, blank=True, on_delete=models.SET_NULL,
                                      related_name="staff_record")
@@ -93,13 +118,7 @@ class Employee(models.Model):
         return f"{self.first_name} {self.last_name}".strip()
 
     def compute_retirement_date(self):
-        rules = settings.RECRUITMENT
-        candidates = []
-        if self.date_of_birth:
-            candidates.append(add_years(self.date_of_birth, rules["RETIREMENT_AGE"]))
-        if self.date_of_employment and rules["RETIREMENT_MAX_SERVICE_YEARS"]:
-            candidates.append(add_years(self.date_of_employment, rules["RETIREMENT_MAX_SERVICE_YEARS"]))
-        return min(candidates) if candidates else None
+        return retirement_date_for(self.date_of_birth, self.date_of_employment, self.retirement_age)
 
     def save(self, *args, **kwargs):
         self.retirement_date = self.compute_retirement_date()

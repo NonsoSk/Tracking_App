@@ -42,7 +42,7 @@ from django.utils import timezone
 from accounts.models import User
 from candidates.models import Candidate, CandidateDocument, CBTResult, CommunityStatus
 from core.choices import DegreeClass, EducationLevel, EmploymentType, NyscStatus
-from core.models import Department, Employee, Notification
+from core.models import Department, Employee, Notification, implied_retirement_age
 from pipeline.models import (
     Activity, Application, InterviewRecord, MedicalCheck, Offer, Onboarding, OnboardingTask, Stage,
 )
@@ -481,8 +481,11 @@ class WorkbookImporter:
                 from candidates.people import link_staff
                 from candidates.regions import assign_all
 
+                from candidates.dates import assign_all as date_all
+
                 self.result.counts.update(link_staff(log=self.log))
                 assign_all(log=self.log)
+                date_all(log=self.log)
         if self.report_dir:
             self.result.report_path = write_report(self.result, self.report_dir)
         return self.result
@@ -578,6 +581,8 @@ class WorkbookImporter:
                 "category": clean(row.get("category"))[:60],
                 "work_status": clean(row.get("work status"))[:40],
                 "status": status, "exit_date": release,
+                "retirement_age": implied_retirement_age(to_number(row.get("age")),
+                                                         to_number(row.get("years to retirement"))),
                 "source_record": {"file": sheet.file, "sheet": sheet.title, "row": number,
                                   "values": {k: v for k, v in sheet.original(row).items() if "salary" not in k.lower()}},
             }
@@ -1103,7 +1108,7 @@ class WorkbookImporter:
         recorded = final.get_result_display() if final.result else "no result"
         if outcome == "onboarded":
             app.stage, app.status, app.decision = Stage.HIRED, Application.Status.HIRED, Application.Decision.SELECT
-            app.hired_at = aware(final.join_date) or app.stage_changed_at
+            app.hired_at = aware(final.join_date)  # only the Join Date in Excel; empty when there is none
             app.status_reason = f"Onboarded ({final.onboarding_status.split('_')[-1]})"
         elif outcome == "in progress":
             app.stage, app.status, app.decision = Stage.ONBOARDING, Application.Status.ACTIVE, Application.Decision.SELECT

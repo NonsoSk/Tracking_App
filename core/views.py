@@ -25,13 +25,14 @@ from .permissions import applications_for, hr_required, requisitions_for, role_r
 
 @login_required
 def summary(request):
-    """The home page: recruitment and staff at a glance. Heads of department see their own department."""
+    """The home page: what the linked Excel workbooks say, at a glance. Heads of department see their own."""
     user = request.user
     if not (user.is_hr or user.is_department_user or user.is_management):
         return redirect("core:dashboard")
+    from urllib.parse import urlencode
+
     from candidates.regions import REGION_CHOICES
     from core import overview
-    from core.templatetags.ds import STAGE_SHORT
 
     fixed = not user.sees_all_departments
     get = request.GET
@@ -42,20 +43,20 @@ def summary(request):
     channel = get.get("channel", "")[:80]
     period = overview.period_for(get.get("period", "year"))
     scope = overview.Scope(department=department, region=region, channel=channel, fixed_department=fixed)
-    context = {"scope": scope, "period": period, "periods": overview.PERIODS, "years": overview.year_options(),
-               "regions_choice": overview.REGION_LABELS.items(), "filters": get,
-               "filtered": any(get.get(k) for k in ("period", "department", "region", "channel"))}
     channels = {}
     for detail, source in _channel_sources():
         value, label = overview.channel_of(detail, source)
         channels[value] = label
-    context["channel_choices"] = sorted(channels.items(), key=lambda kv: kv[1].lower())
     showing = [period.label.lower()]
     if region:
         showing.append(overview.REGION_LABELS[region].lower() if region != "none" else "no group recorded")
     if channel:
         showing.append(f"through {channels.get(channel, channel)}")
-    context["showing"] = ", ".join(showing)
+    context = {"scope": scope, "period": period, "periods": overview.PERIODS, "years": overview.year_options(),
+               "regions_choice": overview.REGION_LABELS.items(), "filters": get, "showing": ", ".join(showing),
+               "channel_choices": sorted(channels.items(), key=lambda kv: kv[1].lower()),
+               "filtered": any(get.get(k) for k in ("period", "department", "region", "channel")),
+               "data": overview.data_status(), "excel_admin": _excel_admin(user)}
     if not fixed:
         context["departments_choice"] = Department.objects.filter(is_active=True).order_by("name")
     if fixed and not department:
@@ -63,27 +64,22 @@ def summary(request):
         return render(request, "core/summary.html", context)
 
     s = overview.Summary(scope, period)
-    keep = get.copy()
-    for key in ("department", "staff_q"):
-        keep.pop(key, None)
 
     def talent(**extra):
-        """The talent database, showing the same people as a figure here."""
+        """The talent database, listing the same people as a figure here."""
         if not user.is_hr:
             return ""
         params = {"applied": "1"}
         if department:
             params["department"] = department.pk
-        if period.start:
-            params["since"] = timezone.localtime(period.start).date().isoformat()
-            params["until"] = (timezone.localtime(period.end).date() - timedelta(days=1)).isoformat()
+        if period.first:
+            params["since"] = period.first.isoformat()
+            params["until"] = (period.end - timedelta(days=1)).isoformat()
         if region:
             params["region"] = region
         if channel:
             params["source"] = channel
         params.update(extra)
-        from urllib.parse import urlencode
-
         return reverse("candidates:list") + "?" + urlencode(params)
 
     regions = s.regions()
@@ -92,16 +88,15 @@ def summary(request):
     channel_rows = s.channels()
     for row in channel_rows:
         row["url"] = talent(source=row["value"]) if row["value"] else ""
-    pipeline = s.pipeline()
-    for row in pipeline:
-        row["short"] = STAGE_SHORT.get(row["value"], row["label"])
-    staff_q = get.get("staff_q", "").strip()[:60]
+    keep = get.copy()
+    keep.pop("department", None)
     context.update({
-        "today": s.today(), "kpis": s.kpis(), "insights": s.insights(), "trend": s.trend(), "regions": regions,
-        "channels": channel_rows, "pipeline": pipeline, "pipeline_total": sum(r["n"] for r in pipeline),
-        "requisitions": s.requisition_summary(), "staff": s.staff_summary(staff_q if department else ""),
-        "dept_rows": s.departments() if not department else [], "keep_query": keep.urlencode(),
-        "applicants_total": sum(r["n"] for r in regions), "talent_url": talent(),
+        "kpis": s.kpis(), "today": s.today_figures(), "highlights": s.highlights(), "staff": s.staff_figures(),
+        "trend": s.trend(), "regions": regions, "applicants_total": sum(r["n"] for r in regions),
+        "channels": channel_rows, "funnel": s.funnel(), "statuses": s.statuses(),
+        "depts": None if department else s.departments(), "keep_query": keep.urlencode(),
+        "undated_applicants": s.undated_applicants(), "undated_requisitions": s.undated_requisitions(),
+        "talent_url": talent(), "person_filters": bool(region or channel),
     })
     return render(request, "core/summary.html", context)
 

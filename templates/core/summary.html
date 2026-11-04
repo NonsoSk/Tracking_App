@@ -1,239 +1,170 @@
 {% extends "ds/base.html" %}
-{% load ds portal humanize %}
+{% load ds humanize %}
 {% block title %}Summary{% endblock %}
 {% block crumbs %}<span aria-current="page">Summary</span>{% endblock %}
 {% block primary_action %}<a class="btn btn-secondary btn-sm" href="{% url 'core:dashboard' %}">{% icon "list-checks" "ico-16" %} My tasks</a>{% endblock %}
 {% block content %}
-{% with u=request.user %}
-<header class="page-head sum-head">
-  <div>
+<header class="dash-head">
+  <div class="dash-title">
     <div class="eyebrow">{% now "l · j F Y" %}</div>
     <h1>{% if scope.department %}{{ scope.department.name }}{% else %}Recruitment summary{% endif %}</h1>
-    <p class="lede">{% if scope.fixed_department %}Your department at a glance: vacancies, applicants, interviews and staff.{% else %}Requisitions, applicants, interviews and staff at a glance{% if scope.department %} for this department{% endif %}.{% endif %}
-      Showing <b>{{ showing }}</b>.</p>
+    <p class="muted">Showing <b>{{ showing }}</b>, from the linked Excel workbooks and by the dates written in them.</p>
   </div>
+  {% if data %}
+  {% if excel_admin %}<a class="dash-source {{ data.tone }}" href="{% url 'core:excel_link' %}">{% else %}<div class="dash-source {{ data.tone }}">{% endif %}
+    {% if data.tone == "success" %}{% icon "circle-check" "ico-18" %}{% else %}{% icon "triangle-alert" "ico-18" %}{% endif %}
+    <span><b>{{ data.text }}</b><small>{% if data.loaded %}Last loaded {{ data.loaded|date:"j M Y, H:i" }}{% else %}Not loaded yet{% endif %}</small></span>
+  {% if excel_admin %}</a>{% else %}</div>{% endif %}
+  {% endif %}
 </header>
 
-<form class="sheet sum-filters" method="get" aria-label="Filter the summary" data-autosubmit>
-  <label class="sum-f"><span>Period</span>
+<form class="dash-filters" method="get" aria-label="Filter the summary" data-autosubmit>
+  <label><span>Period</span>
     <select name="period" class="select">{% for v, l in periods %}<option value="{{ v }}" {% if period.key == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
       {% if years %}<optgroup label="Earlier years">{% for y in years %}<option value="{{ y }}" {% if period.key == y %}selected{% endif %}>{{ y }}</option>{% endfor %}</optgroup>{% endif %}</select></label>
   {% if not scope.fixed_department %}
-  <label class="sum-f"><span>Department</span>
+  <label><span>Department</span>
     <select name="department" class="select"><option value="">All departments</option>{% for d in departments_choice %}<option value="{{ d.pk }}" {% if scope.department.pk == d.pk %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
   {% endif %}
-  <label class="sum-f"><span>Group</span>
+  <label><span>Group</span>
     <select name="region" class="select"><option value="">All groups</option>{% for v, l in regions_choice %}<option value="{{ v }}" {% if filters.region == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-  <label class="sum-f"><span>Channel</span>
+  <label><span>Channel</span>
     <select name="channel" class="select"><option value="">All channels</option>{% for v, l in channel_choices %}<option value="{{ v }}" {% if filters.channel == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-  <div class="sum-f-go"><button class="btn btn-primary" type="submit">{% icon "filter" "ico-16" %} Apply</button>{% if filtered %}<a class="btn btn-ghost" href="?">Reset</a>{% endif %}</div>
+  <div class="dash-go"><button class="btn btn-primary" type="submit">Apply</button>{% if filtered %}<a class="btn btn-ghost" href="?">Reset</a>{% endif %}</div>
 </form>
 
 {% if no_department %}
-<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Your account is not linked to a department yet</b><span class="small">Ask HR to set your department, and this page will show your department's vacancies, applicants and staff.</span></div></div>
+<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Your account is not linked to a department yet</b><span class="small">Ask HR to set your department, and this page will show your department's figures.</span></div></div>
 {% else %}
+<div class="dash">
 
-{# ----------------------------- Today ----------------------------- #}
-<section class="sheet sum-today" aria-labelledby="today-h">
-  <div class="sheet-h"><h2 class="title" id="today-h">Today</h2><span class="small muted">{{ today.date|date:"l j F" }}</span></div>
-  <div class="sheet-b sum-today-b">
-    <div class="sum-figs">
-      <div class="sum-fig"><span class="tile">{% icon "inbox" "ico-18" %}</span>
-        <div><b class="sum-n">{{ today.applied|intcomma }}</b><span class="sum-l">applied today</span>
-          <span class="sum-s">{% for c in today.channels %}{{ c.n|intcomma }} {% if c.detail %}other{% else %}{{ c.label }}{% endif %}{% if not forloop.last %} · {% endif %}{% empty %}No one yet{% endfor %}</span></div></div>
-      <div class="sum-fig"><span class="tile">{% icon "calendar-days" "ico-18" %}</span>
-        <div><b class="sum-n">{{ today.interview_count|intcomma }}</b><span class="sum-l">to be interviewed</span>
-          <span class="sum-s">{% if today.interviews %}{{ today.confirmed }} of {{ today.interviews|length }} confirmed by the candidate{% elif today.interview_count %}From the interview records{% else %}None booked{% endif %}</span></div></div>
-      <div class="sum-fig"><span class="tile">{% icon "star" "ico-18" %}</span>
-        <div><b class="sum-n">{{ today.shortlisted|intcomma }}</b><span class="sum-l">shortlisted today</span>
-          <span class="sum-s"><a href="{% url 'pipeline:applications' %}?stage=shortlisted">See the shortlist</a></span></div></div>
-    </div>
-    <div class="sum-agenda" aria-label="Interviews today">
-      {% for i in today.interviews|slice:":6" %}
-      <a class="sum-iv" href="{{ i.application.get_absolute_url }}#interviews"><b class="num">{{ i.scheduled_at|time:"H:i" }}</b>
-        <span class="sum-iv-t"><span>{{ i.application.candidate.full_name }}</span><small>{{ i.application.requisition.title }}</small></span>
-        {% if i.candidate_response == "confirmed" %}<span class="chip success no-dot">{% icon "check" %} Confirmed</span>{% elif i.candidate_response == "reschedule" %}<span class="chip warning no-dot">Wants to move</span>{% endif %}</a>
-      {% endfor %}
-      {% for r in today.records|slice:":6" %}
-      <a class="sum-iv" href="{{ r.candidate.get_absolute_url }}#records"><b class="num">—</b>
-        <span class="sum-iv-t"><span>{{ r.candidate.full_name }}</span><small>{{ r.requisition.title|default:r.panel_category|default:"Interview record" }}</small></span></a>
-      {% endfor %}
-      {% if not today.interview_count %}<p class="sum-none">{% icon "calendar-check" "ico-16" %} No interviews today.</p>
-      {% elif today.interview_count > 6 %}<a class="btn btn-ghost btn-sm" href="{% url 'pipeline:interviews' %}">All {{ today.interview_count }} interviews {% icon "arrow-right" "ico-16" %}</a>{% endif %}
-    </div>
+  {# ---------- Row 1: the six headline figures ---------- #}
+  {% for k in kpis %}
+  <div class="dcard dkpi span-2">
+    <div class="dk-top"><span class="tile sm">{% icon k.icon "ico-16" %}</span><span>{{ k.label }}</span></div>
+    <div class="dk-num">{{ k.value|intcomma }}</div>
+    <div class="dk-note {{ k.tone }}">{{ k.note }}</div>
+    <div class="dsrc">{{ k.source }}</div>
   </div>
-</section>
-
-{# ----------------------------- What stands out ----------------------------- #}
-{% if insights %}
-<section class="sum-insights" aria-label="What stands out">
-  {% for i in insights %}
-  {% if i.url %}<a class="card sum-insight" href="{{ i.url }}">{% else %}<div class="card sum-insight">{% endif %}
-    <span class="tile sm {{ i.tone }}">{% icon i.icon "ico-16" %}</span><p>{{ i.text }}</p>
-  {% if i.url %}</a>{% else %}</div>{% endif %}
   {% endfor %}
-</section>
-{% endif %}
 
-{# ----------------------------- Headline figures ----------------------------- #}
-<section class="sum-kpis" aria-label="{{ period.label }} in figures">
-  {% for k in kpis %}{% kpi k.label k.value k.icon k.note k.tone None k.url %}{% endfor %}
-</section>
+  {# ---------- Row 2: today, what stands out, staff ---------- #}
+  <section class="dcard span-4" aria-labelledby="td-h">
+    <div class="dc-h"><h2 id="td-h">Today</h2><span>{% now "j F" %}</span></div>
+    <div class="mini cols-{{ today|length }}">
+      {% for t in today %}<div><b>{{ t.value|intcomma }}</b><span>{{ t.label }}</span></div>{% endfor %}
+    </div>
+    <div class="dsrc">By the dates in Excel</div>
+  </section>
 
-<div class="sum-grid">
-  <div class="sum-col">
-    {# Applicants over time: one series, one hue #}
-    <section class="sheet" aria-labelledby="tr-h">
-      <div class="sheet-h"><h2 class="title" id="tr-h">People who applied</h2><span class="count">{{ trend.total|intcomma }}</span><span class="spacer"></span><span class="small muted">{{ trend.label }}</span></div>
-      <div class="sheet-b">
-        {% if trend.top %}
-        <figure class="colchart" style="--bars: {{ trend.bars|length }}">
-          <div class="cc-plot">
-            <span class="cc-top num">{{ trend.top|intcomma }}</span>
-            {% for b in trend.bars %}<span class="cc-col" tabindex="0" data-tip="{{ b.full }}: {{ b.n|intcomma }}"><i style="height: {{ b.pct }}%"></i></span>{% endfor %}
-          </div>
-          <div class="cc-axis" aria-hidden="true">{% for b in trend.bars %}<span>{% if b.show %}{{ b.label }}{% endif %}</span>{% endfor %}</div>
-          <figcaption class="small muted">{% if trend.busiest %}Busiest: <b>{{ trend.busiest.full }}</b>, {{ trend.busiest.n|intcomma }} {% if trend.busiest.n == 1 %}person{% else %}people{% endif %}.{% endif %} Point at a bar to see its count.</figcaption>
-        </figure>
-        <details class="sum-table"><summary>Show as a table</summary>
-          <div class="table-wrap"><table class="table"><thead><tr><th>{% if period.step == "day" %}Day{% elif period.step == "month" %}Month{% else %}Year{% endif %}</th><th class="num">People who applied</th></tr></thead>
-            <tbody>{% for b in trend.bars %}<tr><td>{{ b.full }}</td><td class="num">{{ b.n|intcomma }}</td></tr>{% endfor %}</tbody></table></div>
-        </details>
-        {% else %}<p class="sum-none">{% icon "inbox" "ico-16" %} No one applied in this period.</p>{% endif %}
+  <section class="dcard span-4" aria-labelledby="hl-h">
+    <div class="dc-h"><h2 id="hl-h">What stands out</h2></div>
+    {% if highlights %}
+    <ul class="hl">{% for h in highlights %}<li><span class="tile sm">{% icon h.icon "ico-16" %}</span><p>{{ h.text }}</p></li>{% endfor %}</ul>
+    {% else %}<p class="dc-empty">Nothing to point out for this selection.</p>{% endif %}
+  </section>
+
+  <section class="dcard span-4" aria-labelledby="sf-h">
+    <div class="dc-h"><h2 id="sf-h">Staff</h2><a href="{% url 'core:employees' %}?view=all{% if scope.department and not scope.fixed_department %}&amp;department={{ scope.department.pk }}{% endif %}">Staff list {% icon "arrow-right" "ico-14" %}</a></div>
+    <div class="mini cols-2">
+      {% for f in staff %}<div><b>{{ f.value|intcomma }}</b><span>{{ f.label }}{% if forloop.counter > 2 %}, {{ period.label|lower }}{% endif %}</span></div>{% endfor %}
+    </div>
+    <div class="dsrc">Staff list: Join Date, Release Date, Years to Retirement</div>
+  </section>
+
+  {# ---------- Row 3: over time, where from ---------- #}
+  <section class="dcard span-8" aria-labelledby="tr-h">
+    <div class="dc-h"><h2 id="tr-h">{{ trend.title }}</h2><span>{{ trend.label }} · {{ trend.total|intcomma }}</span></div>
+    {% if trend.top %}
+    <figure class="colchart" style="--bars: {{ trend.bars|length }}">
+      <div class="cc-plot" role="img" aria-label="{{ trend.title }}, {{ trend.label|lower }}: {% for b in trend.bars %}{{ b.full }} {{ b.n }}{% if not forloop.last %}; {% endif %}{% endfor %}">
+        <span class="cc-top num">{{ trend.top|intcomma }}</span>
+        {% for b in trend.bars %}<span class="cc-col" tabindex="0" data-tip="{{ b.full }}: {{ b.n|intcomma }}"><i style="height: {{ b.pct }}%"></i></span>{% endfor %}
       </div>
-    </section>
+      <div class="cc-axis" aria-hidden="true">{% for b in trend.bars %}<span>{% if b.show %}{{ b.label }}{% endif %}</span>{% endfor %}</div>
+    </figure>
+    {% else %}<p class="dc-empty">None {% if period.first %}in this period{% else %}recorded{% endif %}.</p>{% endif %}
+    <div class="dsrc">{% if scope.department %}Interview records, by Date{% else %}By date applied{% if undated_applicants %} · {{ undated_applicants|intcomma }} applicant{{ undated_applicants|pluralize }} with no date in Excel {% if period.first %}appear under All time only{% else %}{{ undated_applicants|pluralize:"is,are" }} counted but not on the chart{% endif %}{% endif %}{% endif %}</div>
+  </section>
 
-    {# Where applicants are from #}
-    <section class="sheet" aria-labelledby="rg-h">
-      <div class="sheet-h"><h2 class="title" id="rg-h">Where applicants are from</h2><span class="count">{{ applicants_total|intcomma }}</span><span class="spacer"></span>
-        {% if talent_url %}<a class="btn btn-ghost btn-sm" href="{{ talent_url }}">List them {% icon "arrow-right" "ico-16" %}</a>{% endif %}</div>
-      <div class="sheet-b">
-        {% if applicants_total %}
-        <div class="hbars">
-          {% for r in regions %}
-          {% if r.url %}<a class="hb{% if not r.n %} is-zero{% endif %}{% if filters.region == r.value %} is-on{% endif %}" href="{{ r.url }}">{% else %}<div class="hb{% if not r.n %} is-zero{% endif %}">{% endif %}
-            <span class="hb-l">{{ r.label }}</span><span class="hb-t"><i style="width: {{ r.bar }}%"></i></span><b class="num">{{ r.n|intcomma }}</b><span class="hb-p num">{{ r.pct }}%</span>
-          {% if r.url %}</a>{% else %}</div>{% endif %}
-          {% endfor %}
-        </div>
-        {% else %}<p class="sum-none">{% icon "map-pin" "ico-16" %} No applicants in this period.</p>{% endif %}
-      </div>
-    </section>
+  <section class="dcard span-4" aria-labelledby="rg-h">
+    <div class="dc-h"><h2 id="rg-h">Where applicants are from</h2>{% if talent_url %}<a href="{{ talent_url }}">List {% icon "arrow-right" "ico-14" %}</a>{% endif %}</div>
+    {% if applicants_total %}
+    <div class="hbars">
+      {% for r in regions %}
+      {% if r.url %}<a class="hb{% if not r.n %} is-zero{% endif %}{% if filters.region == r.value %} is-on{% endif %}" href="{{ r.url }}">{% else %}<div class="hb{% if not r.n %} is-zero{% endif %}">{% endif %}
+        <span class="hb-l">{{ r.label }}</span><span class="hb-t"><i style="width: {{ r.bar }}%"></i></span><b>{{ r.n|intcomma }}</b><span class="hb-p">{{ r.pct }}%</span>
+      {% if r.url %}</a>{% else %}</div>{% endif %}
+      {% endfor %}
+    </div>
+    {% else %}<p class="dc-empty">No applicants {% if period.first %}in this period{% endif %}.</p>{% endif %}
+    <div class="dsrc">Community, LGA/Community Tag and State columns</div>
+  </section>
 
-    {# Departments (company view) or staff (department view) #}
-    {% if dept_rows %}
-    <section class="sheet" aria-labelledby="dp-h">
-      <div class="sheet-h"><h2 class="title" id="dp-h">By department</h2><span class="count">{{ dept_rows|length }}</span><span class="spacer"></span><span class="small muted">Click a department to see its summary</span></div>
-      <div class="table-wrap"><table class="table sum-dept">
-        <thead><tr><th>Department</th><th class="num">Open roles</th><th class="num">Applicants</th><th class="num">Shortlisted</th><th class="num">Hired</th><th class="num">Staff</th></tr></thead>
-        <tbody>{% for r in dept_rows %}<tr>
-          <td><a href="?{% if keep_query %}{{ keep_query }}&amp;{% endif %}department={{ r.department.pk }}"><b>{{ r.department.name }}</b></a></td>
-          <td class="num" data-label="Open roles">{{ r.open_roles|intcomma }}</td><td class="num" data-label="Applicants">{{ r.applicants|intcomma }}</td>
-          <td class="num" data-label="Shortlisted">{{ r.shortlisted|intcomma }}</td><td class="num" data-label="Hired">{{ r.hired|intcomma }}</td>
-          <td class="num" data-label="Staff">{{ r.staff|intcomma }}</td></tr>{% endfor %}</tbody>
-      </table></div>
-    </section>
-    {% endif %}
+  {# ---------- Row 4: funnel, channels, requisition status ---------- #}
+  <section class="dcard span-4" aria-labelledby="fn-h">
+    <div class="dc-h"><h2 id="fn-h">Recruitment funnel</h2><span>{{ funnel.positions|intcomma }} position{{ funnel.positions|pluralize }}</span></div>
+    {% if funnel.total %}
+    <div class="hbars">
+      {% for f in funnel.steps %}
+      <div class="hb"><span class="hb-l"{% if f.label == "Shortlisted" %} title="Shortlisted for interview"{% endif %}>{{ f.label }}</span><span class="hb-t"><i style="width: {{ f.bar }}%"></i></span><b>{{ f.n|intcomma }}</b><span class="hb-p">{% if f.of is not None %}{{ f.of }}%{% endif %}</span></div>
+      {% endfor %}
+    </div>
+    <p class="dc-foot">Rejected <b>{{ funnel.rejected|intcomma }}</b> · On hold <b>{{ funnel.on_hold|intcomma }}</b> · In progress <b>{{ funnel.in_progress|intcomma }}</b></p>
+    {% else %}<p class="dc-empty">No requisitions {% if period.first %}raised in this period{% endif %}.</p>{% endif %}
+    <div class="dsrc">Requisition tracker columns{% if person_filters %} · not split by group or channel{% endif %}</div>
+  </section>
 
-    {% if scope.department %}
-    <section class="sheet" aria-labelledby="st-h" id="staff">
-      <div class="sheet-h"><h2 class="title" id="st-h">Staff in {{ scope.department.name }}</h2><span class="count">{{ staff.current|intcomma }}</span><span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'core:employees' %}?view=all{% if not scope.fixed_department %}&amp;department={{ scope.department.pk }}{% endif %}">Staff list {% icon "arrow-right" "ico-16" %}</a></div>
-      <div class="sheet-b stack">
-        <div class="sum-staff-figs">
-          <div><b class="num">{{ staff.current|intcomma }}</b><span>current staff</span></div>
-          <div><b class="num">{{ staff.retiring|intcomma }}</b><span>retire within 12 months</span></div>
-          <div><b class="num">{{ staff.joined|intcomma }}</b><span>joined, {{ period.label|lower }}</span></div>
-          <div><b class="num">{{ staff.exits|intcomma }}</b><span>left, {{ period.label|lower }}</span></div>
-        </div>
-        <form method="get" action="#staff" class="sum-staff-search" role="search">
-          {% for k, v in filters.items %}{% if k != "staff_q" %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
-          <div class="input-icon">{% icon "search" "ico-18" %}<input class="input" name="staff_q" value="{{ staff.search }}" placeholder="Find a staff member: name, staff number or job title" aria-label="Find a staff member"></div>
-        </form>
-        {% if staff.people %}
-        <div class="table-wrap stack-sm"><table class="table">
-          <thead><tr><th>Name</th><th>Job title</th><th>Grade</th><th>Joined</th><th>Retires</th></tr></thead>
-          <tbody>{% for e in staff.people %}<tr>
-            <td><div class="who">{% avatar e.full_name "sm" %}<div class="who-t"><b>{% if e.candidate_id %}<a href="{% url 'candidates:detail' e.candidate_id %}">{{ e.full_name }}</a>{% else %}{{ e.full_name }}{% endif %}</b><span>{{ e.staff_id }}</span></div></div></td>
-            <td data-label="Job title">{{ e.job_title|default:"—" }}</td><td data-label="Grade">{{ e.grade|default:"—" }}</td>
-            <td class="nowrap" data-label="Joined">{{ e.date_of_employment|date:"M Y"|default:"—" }}</td>
-            <td class="nowrap" data-label="Retires">{{ e.retirement_date|date:"M Y"|default:"—" }}</td></tr>{% endfor %}</tbody>
-        </table></div>
-        {% if staff.found > staff.people|length %}<p class="small muted">Showing {{ staff.people|length }} of {{ staff.found|intcomma }}. Search above, or open the <a href="{% url 'core:employees' %}?view=all{% if not scope.fixed_department %}&amp;department={{ scope.department.pk }}{% endif %}{% if staff.search %}&amp;q={{ staff.search|urlencode }}{% endif %}">staff list</a>.</p>{% endif %}
-        {% else %}<p class="sum-none">{% icon "users" "ico-16" %} {% if staff.search %}No current staff match “{{ staff.search }}”.{% else %}No staff on the staff list for this department yet.{% endif %}</p>{% endif %}
-      </div>
-    </section>
-    {% endif %}
-  </div>
+  <section class="dcard span-4" aria-labelledby="ch-h">
+    <div class="dc-h"><h2 id="ch-h">How they applied</h2></div>
+    {% if channels %}
+    <div class="hbars">
+      {% for r in channels %}
+      {% if r.url %}<a class="hb" href="{{ r.url }}">{% else %}<div class="hb">{% endif %}
+        <span class="hb-l" title="{{ r.label }}">{{ r.label }}</span><span class="hb-t"><i style="width: {{ r.bar }}%"></i></span><b>{{ r.n|intcomma }}</b><span class="hb-p">{{ r.pct }}%</span>
+      {% if r.url %}</a>{% else %}</div>{% endif %}
+      {% endfor %}
+    </div>
+    {% else %}<p class="dc-empty">No applicants {% if period.first %}in this period{% endif %}.</p>{% endif %}
+    <div class="dsrc">Source column, and the website applications sheet</div>
+  </section>
 
-  <div class="sum-col">
-    {# How they applied #}
-    <section class="sheet" aria-labelledby="ch-h">
-      <div class="sheet-h"><h2 class="title" id="ch-h">How they applied</h2></div>
-      <div class="sheet-b">
-        {% if channels %}
-        <div class="hbars">
-          {% for r in channels %}
-          {% if r.url %}<a class="hb" href="{{ r.url }}">{% else %}<div class="hb">{% endif %}
-            <span class="hb-l"{% if r.detail %} title="{{ r.detail }}"{% endif %}>{{ r.label }}</span><span class="hb-t"><i style="width: {{ r.bar }}%"></i></span><b class="num">{{ r.n|intcomma }}</b><span class="hb-p num">{{ r.pct }}%</span>
-          {% if r.url %}</a>{% else %}</div>{% endif %}
-          {% endfor %}
-        </div>
-        {% else %}<p class="sum-none">{% icon "inbox" "ico-16" %} No applicants in this period.</p>{% endif %}
-      </div>
-    </section>
+  <section class="dcard span-4" aria-labelledby="st-h">
+    <div class="dc-h"><h2 id="st-h">Requisitions by status</h2><a href="{% url 'requisitions:list' %}">All roles {% icon "arrow-right" "ico-14" %}</a></div>
+    {% if statuses %}
+    <div class="hbars">
+      {% for r in statuses %}<div class="hb"><span class="hb-l">{{ r.label }}</span><span class="hb-t"><i style="width: {{ r.bar }}%"></i></span><b>{{ r.n|intcomma }}</b><span class="hb-p">{{ r.pct }}%</span></div>{% endfor %}
+    </div>
+    {% else %}<p class="dc-empty">No requisitions {% if period.first %}raised in this period{% endif %}.</p>{% endif %}
+    <div class="dsrc">Status column of the tracker{% if undated_requisitions %} · {{ undated_requisitions|intcomma }} with no Requisition Date appear under All time only{% endif %}</div>
+  </section>
 
-    {# Pipeline now #}
-    <section class="sheet" aria-labelledby="pp-h">
-      <div class="sheet-h"><h2 class="title" id="pp-h">In the pipeline now</h2><span class="count">{{ pipeline_total|intcomma }}</span><span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'pipeline:applications' %}">Board {% icon "arrow-right" "ico-16" %}</a></div>
-      <div class="sheet-b">
-        {% if pipeline_total %}
-        <div class="funnel">
-          {% for f in pipeline %}
-          <a class="fr" href="{% url 'pipeline:applications' %}?stage={{ f.value }}"><span class="fl">{{ f.short }}</span>
-            <span class="fb"><i style="width: {{ f.bar }}%"></i></span><b class="num">{{ f.n|intcomma }}</b></a>
-          {% endfor %}
-        </div>
-        {% else %}<p class="sum-none">{% icon "square-kanban" "ico-16" %} No one is in progress right now.</p>{% endif %}
-      </div>
-    </section>
+  {# ---------- Row 5: departments and where the figures come from ---------- #}
+  {% if depts %}
+  <section class="dcard span-8" aria-labelledby="dp-h">
+    <div class="dc-h"><h2 id="dp-h">Requisitions by department</h2><span>Onboarded / positions</span></div>
+    {% if depts.rows %}
+    <div class="hbars">
+      {% for r in depts.rows %}
+      <a class="hb" href="?{% if keep_query %}{{ keep_query }}&amp;{% endif %}department={{ r.department.pk }}"><span class="hb-l" title="{{ r.label }}">{{ r.label }}</span><span class="hb-t"><i style="width: {{ r.bar }}%"></i></span><b>{{ r.n|intcomma }}</b><span class="hb-p">{{ r.onboarded }}/{{ r.positions }}</span></a>
+      {% endfor %}
+    </div>
+    {% if depts.more %}<p class="dc-foot">and {{ depts.more }} more department{{ depts.more|pluralize }}. Choose one above to see its figures.</p>{% endif %}
+    {% else %}<p class="dc-empty">No requisitions {% if period.first %}raised in this period{% endif %}.</p>{% endif %}
+    <div class="dsrc">Requisition tracker · click a department for its own summary</div>
+  </section>
+  {% endif %}
 
-    {# Requisitions #}
-    <section class="sheet" aria-labelledby="rq-h">
-      <div class="sheet-h"><h2 class="title" id="rq-h">Requisitions</h2><span class="count">{{ requisitions.total|intcomma }}</span><span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'requisitions:list' %}">All roles {% icon "arrow-right" "ico-16" %}</a></div>
-      <div class="sheet-b stack">
-        <ul class="sum-req">
-          {% for b in requisitions.buckets %}<li{% if not b.n %} class="is-zero"{% endif %}><a href="{% url 'requisitions:list' %}?status={{ b.key }}"><span>{{ b.label }}</span><b class="num">{{ b.n|intcomma }}</b></a></li>{% endfor %}
-        </ul>
-        <p class="small muted">Raised in the period chosen above, by where they stand now.</p>
-        {% if requisitions.busiest %}
-        <div class="eyebrow muted-eyebrow">Open roles with the most applicants</div>
-        <ul class="sum-roles">
-          {% for r in requisitions.busiest %}<li><a href="{{ r.get_absolute_url }}"><span class="sum-role-t"><b>{{ r.title }}</b><small>{{ r.reference }}{% if not scope.department %} · {{ r.department.code }}{% endif %}</small></span>
-            <span class="sum-role-n"><b class="num">{{ r.n_apps|intcomma }}</b> applied · <b class="num">{{ r.n_short|intcomma }}</b> shortlisted</span></a></li>{% endfor %}
-        </ul>
-        {% endif %}
-      </div>
-    </section>
-
-    {% if not scope.department %}
-    <section class="sheet" aria-labelledby="sf-h">
-      <div class="sheet-h"><h2 class="title" id="sf-h">Staff</h2><span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'core:employees' %}">Retirements &amp; exits {% icon "arrow-right" "ico-16" %}</a></div>
-      <div class="sheet-b">
-        <div class="sum-staff-figs two">
-          <div><b class="num">{{ staff.current|intcomma }}</b><span>current staff</span></div>
-          <div><b class="num">{{ staff.retiring|intcomma }}</b><span>retire within 12 months</span></div>
-          <div><b class="num">{{ staff.joined|intcomma }}</b><span>joined, {{ period.label|lower }}</span></div>
-          <div><b class="num">{{ staff.exits|intcomma }}</b><span>left, {{ period.label|lower }}</span></div>
-        </div>
-      </div>
-    </section>
-    {% endif %}
-  </div>
+  {% if data and not scope.fixed_department %}
+  <section class="dcard {% if depts %}span-4{% else %}span-12{% endif %}" aria-labelledby="ds-h">
+    <div class="dc-h"><h2 id="ds-h">Where these figures come from</h2>{% if excel_admin %}<a href="{% url 'core:excel_link' %}">Excel link {% icon "arrow-right" "ico-14" %}</a>{% endif %}</div>
+    <ul class="books">
+      {% for b in data.books %}<li><span class="tile sm">{% icon "file-spreadsheet" "ico-16" %}</span>
+        <span class="bk-t"><b title="{{ b.path }}">{{ b.short }}</b><small>{{ b.sheets|default:"—" }}</small></span>
+        <span class="chip {% if b.state == 'ok' %}success{% elif b.state == 'waiting' %}warning{% else %}danger{% endif %} no-dot" title="{{ b.message }}">{% if b.state == "ok" %}{% if b.synced_at %}Loaded {{ b.synced_at|date:"j M, H:i" }}{% else %}Up to date{% endif %}{% else %}{{ b.get_state_display }}{% endif %}</span></li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
 </div>
 {% endif %}
-{% endwith %}
 {% endblock %}

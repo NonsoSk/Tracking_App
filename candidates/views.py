@@ -148,18 +148,18 @@ def summary_scope(params) -> dict:
     if not (params.get("applied") or department or since or until):
         return {}
     q = ~Q(source_detail=people.STAFF_LIST)
-    if department:
+    if department:  # candidates on the department's requisitions raised in those days (tracker Requisition Date)
         apps = Application.objects.filter(requisition__department=department)
         if since:
-            apps = apps.filter(applied_at__date__gte=since)
+            apps = apps.filter(requisition__submitted_at__date__gte=since)
         if until:
-            apps = apps.filter(applied_at__date__lte=until)
-        q &= Q(pk__in=apps.values("candidate_id"))
-    else:
+            apps = apps.filter(requisition__submitted_at__date__lte=until)
+        q = Q(pk__in=apps.values("candidate_id"))
+    else:  # by the date they applied, as the records give it
         if since:
-            q &= Q(created_at__date__gte=since)
+            q &= Q(applied_on__gte=since)
         if until:
-            q &= Q(created_at__date__lte=until)
+            q &= Q(applied_on__lte=until)
     when = ""
     if since and until:
         when = f" on {since:%-d %b %Y}" if since == until else f" between {since:%-d %b %Y} and {until:%-d %b %Y}"
@@ -167,7 +167,8 @@ def summary_scope(params) -> dict:
         when = f" since {since:%-d %b %Y}"
     elif until:
         when = f" until {until:%-d %b %Y}"
-    text = f"People who applied{f' to {department.name}' if department else ''}{when}"
+    text = (f"Candidates on {department.name}'s requisitions raised{when}" if department
+            else f"People who applied{when}")
     return {"q": q, "text": text}
 
 
