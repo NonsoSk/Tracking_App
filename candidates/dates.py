@@ -22,6 +22,12 @@ PORTAL_CHANNELS = {"portal", "referral", "email", "hard_copy", "agency"}
 
 def applied_on_from(records) -> date | None:
     """The earliest application date written in the Excel rows kept on a profile (``source_records``)."""
+    found = application_dates(records)
+    return found[0] if found else None
+
+
+def application_dates(records) -> list[date]:
+    """Every application date written in the Excel rows kept on a profile, oldest first."""
     from core.workbook_import import header_key, resume_stamp, to_date
 
     today = timezone.localdate()
@@ -39,7 +45,7 @@ def applied_on_from(records) -> date | None:
                 day = to_date(value)
                 if day and date(2000, 1, 1) <= day <= today:
                     found.append(day)
-    return min(found) if found else None
+    return sorted(set(found))
 
 
 def applied_on(candidate) -> date | None:

@@ -19,7 +19,7 @@ from . import services
 from .forms import (DecisionForm, EvaluationForm, InterviewForm, ManagementReviewForm, MedicalForm, MedicalResultForm,
                     MoveStageForm, OfferForm, OnboardingForm, OnboardingTaskForm, StatusForm)
 from .ics import interview_ics
-from .matching import score_application
+from .matching import COMPONENT_LABELS, score_application
 from .models import (STAGE_ICONS, Application, Evaluation, EvaluationCriterion, EvaluationScore, Interview,
                      MedicalCheck, Offer, Onboarding, OnboardingTask, Stage)
 from .services import WorkflowError
@@ -85,6 +85,11 @@ def application_detail(request, pk):
                                                                                     Stage.MEDICAL, Stage.ONBOARDING,
                                                                                     Stage.HIRED} else None
     offers = application.offers.all()
+    from . import timeline
+
+    until = request.GET.get("until", "")
+    until = until if until in dict(timeline.ENDPOINTS) else timeline.DEFAULT_ENDPOINT
+    hiring = timeline.build(application)
     context = {
         "app": application, "c": application.candidate, "req": application.requisition, "progress": progress,
         "interviews": interviews, "evaluations": evaluations, "summary": application.evaluation_summary(),
@@ -95,6 +100,10 @@ def application_detail(request, pk):
         "documents": application.candidate.documents.all(),
         "activity": application.activities.select_related("actor")[:50],
         "breakdown": application.match_breakdown or {},
+        "weight_text": ", ".join(f"{COMPONENT_LABELS.get(k, k).lower()} {w}" for k, w in
+                                 (application.match_breakdown or {}).get("weights", {}).items()),
+        "is_hr": request.user.is_hr, "hiring": hiring, "hiring_measure": hiring.measure(until), "until": until,
+        "endpoints": timeline.ENDPOINTS,
         "interview_form": InterviewForm(application=application, initial={"round": _next_round(application)}),
         "decision_form": DecisionForm(), "status_form": StatusForm(), "move_form": MoveStageForm(initial={"stage": application.stage}),
         "offer_form": OfferForm(initial={"job_title": application.requisition.title, "grade": application.requisition.grade,
@@ -183,7 +192,7 @@ def change_status(request, pk):
 def rescore(request, pk):
     application = _get_application(request, pk)
     score_application(application)
-    messages.success(request, f"Re-scored: {application.match_score}% (grade {application.match_grade}).")
+    messages.success(request, f"Re-scored: {application.match_score}% ({application.grade_text.lower()}).")
     return _back(application, "match")
 
 

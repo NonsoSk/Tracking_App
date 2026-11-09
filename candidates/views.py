@@ -179,12 +179,17 @@ def candidate_detail(request, pk):
     applications = candidate.applications.select_related("requisition", "requisition__department")
     interview_records = list(candidate.interview_records.select_related("requisition"))
     staff = people.staff_record(candidate)
-    from pipeline import presentation
+    from pipeline import presentation, timeline
+
+    until = request.GET.get("until", "")
+    until = until if until in dict(timeline.ENDPOINTS) else timeline.DEFAULT_ENDPOINT
+    timelines = [(t, t.measure(until)) for t in timeline.for_candidate(candidate)]
 
     return render(request, "candidates/detail.html", {
         "cv_fields": presentation.cv_fields(candidate), "cv_terms": presentation.cv_terms(candidate),
         "term_groups": presentation.term_groups(candidate, {}),
         "c": candidate, "applications": applications, "cbts": list(candidate.cbt_results.all()),
+        "timelines": timelines, "until": until, "endpoints": timeline.ENDPOINTS,
         "staff": staff, "staff_only": bool(staff) and people.is_empty_staff_profile(candidate),
         "maybe_same": people.possible_profiles(staff) if staff and request.user.is_hr
         and people.is_empty_staff_profile(candidate) else [],

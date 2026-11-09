@@ -78,12 +78,12 @@ def create_application(candidate, requisition, *, source: str = "", actor=None, 
     score_application(application)
     if created:
         log(f"{candidate.full_name} applied for {requisition.title} "
-            f"(match {application.match_score}% · grade {application.match_grade}).",
+            f"(match {application.match_score}% · {application.grade_text.lower()}).",
             verb="applied", application=application, actor=actor)
         if notify_team:
             recipients = [requisition.hr_owner] if requisition.hr_owner else hr_team()
             notify(recipients, f"New application: {candidate.full_name} → {requisition.title}",
-                   f"Match score {application.match_score}% (grade {application.match_grade}).",
+                   f"Match score {application.match_score}% ({application.grade_text.lower()}).",
                    url=_app_url(application), email=False)
     return application, created
 

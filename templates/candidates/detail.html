@@ -53,7 +53,7 @@
   {% with first=resume.is_pdf %}<button role="tab" type="button" id="t-resume" aria-controls="resume" aria-selected="{% if first %}true{% else %}false{% endif %}"{% if not first %} tabindex="-1"{% endif %}>Resume{% if not resume %} <span class="count-badge">0</span>{% endif %}</button>
   <button role="tab" type="button" id="t-profile" aria-controls="profile" aria-selected="{% if first %}false{% else %}true{% endif %}"{% if first %} tabindex="-1"{% endif %}>Profile</button>{% endwith %}
   <button role="tab" type="button" id="t-cv" aria-controls="cv" aria-selected="false" tabindex="-1">CV &amp; documents <span class="count-badge">{{ documents|length }}</span></button>
-  <button role="tab" type="button" id="t-apps" aria-controls="applications" aria-selected="false" tabindex="-1">Applications <span class="count-badge">{{ applications|length }}</span></button>
+  <button role="tab" type="button" id="t-apps" aria-controls="applications" aria-selected="false" tabindex="-1">Applications &amp; timeline <span class="count-badge">{{ applications|length }}</span></button>
   <button role="tab" type="button" id="t-records" aria-controls="records" aria-selected="false" tabindex="-1">CBTs &amp; interviews <span class="count-badge">{{ cbts|length|add:interview_records_count }}</span></button>
   <button role="tab" type="button" id="t-timeline" aria-controls="timeline" aria-selected="false" tabindex="-1">Timeline</button>
 </div>
@@ -205,21 +205,26 @@
 {# ----------------------- Applications ----------------------- #}
 <div role="tabpanel" id="applications" aria-labelledby="t-apps" class="tab-body" hidden>
   <section class="sheet" aria-labelledby="ap-h">
-    <div class="sheet-h"><h2 class="title" id="ap-h">Applications</h2><span class="count">{{ applications|length }}</span><span class="spacer"></span>
+    <div class="sheet-h"><h2 class="title" id="ap-h">Applications and hiring timeline</h2><span class="count">{{ applications|length }}</span><span class="spacer"></span>
       {% if u.is_hr %}<button class="btn btn-tint btn-sm" type="button" data-open="add-modal">{% icon "plus" "ico-16" %} Consider for a vacancy</button>{% endif %}</div>
-    <div class="sheet-b stack-8">
-      {% for a in applications %}
-      <a class="card app-card" href="{{ a.get_absolute_url }}">
-        {% if a.match_grade == "A" %}{% score_ring a.match_score 48 True "" False %}{% else %}{% score_ring a.match_score 48 False "" False %}{% endif %}
-        <div class="pr-t"><b>{{ a.requisition.title }}</b><span>{{ a.requisition.department }} · {{ a.reference }} · applied {{ a.applied_at|date:"j M Y" }}</span></div>
-        {% status_chip a %}
-        {% icon "chevron-right" "ico-18" %}
-      </a>
-      {% empty %}
+    <div class="sheet-b stack">
+      {% if timelines %}{% include "pipeline/_timeline_filter.html" with anchor="applications" %}{% endif %}
+      {% for t, m in timelines %}{% with a=t.application %}
+      <div class="app-tl">
+        <a class="card app-card" href="{{ a.get_absolute_url }}">
+          {% if not a.matched_at %}<span class="tile">{% icon "file-spreadsheet" "ico-18" %}</span>{% elif a.match_grade == "A" %}{% score_ring a.match_score 48 True "" False %}{% else %}{% score_ring a.match_score 48 False "" False %}{% endif %}
+          <div class="pr-t"><b>{{ a.requisition.title }}</b><span>{{ a.requisition.department }} · {{ a.reference }} · {{ a.grade_text }}</span></div>
+          {% status_chip a %}
+          {% icon "chevron-right" "ico-18" %}
+        </a>
+        {% include "pipeline/_timeline.html" %}
+      </div>
+      {% endwith %}{% empty %}
       <div class="empty">{% ph3d "Brushed steel valve wheel" 200 150 %}<h3>Not linked to a vacancy yet</h3>
         <p>Consider this person for an open role and they are scored straight away.</p>
         {% if u.is_hr %}<button class="btn btn-primary" type="button" data-open="add-modal">{% icon "plus" "ico-18" %} Consider for a vacancy</button>{% endif %}</div>
       {% endfor %}
+      {% if timelines %}<p class="small muted">Dates come from Excel (date applied, CBT and interview Date, Join Date) or from the portal for steps taken there; point at a date to see where it comes from. A step with no date is left out of the day count.</p>{% endif %}
     </div>
   </section>
 </div>

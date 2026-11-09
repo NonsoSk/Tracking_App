@@ -55,7 +55,7 @@
           {% if c.skills %}<div class="tags">{% for s in c.skills|slice:":4" %}<span class="tag">{{ s }}</span>{% endfor %}</div>{% endif %}
           {% for n in r.parsed.notes %}<p class="ic-note">{% icon "triangle-alert" "ico-14" %} {{ n }}</p>{% endfor %}
         </div>
-        {% if r.application %}<a class="ic-score" href="{{ r.application.get_absolute_url }}" aria-label="Open the application">{% if r.application.match_grade == "A" %}{% score_ring r.application.match_score 56 True "" False %}{% else %}{% score_ring r.application.match_score 56 False "" False %}{% endif %}<span class="caption muted">Grade {{ r.application.match_grade|default:"–" }}</span></a>{% endif %}
+        {% if r.application %}<a class="ic-score" href="{{ r.application.get_absolute_url }}" aria-label="Open the application">{% if r.application.match_grade == "A" %}{% score_ring r.application.match_score 56 True "" False %}{% else %}{% score_ring r.application.match_score 56 False "" False %}{% endif %}<span class="caption muted">{{ r.application.grade_text }}</span></a>{% endif %}
       </article>
       {% endwith %}{% endif %}
       {% endfor %}

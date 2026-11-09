@@ -1,15 +1,18 @@
 """
-Candidate ↔ requisition matching.
+Candidate ↔ requisition matching, strict, in the way an ATS screens and ranks.
 
-Each application gets a 0-100 score built from weighted components (skills,
-tools, experience, qualification, course, certifications). Weights depend on
-the hiring track: graduate trainees are judged more on qualification and
-course, experienced hires more on experience and skills. Components with no
-requirement on the requisition are left out and the weights re-balanced, so a
-requisition that asks for no certifications does not penalise anyone.
+1. Screening (must-haves). Each requirement the requisition sets must be met: the minimum qualification, the class
+   of degree, one of the accepted courses, NYSC, the minimum years of experience and at least half of the required
+   skills (MATCH_MIN_REQUIRED_SKILLS_PERCENT). Something the profile does not state counts as not met. A candidate
+   who fails any of them is "Not eligible": score 0, grade X, ranked after everyone eligible.
+2. Weighted score (0-100) from skills, tools, experience, qualification, course and certifications. Weights depend
+   on the hiring track (trainees are judged more on qualification and course, experienced hires on experience and
+   skills) and are spread over the criteria this requisition asks for, so they always add up to 100.
 
-The result is fully explainable: the breakdown stored on the application
-lists what matched, what is missing and why the score is what it is.
+Terms count only when they truly match: the same term, an approved synonym (the knowledge base and the aliases HR
+adds in the admin), or the required term written whole inside what the candidate wrote ("AutoCAD" in "AutoCAD
+2D/3D"); a near spelling or a shared word is not enough. The full working is stored on the application, so HR can
+see what was scored and how every point was earned.
 """
 
 from __future__ import annotations
@@ -20,23 +23,26 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.choices import DEGREE_CLASS_RANK, EDUCATION_RANK, DegreeClass, EducationLevel, NyscStatus, TRAINEE_TYPES
-from core.text import best_match, db_aliases, find_in_text, normalize, term_similarity
+from core.text import contains_phrase, db_aliases, find_in_text, normalize, tokens, variants
 
+VERSION = 2
 WEIGHTS = {
     "experienced": {"skills": 30, "tools": 15, "experience": 25, "education": 10, "course": 10, "certifications": 10},
     "trainee": {"skills": 20, "tools": 10, "experience": 5, "education": 25, "course": 30, "certifications": 10},
 }
-
+TRACK_LABELS = {"experienced": "Experienced hire", "trainee": "Graduate trainee"}
 COMPONENT_LABELS = {
-    "skills": "Skills",
-    "tools": "Tools & software",
-    "experience": "Experience",
-    "education": "Qualification",
-    "course": "Course of study",
-    "certifications": "Certifications",
+    "skills": "Skills", "tools": "Tools & software", "experience": "Experience", "education": "Qualification",
+    "course": "Course of study", "certifications": "Certifications",
 }
-
-GRADES = [(80, "A", "Strong match"), (65, "B", "Good match"), (50, "C", "Fair match"), (0, "D", "Weak match")]
+ORDER = ["skills", "tools", "experience", "education", "course", "certifications"]
+GRADES = [(85, "A", "Excellent match"), (70, "B", "Strong match"), (55, "C", "Possible match"), (0, "D", "Weak match")]
+NOT_ELIGIBLE = ("X", "Not eligible")
+# Short forms of words in course names.
+COURSE_WORDS = {"engg": "engineering", "eng": "engineering", "engr": "engineering", "sci": "science", "sc": "science",
+                "tech": "technology", "mgt": "management", "mgmt": "management", "admin": "administration",
+                "env": "environmental", "chem": "chemical", "mech": "mechanical", "elect": "electrical",
+                "elec": "electrical", "comp": "computer", "petrol": "petroleum"}
 
 
 def grade_for(score: float) -> tuple[str, str]:
@@ -46,175 +52,231 @@ def grade_for(score: float) -> tuple[str, str]:
     return "D", "Weak match"
 
 
-def _match_terms(required: list[str], candidate_terms: list[str], cv_text_norm: str, aliases) -> tuple[list, list]:
-    """Return (matched, missing). ``matched`` items are dicts with evidence."""
-    matched, missing = [], []
+def min_required_skills() -> float:
+    return settings.RECRUITMENT.get("MATCH_MIN_REQUIRED_SKILLS_PERCENT", 50) / 100
+
+
+# --------------------------------------------------------------------------- strict term matching
+def singular(text: str) -> str:
+    """Normalised text with simple plurals made singular, on both sides of a comparison ("simulations")."""
+    return " ".join(w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w for w in text.split())
+
+
+def strict_hit(required: str, have: list[str], aliases=None) -> tuple[str | None, str]:
+    """(what the candidate wrote, how it matches) when one of ``have`` truly is the required term."""
+    wanted = variants(required, aliases)
+    plain = singular(normalize(required))
+    wanted_one = {singular(v) for v in wanted}
+    for item in have or []:
+        norm = normalize(item)
+        if not norm:
+            continue
+        if singular(norm) == plain:
+            return item, "same term"
+        if singular(norm) in wanted_one or wanted & variants(item, aliases):
+            return item, "synonym"
+        if any(len(v) >= 2 and contains_phrase(singular(norm), v) for v in wanted_one):
+            return item, "includes it"
+    return None, ""
+
+
+def in_cv(term: str, cv_norm: str, cv_one: str, aliases) -> bool:
+    return find_in_text(term, cv_norm, aliases) or any(
+        len(v) >= 2 and contains_phrase(cv_one, singular(v)) for v in variants(term, aliases))
+
+
+def match_terms(required: list[str], have: list[str], cv_norm: str, aliases) -> tuple[list[dict], list[str]]:
+    """(found, missing). Each found item says where it was found: the profile or the CV text."""
+    found, missing = [], []
+    cv_one = singular(cv_norm) if cv_norm else ""
     for term in required:
-        hit, similarity = best_match(term, candidate_terms, threshold=0.8)
+        hit, how = strict_hit(term, have, aliases)
         if hit:
-            matched.append({"term": term, "evidence": hit if normalize(hit) != normalize(term) else "profile",
-                            "confidence": round(similarity, 2)})
-        elif cv_text_norm and find_in_text(term, cv_text_norm, aliases):
-            matched.append({"term": term, "evidence": "mentioned in CV", "confidence": 0.9})
+            found.append({"term": term, "evidence": "Profile", "wrote": hit, "how": how})
+        elif cv_norm and in_cv(term, cv_norm, cv_one, aliases):
+            found.append({"term": term, "evidence": "CV text", "wrote": term, "how": "written in the CV"})
         else:
             missing.append(term)
-    return matched, missing
+    return found, missing
 
 
-def education_score(candidate_level: str, required_level: str) -> float:
+def course_words(text: str) -> set[str]:
+    return {COURSE_WORDS.get(t.strip("."), t.strip(".")) for t in tokens(text) if t.strip(".")}
+
+
+def course_hit(accepted: list[str], studied: list[str], aliases) -> tuple[str | None, str | None, str]:
+    """(accepted course, the candidate's course, how) for the first accepted course the candidate studied."""
+    for wanted in accepted:
+        hit, how = strict_hit(wanted, studied, aliases)
+        if hit:
+            return wanted, hit, how
+        words = course_words(wanted)
+        for course in studied:
+            if words and words <= course_words(course):
+                return wanted, course, "covers it"
+    return None, None, ""
+
+
+def course_note(accepted: str, studied: str, how: str) -> str:
+    if how == "same term":
+        return f"Matches “{accepted}”"
+    if how == "synonym":
+        return f"“{studied}” is another name for “{accepted}”"
+    return f"“{studied}” covers “{accepted}”"
+
+
+# --------------------------------------------------------------------------- helpers kept for other modules
+def meets_education(candidate_level: str, required_level: str) -> bool:
     if not required_level:
-        return 1.0
+        return True
     if not candidate_level:
-        return 0.0
+        return False
     rank = dict(EDUCATION_RANK)
     if settings.RECRUITMENT["HND_EQUIVALENT_TO_BSC"]:
         rank[EducationLevel.HND] = rank[EducationLevel.BSC]
-    gap = rank.get(required_level, 0) - rank.get(candidate_level, 0)
-    if gap <= 0:
-        return 1.0
-    if gap == 1:
-        return 0.6
-    if gap == 2:
-        return 0.25
-    return 0.0
+    return rank.get(candidate_level, 0) >= rank.get(required_level, 0)
+
+
+def education_score(candidate_level: str, required_level: str) -> float:
+    return 1.0 if meets_education(candidate_level, required_level) else 0.0
 
 
 def experience_score(years: float, minimum: int, maximum: int | None) -> float:
-    if minimum <= 0:
-        base = 1.0
-    elif years >= minimum:
-        base = 1.0
-    else:
-        base = max(0.0, years / minimum)
+    base = 1.0 if minimum <= 0 or years >= minimum else max(0.0, years / minimum)
     if maximum and years > maximum + 5:
-        base *= 0.85  # heavily over-qualified for the grade
+        base *= 0.85  # well over the experience the grade is for
     return base
 
 
+def label_of(choices, value, empty="Not stated") -> str:
+    try:
+        return choices(value).label if value else empty
+    except ValueError:
+        return value
+
+
+# --------------------------------------------------------------------------- the match
 def compute_match(requisition, candidate) -> dict:
     track = "trainee" if requisition.employment_type in TRAINEE_TYPES else "experienced"
-    weights = WEIGHTS[track]
     aliases = db_aliases()
     cv_norm = normalize(" ".join([candidate.cv_text or "", candidate.summary or ""]))
-    candidate_skills = list(candidate.skills or []) + list(candidate.tools or [])
-    candidate_tools = list(candidate.tools or []) + list(candidate.skills or [])
-    candidate_certs = list(candidate.certifications or [])
-    years = float(candidate.years_experience or 0)
+    skills_have = list(candidate.skills or []) + list(candidate.tools or [])
+    certs_have = list(candidate.certifications or []) + list(candidate.skills or [])
+    years = None if candidate.years_experience is None else float(candidate.years_experience)
+    screening, components, notes = [], {}, []
 
-    components = {}
-    flags = []
+    def screen(key, label, needed, has, passed, note=""):
+        screening.append({"key": key, "label": label, "needed": needed, "has": has, "passed": bool(passed),
+                          "note": note})
 
-    # Skills: required count fully, nice-to-have count half.
+    # ---- 1. Screening: every must-have the requisition sets
+    if requisition.education_level:
+        screen("qualification", "Minimum qualification", requisition.get_education_level_display(),
+               label_of(EducationLevel, candidate.highest_qualification),
+               meets_education(candidate.highest_qualification, requisition.education_level),
+               "" if candidate.highest_qualification else "Not stated on the profile")
+    if requisition.min_degree_class:
+        have_rank = DEGREE_CLASS_RANK.get(candidate.degree_class)
+        screen("degree_class", "Class of degree", f"{requisition.get_min_degree_class_display()} or better",
+               label_of(DegreeClass, candidate.degree_class),
+               have_rank is not None and have_rank >= DEGREE_CLASS_RANK.get(requisition.min_degree_class, 0),
+               "" if have_rank is not None else "Not stated on the profile")
+    courses = list(requisition.courses or [])
+    studied = list(dict.fromkeys(c.strip() for c in [candidate.course] + [e.get("course", "") for e in
+                                                                           candidate.education_history or []] if c and c.strip()))
+    course_match = course_hit(courses, studied, aliases) if courses else (None, None, "")
+    if courses:
+        screen("course", "Accepted course", ", ".join(courses), ", ".join(studied) or "Not stated",
+               course_match[0], course_note(*course_match) if course_match[0] else
+               ("" if studied else "Not stated on the profile"))
+    if requisition.requires_nysc:
+        screen("nysc", "NYSC", "Completed or exempted", label_of(NyscStatus, candidate.nysc_status),
+               candidate.nysc_status in {NyscStatus.COMPLETED, NyscStatus.EXEMPTED})
+    minimum = requisition.min_experience_years or 0
+    if minimum:
+        screen("experience", "Minimum experience", f"{minimum}+ years",
+               "Not stated" if years is None else f"{years:g} years", years is not None and years >= minimum)
     required = list(requisition.required_skills or [])
+    req_found, req_missing = match_terms(required, skills_have, cv_norm, aliases)
+    if required:
+        need = min_required_skills()
+        screen("required_skills", "Required skills", f"At least {round(need * 100)}% of {len(required)}",
+               f"{len(req_found)} of {len(required)} found", len(req_found) >= need * len(required))
+    eligible = all(s["passed"] for s in screening)
+
+    # ---- 2. Weighted score
     preferred = list(requisition.preferred_skills or [])
     if required or preferred:
-        req_matched, req_missing = _match_terms(required, candidate_skills, cv_norm, aliases)
-        pref_matched, pref_missing = _match_terms(preferred, candidate_skills, cv_norm, aliases)
+        pref_found, pref_missing = match_terms(preferred, skills_have, cv_norm, aliases)
         denominator = len(required) + 0.5 * len(preferred)
-        value = (len(req_matched) + 0.5 * len(pref_matched)) / denominator if denominator else 1.0
         components["skills"] = {
-            "score": value,
-            "matched": req_matched + [dict(m, preferred=True) for m in pref_matched],
-            "missing": req_missing,
-            "missing_preferred": pref_missing,
-            "detail": f"{len(req_matched)}/{len(required)} required" + (
-                f", {len(pref_matched)}/{len(preferred)} nice-to-have" if preferred else ""),
+            "share": (len(req_found) + 0.5 * len(pref_found)) / denominator,
+            "asked": f"{len(required)} required" + (f", {len(preferred)} nice to have (half value each)" if preferred else ""),
+            "found": f"{len(req_found)} of {len(required)} required" + (
+                f", {len(pref_found)} of {len(preferred)} nice to have" if preferred else ""),
+            "matched": req_found + [dict(m, preferred=True) for m in pref_found],
+            "missing": req_missing, "missing_preferred": pref_missing,
         }
-        if required and len(req_missing) > len(required) / 2:
-            flags.append(f"Missing {len(req_missing)} of {len(required)} required skills")
-
     tools = list(requisition.tools or [])
     if tools:
-        matched, missing = _match_terms(tools, candidate_tools, cv_norm, aliases)
-        components["tools"] = {"score": len(matched) / len(tools), "matched": matched, "missing": missing,
-                               "detail": f"{len(matched)}/{len(tools)} tools"}
-
+        found, missing = match_terms(tools, list(candidate.tools or []) + list(candidate.skills or []), cv_norm, aliases)
+        components["tools"] = {"share": len(found) / len(tools), "asked": f"{len(tools)} tools",
+                               "found": f"{len(found)} of {len(tools)}", "matched": found, "missing": missing}
     certs = list(requisition.certifications or [])
     if certs:
-        matched, missing = _match_terms(certs, candidate_certs + candidate_skills, cv_norm, aliases)
-        components["certifications"] = {"score": len(matched) / len(certs), "matched": matched, "missing": missing,
-                                        "detail": f"{len(matched)}/{len(certs)} certifications"}
-
+        found, missing = match_terms(certs, certs_have, cv_norm, aliases)
+        components["certifications"] = {"share": len(found) / len(certs), "asked": f"{len(certs)} certifications",
+                                        "found": f"{len(found)} of {len(certs)}", "matched": found, "missing": missing}
     if requisition.education_level or requisition.min_degree_class:
-        value = education_score(candidate.highest_qualification, requisition.education_level)
-        have = EducationLevel(candidate.highest_qualification).label if candidate.highest_qualification else "Not stated"
-        detail = f"{have} vs {requisition.get_education_level_display()}"
-        if value < 1:
-            flags.append("Below minimum qualification" if candidate.highest_qualification else "Qualification not stated")
-        if requisition.min_degree_class:
-            required_rank = DEGREE_CLASS_RANK.get(requisition.min_degree_class, 0)
-            have_rank = DEGREE_CLASS_RANK.get(candidate.degree_class)
-            if have_rank is None:
-                value *= 0.8
-                detail += " · class of degree not stated"
-                flags.append("Class of degree not stated")
-            elif have_rank < required_rank:
-                value *= 0.4
-                detail += f" · {DegreeClass(candidate.degree_class).label} (below {requisition.get_min_degree_class_display()})"
-                flags.append("Below required class of degree")
-            else:
-                detail += f" · {DegreeClass(candidate.degree_class).label}"
-        components["education"] = {"score": value, "detail": detail}
-
-    if requisition.requires_nysc and candidate.nysc_status not in {NyscStatus.COMPLETED, NyscStatus.EXEMPTED}:
-        flags.append("NYSC not completed" if candidate.nysc_status else "NYSC status not stated")
-
-    courses = list(requisition.courses or [])
+        checks = [s for s in screening if s["key"] in {"qualification", "degree_class"}]
+        components["education"] = {
+            "share": 1.0 if all(s["passed"] for s in checks) else 0.0,
+            "asked": " · ".join(s["needed"] for s in checks), "found": " · ".join(s["has"] for s in checks)}
     if courses:
-        studied = [c for c in [candidate.course] + [e.get("course", "") for e in candidate.education_history or []] if c]
-        best, best_course = 0.0, ""
-        for accepted in courses:
-            for course in studied:
-                sim = term_similarity(accepted, course)
-                if sim > best:
-                    best, best_course = sim, accepted
-        if best < 0.8 and cv_norm:
-            hit = next((c for c in courses if find_in_text(c, cv_norm, aliases)), None)
-            if hit:
-                best, best_course = 0.7, hit
-        components["course"] = {
-            "score": best if best >= 0.5 else 0.0,
-            "detail": f"{candidate.course or 'Not stated'}" + (f" ≈ {best_course}" if best_course and best >= 0.5 else
-                                                               " — not in accepted courses"),
-        }
-        if best < 0.5:
-            flags.append("Course not in accepted list")
-
-    minimum = requisition.min_experience_years or 0
+        components["course"] = {"share": 1.0 if course_match[0] else 0.0, "asked": ", ".join(courses),
+                                "found": course_note(*course_match) if course_match[0]
+                                else (", ".join(studied) or "Not stated") + " — not an accepted course"}
     if minimum or track == "experienced":
-        value = experience_score(years, minimum, requisition.max_experience_years)
-        # Years only count fully when the background is relevant (skills or course match;
-        # tools only when neither is specified, since tools like Excel are generic).
-        signals = [components[k]["score"] for k in ("skills", "course") if k in components]
+        value = experience_score(years or 0, minimum, requisition.max_experience_years)
+        # Years count in full only when the background is relevant: the skills or the course match.
+        signals = [components[k]["share"] for k in ("skills", "course") if k in components]
         if not signals and "tools" in components:
-            signals = [components["tools"]["score"]]
+            signals = [components["tools"]["share"]]
         relevance = max(signals) if signals else 1.0
-        adjusted = value * max(0.3, min(1.0, relevance / 0.5))
-        detail = f"{years:g} yrs vs {minimum}+ required"
-        if adjusted < value:
-            detail += " · weighted for relevance"
-        components["experience"] = {"score": adjusted, "detail": detail}
-        if minimum and years < minimum:
-            flags.append(f"Experience below minimum ({years:g} of {minimum} years)")
+        factor = max(0.3, min(1.0, relevance / 0.5))
+        found = "Not stated" if years is None else f"{years:g} years"
+        if factor < 1:
+            found += f" · counted at {round(factor * 100)}% as the skills and course barely match"
+            notes.append("Experience counted in part: the skills and course barely match the role")
+        if requisition.max_experience_years and (years or 0) > requisition.max_experience_years + 5:
+            found += " · well over the range for the grade"
+        components["experience"] = {"share": value * factor, "asked": f"{minimum}+ years" if minimum else "Any",
+                                    "found": found}
 
-    total_weight = sum(weights[k] for k in components)
-    score = sum(weights[k] * components[k]["score"] for k in components) / total_weight * 100 if total_weight else 0
-    score = round(score, 1)
-    for key, comp in components.items():
-        comp["weight"] = round(weights[key] / total_weight * 100, 1) if total_weight else 0
-        comp["points"] = round(comp["weight"] * comp["score"], 1)
-        comp["score"] = round(comp["score"], 3)
-        comp["label"] = COMPONENT_LABELS[key]
+    weights = WEIGHTS[track]
+    keys = [k for k in ORDER if k in components]
+    total = sum(weights[k] for k in keys)
+    spread = {k: round(weights[k] / total * 100, 1) for k in keys} if total else {}
+    if spread:  # make the weights add up to exactly 100
+        largest = max(keys, key=lambda k: spread[k])
+        spread[largest] = round(spread[largest] + 100 - sum(spread.values()), 1)
+    for k in keys:
+        comp = components[k]
+        comp.update(label=COMPONENT_LABELS[k], weight=spread[k], share=round(comp["share"], 3),
+                    percent=round(comp["share"] * 100), points=round(spread[k] * comp["share"], 1))
+    weighted = round(sum(components[k]["points"] for k in keys), 1) if keys else 0.0
 
-    grade, label = grade_for(score)
-    order = ["skills", "tools", "experience", "education", "course", "certifications"]
+    failed = [s for s in screening if not s["passed"]]
+    if eligible:
+        score, (grade, label) = weighted, grade_for(weighted)
+    else:
+        score, (grade, label) = 0.0, NOT_ELIGIBLE
+    flags = [f"{s['label']}: {s['has']} (needs {s['needed']})" for s in failed] + notes
     return {
-        "score": score,
-        "grade": grade,
-        "grade_label": label,
-        "track": track,
-        "components": {k: components[k] for k in order if k in components},
-        "flags": flags,
+        "version": VERSION, "score": score, "weighted_score": weighted, "eligible": eligible, "grade": grade,
+        "grade_label": label, "track": track, "track_label": TRACK_LABELS[track],
+        "weights": {k: weights[k] for k in keys}, "screening": screening,
+        "components": {k: components[k] for k in keys}, "flags": flags,
     }
 
 

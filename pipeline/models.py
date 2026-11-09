@@ -147,7 +147,15 @@ class Application(models.Model):
 
     @property
     def grade_color(self) -> str:
-        return {"A": "success", "B": "primary", "C": "warning", "D": "danger"}.get(self.match_grade, "secondary")
+        return {"A": "success", "B": "primary", "C": "warning", "D": "danger", "X": "danger"}.get(
+            self.match_grade, "secondary")
+
+    @property
+    def grade_text(self) -> str:
+        """'Grade A' … 'Grade D', 'Not eligible' (failed a must-have), or 'Not scored'."""
+        if not self.matched_at:
+            return "Not scored"
+        return "Not eligible" if self.match_grade == "X" else f"Grade {self.match_grade or '–'}"
 
     @property
     def status_color(self) -> str:

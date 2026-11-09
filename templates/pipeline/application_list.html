@@ -72,7 +72,7 @@
       <tr>
         <td><div class="who">{% avatar a.candidate "sm" %}<div><b><a href="{{ a.get_absolute_url }}">{{ a.candidate.full_name }}</a></b><span>{{ a.reference }}</span></div></div></td>
         <td data-label="Vacancy">{{ a.requisition.title }}<div class="small muted">{{ a.requisition.department }}</div></td>
-        <td data-label="Match"><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}</span></div></td>
+        <td data-label="Match"><div class="row">{% if a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">{{ a.grade_text }}</span></div></td>
         <td data-label="Stage">{% status_chip a %}</td>
         <td data-label="Panel">{% if a.panel %}<span class="chip {{ a.panel.rating.code|rating_tone }}">{{ a.panel.percentage|floatformat:"0" }}%</span>{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="num" data-label="In stage"><span class="age {{ a.days_tone }}">{{ a.days_in_stage }}d</span></td>

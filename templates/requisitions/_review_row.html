@@ -6,7 +6,7 @@
     <span class="muted">{{ c.experience_label }} experience{% if c.institution %} · {{ c.institution|truncatechars:34 }}{% endif %}</span>
     {% if a.key_tags %}<span class="tags">{% for t in a.key_tags %}<span class="tag">{{ t }}</span>{% endfor %}</span>{% endif %}
   </div>
-  <div class="review-score">{% if a.matched_at %}{% if a.match_grade == "A" %}{% score_ring a.match_score 44 True "" False %}{% else %}{% score_ring a.match_score 44 False "" False %}{% endif %}<span class="small muted">Grade {{ a.match_grade|default:"–" }}</span>{% else %}<span class="small muted">Not scored</span>{% endif %}</div>
+  <div class="review-score">{% if a.matched_at %}{% if a.match_grade == "A" %}{% score_ring a.match_score 44 True "" False %}{% else %}{% score_ring a.match_score 44 False "" False %}{% endif %}<span class="small muted">{{ a.grade_text }}</span>{% else %}<span class="small muted">Not scored</span>{% endif %}</div>
   <form method="post" class="review-form">{% csrf_token %}
     <input type="hidden" name="application" value="{{ a.pk }}">
     {% if answer %}<div class="review-answer small"><span class="chip {% if answer == 'approved' %}success{% else %}danger{% endif %}">{{ a.get_department_review_display }}</span><span class="muted">{{ a.department_reviewed_by.display_name|default:"" }} · {{ a.department_reviewed_at|date:"j M Y" }}</span>{% if a.department_review_note %}<span class="soft">“{{ a.department_review_note }}”</span>{% endif %}</div>{% endif %}

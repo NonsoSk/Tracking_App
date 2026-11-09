@@ -1812,3 +1812,54 @@ a.sboard-source:hover { box-shadow: inset 0 0 0 1px var(--b-line-2); }
   .sboard .btable td:first-child { min-width: 170px; }
   .sboard .bf-clock { margin-left: 0; }
 }
+
+/* =====================================================================
+   Hiring timeline (candidate and application pages) and the match-score working
+   ===================================================================== */
+.tl-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-8) var(--s-12); }
+.tl-filter-l { font-size: var(--fs-small); font-weight: 700; color: var(--text-3); }
+.tl-filter .seg > a { text-decoration: none !important; color: var(--text-2); font-size: 14px; font-weight: 600; }
+.app-tl { display: grid; gap: var(--s-12); padding-bottom: var(--s-16); border-bottom: 1px solid var(--line); }
+.app-tl:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.tl { display: grid; gap: var(--s-12); }
+.tl-head { display: flex; align-items: center; gap: var(--s-12); }
+.tl-measure { font-size: var(--fs-small); color: var(--text-2); }
+.tl-measure b { color: var(--text); font-size: 15px; }
+.tl-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.tl-step { position: relative; display: grid; gap: 2px; align-content: start; padding: 22px 6px 0 0; min-width: 0; }
+.tl-step::before { content: ""; position: absolute; top: 6px; left: 0; right: 0; height: 2px; background: var(--line); }
+.tl-step.in-span::before { background: var(--tint-line); }
+.tl-step:first-child::before { left: 6px; }
+.tl-step:last-child::before { right: auto; width: 6px; }
+.tl-dot { position: absolute; top: 0; left: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-strong); }
+.tl-step.is-dated .tl-dot { border-color: var(--text-3); background: var(--text-3); }
+.tl-step.in-span.is-dated .tl-dot { border-color: var(--primary); background: var(--primary); }
+.tl-label { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.tl-step:not(.is-dated) .tl-label { color: var(--text-3); }
+.tl-date { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
+.tl-step:not(.is-dated) .tl-date { font-size: 12px; color: var(--text-3); }
+.tl-gap { font-size: 12px; font-weight: 700; color: var(--on-tint); }
+@media (max-width: 900px) {
+  .tl-steps { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .tl-step { grid-template-columns: 120px minmax(0, 1fr) auto; align-items: baseline; gap: var(--s-8); padding: 4px 0 4px 26px; }
+  .tl-step::before { top: 0; bottom: 0; left: 6px; right: auto; width: 2px; height: auto; }
+  .tl-step:first-child::before { left: 6px; top: 10px; }
+  .tl-step:last-child::before { width: 2px; bottom: auto; height: 10px; }
+  .tl-dot { top: 7px; }
+}
+
+.ms-head { display: flex; align-items: center; gap: var(--s-20); }
+.ms-score { display: flex; align-items: baseline; gap: 4px; padding: var(--s-12) var(--s-16); border-radius: var(--r-md); background: var(--tint); }
+.ms-score b { font-size: 34px; font-weight: 800; line-height: 1; color: var(--on-tint); }
+.ms-score span { font-size: 14px; color: var(--text-3); }
+.ms-score.is-out { background: var(--danger-bg); }
+.ms-score.is-out b { color: var(--danger-ink); }
+.ms-head p { margin: 2px 0 0; }
+.ms-h { margin: var(--s-8) 0 0; font-size: 15px; font-weight: 800; }
+.ms-table td { vertical-align: top; }
+.ms-table tfoot td { border-top: 2px solid var(--line-strong); }
+.ms-tags { margin-top: 6px; }
+.ms-tags .tag small { margin-left: 6px; font-size: 11px; color: var(--text-3); font-weight: 600; }
+.table-wrap.ms-wrap { max-height: none; }
+.tl-late { display: block; font-size: 11.5px; font-weight: 600; color: var(--warning-ink); }
+.tl-step.is-dated.is-late .tl-dot { border-color: var(--warning); background: var(--warning); }

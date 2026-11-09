@@ -238,6 +238,8 @@ RECRUITMENT = {
     "REQUISITION_NEEDS_MANAGEMENT_APPROVAL": env_bool("REQUISITION_NEEDS_MANAGEMENT_APPROVAL", False),
     # Score (0-100) at or above which "Auto-shortlist" picks a candidate.
     "AUTO_SHORTLIST_THRESHOLD": env_int("AUTO_SHORTLIST_THRESHOLD", 70),
+    # Matching: the share of a requisition's required skills a candidate must have to be eligible at all.
+    "MATCH_MIN_REQUIRED_SKILLS_PERCENT": env_int("MATCH_MIN_REQUIRED_SKILLS_PERCENT", 50),
     # Treat HND as equal to a Bachelor's degree when matching.
     "HND_EQUIVALENT_TO_BSC": env_bool("HND_EQUIVALENT_TO_BSC", False),
     # Trainees go straight from document review to onboarding unless enabled.

@@ -308,11 +308,37 @@ database without an application are not graded at all. Each application is score
 | Course of study | 10 | 30 |
 | Certifications | 10 | 10 |
 
-Components the requisition leaves empty are dropped and the rest re-balanced. Terms are matched on the profile *and*
-in the full CV text, with common aliases ("MS Excel" = "Microsoft Excel", "HYSYS" = "Aspen HYSYS", …). HR can add more
-aliases in the admin under *Skill tags*. Grades are A ≥ 80, B ≥ 65, C ≥ 50 and D below that. Flags such as "Below
-minimum qualification", "NYSC not completed" or "Missing 3 of 5 required skills" appear next to the score. Changing a
-requisition's requirements re-scores all of its applicants automatically.
+Matching is strict, the way an ATS screens and ranks:
+
+1. **Must-haves.** Each requirement the requisition sets must be met: the minimum qualification (HND counts as a
+   degree only with `HND_EQUIVALENT_TO_BSC=true`), the minimum class of degree, one of the accepted courses, NYSC
+   completed or exempted, the minimum years of experience, and at least half of the required skills
+   (`MATCH_MIN_REQUIRED_SKILLS_PERCENT`). Something the profile does not state counts as not met. A candidate who
+   fails one is **Not eligible**: score 0, grade X, listed after everyone eligible.
+2. **The score.** The weights above, spread over the components the requisition asks for so they add up to 100. Each
+   component earns *weight × share met*; the points add up to the score.
+
+A term counts only when it truly matches: the same term (plurals included), an approved synonym ("MS Excel" =
+"Microsoft Excel", "HYSYS" = "Aspen HYSYS"; HR adds more in the admin under *Skill tags*), or the required term written
+whole inside what the candidate wrote ("AutoCAD" in "AutoCAD 2D/3D"). Near spellings and shared words do not count.
+Terms are looked for on the profile and in the CV text. A course written another way still counts when it covers the
+accepted one ("Chemical & Petroleum Engineering", "Chemical Engg." for Chemical Engineering). Grades: A 85+, B 70+,
+C 55+, D below 55, X not eligible.
+
+On an application's **Scores** tab, HR sees the full working: each must-have (needed, the candidate's, met or not)
+and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
+total. Others see the score and the must-haves. Changing a requisition's requirements re-scores all of its applicants
+automatically; existing scores were re-scored with these rules when the portal was updated.
+
+### Hiring timeline
+
+A candidate's **Applications & timeline** tab, and the top of each application, show the steps of each application
+with their dates and the days between: applied, CBT, shortlisted, first interview, selected, offer accepted,
+onboarding and started work. Choose what to measure to (first interview, selected, onboarding or started work) to
+see the days from applying. Dates come from Excel for what was loaded from it (the date applied, the CBT and interview
+records' Date, Selected in Remarks_Query, the Join Date) and from the portal for steps taken there; pointing at a date
+says where it comes from. A step with no date is shown as such and left out of the count, never dated by the day the
+workbook was loaded. A date that does not fit the order of the steps is marked *out of order* to be checked.
 
 ## Scheduled jobs
 
@@ -399,15 +425,15 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 192 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The 202 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
 duplicates), the candidate groups and their filters, joining staff records to profiles and the applicant/staff/former
-staff tabs, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as
-PDFs from a local test website, the compulsory requisition details, the job description review, and candidate
-summaries and department approvals, and the summary page (each figure checked against the workbook rows, dates only
-from Excel, the department view, click-through counts). A smoke test loads the demo data and opens every screen as
-every role.
+staff tabs, matching the website applications (held rows, repeat applicants, nothing replaced), saving resumes as PDFs
+from a local test website, the compulsory requisition details, the job description review, and candidate summaries and
+department approvals, the summary page (each figure checked against the workbook rows, dates only from Excel, the
+department view, click-through counts), strict matching and its working, and the hiring timeline. A smoke test loads
+the demo data and opens every screen as every role.
 
 ## Possible next steps
 

@@ -1,0 +1,7 @@
+{# Choose the step the timeline measures to. Needs: endpoints, until, anchor. #}
+<div class="tl-filter">
+  <span class="tl-filter-l">Measure from applying to</span>
+  <div class="seg" role="group" aria-label="Measure from applying to">
+    {% for value, label in endpoints %}<a href="?until={{ value }}#{{ anchor }}"{% if until == value %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+  </div>
+</div>

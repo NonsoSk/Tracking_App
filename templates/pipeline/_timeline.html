@@ -1,0 +1,17 @@
+{% load humanize %}{# One application's hiring timeline. Needs: t (pipeline.timeline.Timeline), m (t.measure(until)). #}
+<div class="tl">
+  <div class="tl-head">
+    <span class="tl-measure">Applied → {{ m.label }}:
+      {% if m.days is not None %}<b>{{ m.days|intcomma }} day{{ m.days|pluralize }}</b>{% else %}<span class="muted">{{ m.reason }}</span>{% endif %}</span>
+  </div>
+  <ol class="tl-steps" aria-label="Hiring timeline">
+    {% for s in t.steps %}
+    <li class="tl-step{% if s.day %} is-dated{% endif %}{% if s.key in m.span %} in-span{% endif %}{% if s.late %} is-late{% endif %}">
+      <span class="tl-dot" aria-hidden="true"></span>
+      <span class="tl-label">{{ s.label }}</span>
+      <span class="tl-date"{% if s.source %} title="{{ s.source }}{% if s.late %}. This date is out of order with the other steps: check it{% endif %}"{% endif %}>{% if s.day %}{{ s.day|date:"j M Y" }}{% if s.late %} <span class="tl-late">out of order: check</span>{% endif %}{% else %}{{ s.note }}{% endif %}</span>
+      {% if s.gap is not None %}<span class="tl-gap">+{{ s.gap|intcomma }} day{{ s.gap|pluralize }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</div>

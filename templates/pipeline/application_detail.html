@@ -31,7 +31,7 @@
     <div class="readouts">
       <div class="card ro ro-match">
         {% if app.match_grade == "A" %}{% score_ring app.match_score 64 True "match" %}{% else %}{% score_ring app.match_score 64 False "match" %}{% endif %}
-        <div><div class="ro-l">Match</div><div class="ro-v">Grade {{ app.match_grade|default:"–" }}</div><div class="ro-s">{{ breakdown.grade_label|default:"Not scored yet" }}</div></div>
+        <div><div class="ro-l">Match</div><div class="ro-v">{{ app.grade_text }}</div><div class="ro-s">{{ breakdown.grade_label|default:"Not scored yet" }}</div></div>
       </div>
       <div class="card ro"><div class="ro-l">Panel</div>
         {% if summary %}<div class="ro-v num">{{ summary.percentage|floatformat:"-1" }}<small>%</small></div><div class="ro-s">{{ summary.rating.label }}</div>
@@ -110,6 +110,10 @@
 
 {# ----------------------- Overview ----------------------- #}
 <div role="tabpanel" id="overview" aria-labelledby="t-overview" class="tab-body">
+  <section class="sheet tl-sheet" aria-labelledby="tl-h">
+    <div class="sheet-h"><h2 class="title" id="tl-h">Hiring timeline</h2><span class="spacer"></span>{% include "pipeline/_timeline_filter.html" with anchor="overview" %}</div>
+    <div class="sheet-b">{% include "pipeline/_timeline.html" with t=hiring m=hiring_measure %}</div>
+  </section>
   <div class="split">
     <div class="stack-24">
       {% if app.is_open %}
@@ -316,30 +320,56 @@
   <div class="stack-24">
     <section class="sheet" id="match" aria-labelledby="why-h">
       <div class="sheet-h">
-        <h2 class="title" id="why-h">Why {{ app.match_score|floatformat:"-1" }}</h2><span class="count">Grade {{ app.match_grade|default:"–" }}</span>
+        <h2 class="title" id="why-h">Match score</h2><span class="count">{{ app.grade_text }}</span>
         <span class="spacer"></span>
         {% if can_manage %}
         <form method="post" action="{% url 'pipeline:rescore' app.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit" data-tip="Score again against the current requirements">{% icon "refresh-cw" "ico-16" %} Re-score</button></form>
         <form method="post" action="{% url 'pipeline:ai_summary' app.pk %}">{% csrf_token %}<button class="btn btn-tint btn-sm" type="submit">{% icon "sparkles" "ico-16" %} AI fit summary</button></form>
         {% endif %}
       </div>
-      <div class="sheet-b">
-        <p class="small muted">{{ breakdown.track|default:"standard"|title }} hiring weights{% if app.matched_at %} · scored {{ app.matched_at|naturaltime }}{% endif %}</p>
-        {% for f in breakdown.flags %}<div class="banner warning flag"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>{{ f }}</b></div></div>{% endfor %}
-        <div class="crit-grid">
-        {% for key, comp in breakdown.components.items %}
-        <div class="crit">
-          <div class="top">{{ comp.label }}<span>{{ comp.points|floatformat:"-1" }} / {{ comp.weight|floatformat:"-1" }}</span></div>
-          <div class="cbar" role="img" aria-label="{{ comp.label }}: {{ comp.points|floatformat:'-1' }} of {{ comp.weight|floatformat:'-1' }} points"><i class="met" style="width:{{ comp.score|times100 }}%"></i></div>
-          <p>{{ comp.detail }}</p>
-          {% if comp.matched or comp.missing or comp.missing_preferred %}<div class="tags">
-            {% for m in comp.matched %}<span class="tag on" title="Evidence: {{ m.evidence }}">{% icon "check" "ico-14" %} {{ m.term }}{% if m.preferred %} · nice to have{% endif %}</span>{% endfor %}
-            {% for m in comp.missing %}<span class="chip danger no-dot">{% icon "x" %} {{ m }}</span>{% endfor %}
-            {% for m in comp.missing_preferred %}<span class="tag" title="Nice to have, not found">{{ m }}</span>{% endfor %}
-          </div>{% endif %}
+      <div class="sheet-b stack">
+        {% if breakdown.version >= 2 %}
+        <div class="ms-head">
+          <div class="ms-score{% if not breakdown.eligible %} is-out{% endif %}"><b>{{ breakdown.score|floatformat:"-1" }}</b><span>/ 100</span></div>
+          <div><b>{{ breakdown.grade_label }}</b>
+            <p class="small muted">{{ breakdown.track_label }} · scored {{ app.matched_at|naturaltime }}.{% if not breakdown.eligible %} A must-have is not met, so the score is 0 and the candidate is ranked after everyone eligible. On the scored criteria alone they would have {{ breakdown.weighted_score|floatformat:"-1" }}.{% endif %}</p></div>
         </div>
-        {% empty %}<p class="small muted">This application has not been scored yet.</p>{% endfor %}
-        </div>
+
+        {% if breakdown.screening %}
+        <h3 class="ms-h">1. Must-haves</h3>
+        <div class="table-wrap ms-wrap"><table class="table ms-table">
+          <thead><tr><th>Requirement</th><th>Needed</th><th>This candidate</th><th>Result</th></tr></thead>
+          <tbody>{% for s in breakdown.screening %}<tr>
+            <td><b>{{ s.label }}</b></td><td>{{ s.needed }}</td>
+            <td>{{ s.has }}{% if s.note %}<div class="small muted">{{ s.note }}</div>{% endif %}</td>
+            <td>{% if s.passed %}<span class="chip success no-dot">{% icon "check" %} Met</span>{% else %}<span class="chip danger no-dot">{% icon "x" %} Not met</span>{% endif %}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}<p class="small muted">This requisition sets no must-haves (minimum qualification, class of degree, courses, NYSC, minimum experience or required skills).</p>{% endif %}
+
+        {% if is_hr %}
+        <h3 class="ms-h">2. How the score was worked out</h3>
+        {% if breakdown.components %}
+        <div class="table-wrap ms-wrap"><table class="table ms-table">
+          <thead><tr><th>Criterion</th><th>Asked for</th><th>Found</th><th class="num">Weight</th><th class="num">Met</th><th class="num">Points</th></tr></thead>
+          <tbody>{% for key, c in breakdown.components.items %}<tr>
+            <td><b>{{ c.label }}</b></td><td>{{ c.asked }}</td>
+            <td>{{ c.found }}
+              {% if c.matched or c.missing or c.missing_preferred %}<div class="tags ms-tags">
+                {% for x in c.matched %}<span class="tag on" title="{{ x.evidence }}: {{ x.how }}{% if x.wrote != x.term %} — the candidate wrote “{{ x.wrote }}”{% endif %}">{% icon "check" "ico-14" %} {{ x.term }}{% if x.preferred %} · nice to have{% endif %}<small>{{ x.evidence }}</small></span>{% endfor %}
+                {% for x in c.missing %}<span class="chip danger no-dot">{% icon "x" %} {{ x }}</span>{% endfor %}
+                {% for x in c.missing_preferred %}<span class="tag" title="Nice to have, not found">{{ x }}</span>{% endfor %}
+              </div>{% endif %}</td>
+            <td class="num">{{ c.weight|floatformat:"-1" }}</td><td class="num">{{ c.percent }}%</td><td class="num"><b>{{ c.points|floatformat:"-1" }}</b></td></tr>{% endfor %}</tbody>
+          <tfoot><tr><td colspan="3"><b>Total</b>{% if not breakdown.eligible %} <span class="muted">(not eligible, so the score is 0)</span>{% endif %}</td><td class="num">100</td><td></td><td class="num"><b>{{ breakdown.weighted_score|floatformat:"-1" }}</b></td></tr></tfoot>
+        </table></div>
+        <p class="small muted">Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts only when it is the same term, an approved synonym, or written whole inside what the candidate wrote: “Profile” means it is on the profile, “CV text” that it is written in the CV. Nice-to-have skills count half. Grades: A 85+, B 70+, C 55+, D below 55, X not eligible.</p>
+        {% else %}<p class="small muted">This requisition asks for nothing that can be scored yet: add skills, tools, courses, a qualification, experience or certifications to it.</p>{% endif %}
+        {% endif %}
+        {% elif app.matched_at %}
+        <p class="small muted">This score was worked out before the stricter matching. Re-score to see the must-haves and the full working.</p>
+        {% else %}
+        <p class="small muted">Not scored: this application was loaded from the interview records. Re-score to check it against the requisition's requirements.</p>
+        {% endif %}
         {% if app.ai_summary %}<div class="ai-box"><div class="eyebrow">{% icon "sparkles" "ico-14" %} AI fit summary</div><p class="small">{{ app.ai_summary|linebreaksbr }}</p></div>{% endif %}
       </div>
     </section>

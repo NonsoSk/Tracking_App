@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.core import mail
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -17,7 +18,7 @@ from requisitions.models import Requisition
 
 from . import services
 from .ics import interview_ics
-from .matching import compute_match, education_score, experience_score
+from .matching import compute_match, experience_score, meets_education, strict_hit
 from .models import Application, EvaluationCriterion, Interview, Offer, Stage, rating_for
 
 MEDIA = tempfile.mkdtemp(prefix="test-media-")
@@ -45,6 +46,8 @@ class RatingTests(TestCase):
 
 
 class MatchingTests(TestCase):
+    """Strict, ATS-style matching: must-haves first, then a weighted score whose working adds up."""
+
     def setUp(self):
         self.dept = Department.objects.create(name="Production", code="PROD")
         self.req = Requisition(
@@ -59,23 +62,58 @@ class MatchingTests(TestCase):
         defaults.update(kw)
         return Candidate(**defaults)
 
-    def test_perfect_candidate_scores_100_using_aliases(self):
+    def test_perfect_candidate_scores_100_using_synonyms(self):
         result = compute_match(self.req, self.candidate())
-        self.assertEqual(result["score"], 100)
-        self.assertEqual(result["grade"], "A")
-        self.assertEqual(result["flags"], [])
+        self.assertEqual((result["score"], result["grade"], result["eligible"], result["flags"]), (100, "A", True, []))
+        self.assertTrue(all(s["passed"] for s in result["screening"]))
+        tools = {m["term"]: m for m in result["components"]["tools"]["matched"]}
+        self.assertEqual((tools["Aspen HYSYS"]["wrote"], tools["Aspen HYSYS"]["how"]), ("HYSYS", "synonym"))
 
-    def test_skills_found_in_cv_text_count(self):
-        result = compute_match(self.req, self.candidate(skills=[], cv_text="Led HAZOP studies and process simulation work"))
-        self.assertEqual(result["components"]["skills"]["score"], 1)
+    def test_the_working_adds_up(self):
+        result = compute_match(self.req, self.candidate(tools=["MS Excel"], certifications=[], years_experience=4))
+        comps = result["components"].values()
+        self.assertEqual(round(sum(c["weight"] for c in comps), 1), 100)
+        self.assertEqual(round(sum(c["points"] for c in comps), 1), result["weighted_score"])
+        self.assertEqual(result["score"], result["weighted_score"])
+        self.assertEqual(result["components"]["tools"]["percent"], 50)
+        self.assertEqual(result["components"]["certifications"]["points"], 0)
 
-    def test_irrelevant_experience_is_discounted(self):
+    def test_terms_must_truly_match(self):
+        # Found in the CV text counts, and says so; a plural is the same term.
+        result = compute_match(self.req, self.candidate(skills=["HAZOPs"], cv_text="Ran process simulations in HYSYS"))
+        found = {m["term"]: m["evidence"] for m in result["components"]["skills"]["matched"]}
+        self.assertEqual(found, {"HAZOP": "Profile", "Process simulation": "CV text"})
+        # A near spelling or a shared word does not count.
+        self.assertEqual(strict_hit("Process simulation", ["Proces simulaton"]), (None, ""))
+        self.assertEqual(strict_hit("Process simulation", ["Simulation of chemical processes"]), (None, ""))
+        self.assertEqual(strict_hit("Process safety management", ["Safety"]), (None, ""))
+        self.assertEqual(strict_hit("AutoCAD", ["AutoCAD 2D/3D"])[1], "includes it")
+
+    def test_a_must_have_not_met_makes_the_candidate_not_eligible(self):
         accountant = self.candidate(course="Accounting", skills=["Financial reporting (IFRS)"], tools=["Microsoft Excel"],
                                     certifications=["ICAN"])
         result = compute_match(self.req, accountant)
-        self.assertLess(result["score"], 30)
-        self.assertIn("weighted for relevance", result["components"]["experience"]["detail"])
-        self.assertIn("Course not in accepted list", result["flags"])
+        self.assertEqual((result["score"], result["grade"], result["eligible"]), (0, "X", False))
+        failed = {s["key"] for s in result["screening"] if not s["passed"]}
+        self.assertEqual(failed, {"course", "required_skills"})
+        self.assertLess(result["weighted_score"], 30)
+        self.assertTrue(any(f.startswith("Accepted course") for f in result["flags"]))
+        self.assertIn("counted at", result["components"]["experience"]["found"])
+
+    def test_not_stated_counts_as_not_met(self):
+        result = compute_match(self.req, self.candidate(highest_qualification="", years_experience=None))
+        failed = {s["key"]: s for s in result["screening"] if not s["passed"]}
+        self.assertEqual(set(failed), {"qualification", "experience"})
+        self.assertEqual(failed["qualification"]["has"], "Not stated")
+        self.assertEqual(result["grade"], "X")
+
+    def test_required_skills_threshold(self):
+        half = compute_match(self.req, self.candidate(skills=["HAZOP"]))
+        self.assertTrue(half["eligible"])  # 1 of 2 is 50%
+        self.assertFalse(compute_match(self.req, self.candidate(skills=[]))["eligible"])
+        strict = {**settings.RECRUITMENT, "MATCH_MIN_REQUIRED_SKILLS_PERCENT": 100}
+        with self.settings(RECRUITMENT=strict):
+            self.assertFalse(compute_match(self.req, self.candidate(skills=["HAZOP"]))["eligible"])
 
     def test_missing_requirements_are_not_penalised(self):
         self.req.certifications = []
@@ -90,17 +128,21 @@ class MatchingTests(TestCase):
         self.req.requires_nysc = True
         good = compute_match(self.req, self.candidate(degree_class="first", nysc_status="completed", years_experience=0))
         weak = compute_match(self.req, self.candidate(degree_class="2_2", nysc_status="", years_experience=0))
-        self.assertGreater(good["score"], weak["score"])
-        self.assertIn("Below required class of degree", weak["flags"])
-        self.assertIn("NYSC status not stated", weak["flags"])
-        self.assertEqual(good["track"], "trainee")
+        self.assertEqual((good["eligible"], good["track"], good["score"]), (True, "trainee", 100))
+        self.assertEqual({s["key"] for s in weak["screening"] if not s["passed"]}, {"degree_class", "nysc"})
+        self.assertEqual(weak["score"], 0)
+
+    def test_courses_written_differently(self):
+        self.assertTrue(compute_match(self.req, self.candidate(course="Chemical & Petroleum Engineering"))["eligible"])
+        self.assertTrue(compute_match(self.req, self.candidate(course="Chemical Engg."))["eligible"])
+        self.assertFalse(compute_match(self.req, self.candidate(course="Petroleum Engineering"))["eligible"])
 
     def test_education_and_experience_helpers(self):
-        self.assertEqual(education_score("msc", "bsc"), 1)
-        self.assertEqual(education_score("hnd", "bsc"), 0.6)
-        self.assertEqual(education_score("", "bsc"), 0)
-        with self.settings(RECRUITMENT={**__import__("django.conf").conf.settings.RECRUITMENT, "HND_EQUIVALENT_TO_BSC": True}):
-            self.assertEqual(education_score("hnd", "bsc"), 1)
+        self.assertTrue(meets_education("msc", "bsc"))
+        self.assertFalse(meets_education("hnd", "bsc"))
+        self.assertFalse(meets_education("", "bsc"))
+        with self.settings(RECRUITMENT={**settings.RECRUITMENT, "HND_EQUIVALENT_TO_BSC": True}):
+            self.assertTrue(meets_education("hnd", "bsc"))
         self.assertEqual(experience_score(2, 4, None), 0.5)
         self.assertLess(experience_score(20, 5, 8), 1)
 
