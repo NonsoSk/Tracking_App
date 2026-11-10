@@ -328,7 +328,11 @@
         {% endif %}
       </div>
       <div class="sheet-b stack">
-        {% if breakdown.version >= 2 %}
+        {% if breakdown.unscored %}
+        <div class="banner neutral-banner"><span class="tile">{% icon "list-checks" "ico-18" %}</span><div><b>Not scored: this vacancy has no requirements yet</b>
+          <span class="small">Add what the job needs (required skills, accepted courses, minimum qualification, years of experience, tools, certifications) and every applicant is scored at once.</span></div>
+          {% if is_hr %}<a class="btn btn-secondary btn-sm" href="{% url 'requisitions:edit' req.pk %}">Add requirements</a>{% endif %}</div>
+        {% elif breakdown.version >= 2 %}
         <div class="ms-head">
           <div class="ms-score{% if not breakdown.eligible %} is-out{% endif %}"><b>{{ breakdown.score|floatformat:"-1" }}</b><span>/ 100</span></div>
           <div><b>{{ breakdown.grade_label }}</b>

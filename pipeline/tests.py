@@ -18,7 +18,7 @@ from requisitions.models import Requisition
 
 from . import services
 from .ics import interview_ics
-from .matching import compute_match, experience_score, meets_education, strict_hit
+from .matching import compute_match, experience_score, meets_education, score_application, strict_hit
 from .models import Application, EvaluationCriterion, Interview, Offer, Stage, rating_for
 
 MEDIA = tempfile.mkdtemp(prefix="test-media-")
@@ -136,6 +136,22 @@ class MatchingTests(TestCase):
         self.assertTrue(compute_match(self.req, self.candidate(course="Chemical & Petroleum Engineering"))["eligible"])
         self.assertTrue(compute_match(self.req, self.candidate(course="Chemical Engg."))["eligible"])
         self.assertFalse(compute_match(self.req, self.candidate(course="Petroleum Engineering"))["eligible"])
+
+    def test_a_vacancy_with_no_requirements_is_not_scored(self):
+        # As a requisition loaded from the tracker arrives: no skills, courses, qualification or experience.
+        bare = Requisition.objects.create(department=self.dept, title="Lab DET", status="approved", education_level="")
+        person = Candidate.objects.create(first_name="Efe", last_name="Test", years_experience=2)
+        app = Application.objects.create(candidate=person, requisition=bare)
+        result = score_application(app)
+        app.refresh_from_db()
+        self.assertTrue(result["unscored"])
+        self.assertEqual((app.match_score, app.match_grade, app.matched_at, app.grade_text), (0, "", None, "Not scored"))
+        # Once HR adds what the job needs, it is scored properly.
+        bare.required_skills, bare.education_level = ["Titration"], "bsc"
+        bare.save()
+        result = score_application(app)
+        self.assertNotIn("unscored", result)
+        self.assertEqual(result["grade"], "X")  # no qualification or skills stated: not eligible
 
     def test_education_and_experience_helpers(self):
         self.assertTrue(meets_education("msc", "bsc"))

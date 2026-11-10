@@ -156,8 +156,21 @@ def label_of(choices, value, empty="Not stated") -> str:
 
 
 # --------------------------------------------------------------------------- the match
+def has_requirements(requisition) -> bool:
+    """Whether the vacancy asks for anything a candidate can be scored on (a requisition loaded from the tracker
+    has none until HR adds them)."""
+    return any([requisition.required_skills, requisition.preferred_skills, requisition.tools,
+                requisition.certifications, requisition.courses, requisition.education_level,
+                requisition.min_degree_class, requisition.requires_nysc, requisition.min_experience_years])
+
+
 def compute_match(requisition, candidate) -> dict:
     track = "trainee" if requisition.employment_type in TRAINEE_TYPES else "experienced"
+    if not has_requirements(requisition):  # nothing to score against: never a score of 100 for everyone
+        return {"version": VERSION, "unscored": True, "score": 0.0, "weighted_score": 0.0, "eligible": None,
+                "grade": "", "grade_label": "Not scored: the vacancy has no requirements yet", "track": track,
+                "track_label": TRACK_LABELS[track], "weights": {}, "screening": [], "components": {},
+                "flags": ["Add the vacancy's requirements (skills, courses, qualification, experience) to score"]}
     aliases = db_aliases()
     cv_norm = normalize(" ".join([candidate.cv_text or "", candidate.summary or ""]))
     skills_have = list(candidate.skills or []) + list(candidate.tools or [])
@@ -285,7 +298,7 @@ def score_application(application, save: bool = True) -> dict:
     application.match_score = Decimal(str(result["score"]))
     application.match_grade = result["grade"]
     application.match_breakdown = result
-    application.matched_at = timezone.now()
+    application.matched_at = None if result.get("unscored") else timezone.now()
     if save:
         application.save(update_fields=["match_score", "match_grade", "match_breakdown", "matched_at", "updated_at"])
     return result

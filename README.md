@@ -325,6 +325,10 @@ Terms are looked for on the profile and in the CV text. A course written another
 accepted one ("Chemical & Petroleum Engineering", "Chemical Engg." for Chemical Engineering). Grades: A 85+, B 70+,
 C 55+, D below 55, X not eligible.
 
+A vacancy that asks for nothing yet (a requisition loaded from the tracker arrives without skills, courses,
+qualification or experience) is not scored: its applicants show *Not scored* until HR adds the requirements, and are
+then scored at once. Nobody gets 100 against an empty vacancy.
+
 On an application's **Scores** tab, HR sees the full working: each must-have (needed, the candidate's, met or not)
 and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
 total. Others see the score and the must-haves. Changing a requisition's requirements re-scores all of its applicants
