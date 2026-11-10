@@ -164,14 +164,14 @@ def has_requirements(requisition) -> bool:
                 requisition.min_degree_class, requisition.requires_nysc, requisition.min_experience_years])
 
 
-def compute_match(requisition, candidate) -> dict:
+def compute_match(requisition, candidate, aliases=None) -> dict:
     track = "trainee" if requisition.employment_type in TRAINEE_TYPES else "experienced"
     if not has_requirements(requisition):  # nothing to score against: never a score of 100 for everyone
         return {"version": VERSION, "unscored": True, "score": 0.0, "weighted_score": 0.0, "eligible": None,
                 "grade": "", "grade_label": "Not scored: the vacancy has no requirements yet", "track": track,
                 "track_label": TRACK_LABELS[track], "weights": {}, "screening": [], "components": {},
                 "flags": ["Add the vacancy's requirements (skills, courses, qualification, experience) to score"]}
-    aliases = db_aliases()
+    aliases = db_aliases() if aliases is None else aliases
     cv_norm = normalize(" ".join([candidate.cv_text or "", candidate.summary or ""]))
     skills_have = list(candidate.skills or []) + list(candidate.tools or [])
     certs_have = list(candidate.certifications or []) + list(candidate.skills or [])

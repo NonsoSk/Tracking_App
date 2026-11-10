@@ -1863,3 +1863,47 @@ a.sboard-source:hover { box-shadow: inset 0 0 0 1px var(--b-line-2); }
 .table-wrap.ms-wrap { max-height: none; }
 .tl-late { display: block; font-size: 11.5px; font-weight: 600; color: var(--warning-ink); }
 .tl-step.is-dated.is-late .tl-dot { border-color: var(--warning); background: var(--warning); }
+
+/* Reading a job description into a requisition */
+.jd-read { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-12) var(--s-20); padding: var(--s-16) var(--s-20); margin-bottom: var(--s-20); }
+.jd-read-t { display: flex; gap: var(--s-12); align-items: flex-start; flex: 1 1 380px; }
+.jd-read-t > div { display: grid; gap: 2px; }
+.jd-read-f { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-8); }
+.jd-read-f input[type=file] { font-size: 14px; max-width: 260px; }
+
+/* Matching CVs to several vacancies at once */
+.match-pick { display: grid; gap: var(--s-16); padding: var(--s-20); margin-bottom: var(--s-24); }
+.mp-l { display: block; font-size: 12.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
+.mp-cvs { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-8) var(--s-16); }
+.mp-cvs .mp-l { width: 100%; margin: 0; }
+.mp-date { display: inline-flex; align-items: center; gap: var(--s-8); font-weight: 600; }
+.mp-vac { border: 0; padding: 0; margin: 0; min-width: 0; }
+.mp-chips { display: flex; flex-wrap: wrap; gap: var(--s-8); }
+.mp-chip { display: inline-flex; align-items: center; gap: var(--s-8); padding: 8px var(--s-12); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); cursor: pointer; }
+.mp-chip:has(input:checked) { border-color: var(--primary); background: var(--tint); }
+.mp-chip span { display: grid; line-height: 1.25; font-weight: 600; }
+.mp-chip small { font-weight: 400; color: var(--text-3); font-size: 12px; }
+.match-wrap { max-height: none; }
+.match-table th, .match-table td { vertical-align: top; }
+.match-table .mt-vac a, .match-table .mt-who a { font-weight: 700; color: var(--text); }
+.match-table .mt-vac small, .match-table .mt-who small { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--text-3); text-transform: none; letter-spacing: 0; }
+.match-table .mt-warn { color: var(--warning-ink) !important; }
+.mt-cell { min-width: 150px; }
+.mt-cell.is-best { background: var(--tint); }
+.mt-top { display: flex; align-items: baseline; gap: var(--s-8); }
+.mt-score { font-size: 20px; font-weight: 800; }
+.mt-grade { white-space: nowrap; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: var(--r-full); background: var(--sunken); color: var(--text-2); }
+.mt-grade.gA { background: var(--success-bg); color: var(--success-ink); }
+.mt-grade.gB { background: var(--tint-2); color: var(--on-tint); }
+.mt-grade.gC { background: var(--warning-bg); color: var(--warning-ink); }
+.mt-grade.gX { background: var(--danger-bg); color: var(--danger-ink); }
+.mt-best { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--on-tint); }
+.mt-why { display: block; margin-top: 4px; font-size: 12px; color: var(--text-3); max-width: 220px; }
+.mt-add { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.mt-done { margin-top: 6px; height: 24px; font-size: 12px; }
+.match-table .mt-who { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 170px; }
+@media (max-width: 640px) {
+  .match-table .mt-who { min-width: 0; width: 128px; max-width: 128px; box-shadow: 1px 0 0 var(--line); }
+  .mt-cell { min-width: 136px; }
+}
+.match-table .mt-who, .match-table .mt-vac { white-space: normal; overflow-wrap: break-word; }

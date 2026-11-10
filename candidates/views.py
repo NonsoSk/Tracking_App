@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
@@ -432,8 +433,116 @@ def intake(request):
         ok = [r for _, r in results if not r.error]
         messages.success(request, f"Processed {len(ok)} of {len(results)} CV(s). Review the extracted details below.")
         form = IntakeForm(initial={"source": data["source"], "requisition": data.get("requisition")})
+        if not data.get("requisition") and ok:
+            from urllib.parse import urlencode
+
+            match_url = reverse("candidates:match") + "?" + urlencode([("c", r.candidate.pk) for r in ok])
+            return render(request, "candidates/intake.html", {"form": form, "results": results,
+                                                              "match_url": match_url, "match_count": len(ok)})
     return render(request, "candidates/intake.html", {"form": form, "results": results})
 
+
+
+MATCH_LIMIT = 400
+
+
+@hr_required
+def match_vacancies(request):
+    """Score a set of CVs against several vacancies at once and show which job each person fits best. Nothing is
+    saved: HR ticks the matches to keep and adds them as applications (match_add)."""
+    from datetime import date
+
+    from django.utils import timezone
+
+    from core.text import db_aliases
+    from pipeline.matching import compute_match
+    from pipeline.models import Application
+
+    from requisitions.models import Requisition
+
+    # Vacancies not yet approved can be scored too (to see who fits before approving); only approved or open
+    # ones take applications.
+    status = Requisition.Status
+    can_add = {status.APPROVED, status.OPEN}
+    vacancies_all = sorted(
+        Requisition.objects.filter(status__in=[*can_add, status.DRAFT, status.SUBMITTED, status.RETURNED,
+                                               status.PENDING_MANAGEMENT, status.ON_HOLD]).select_related("department"),
+        key=lambda v: (v.status not in can_add, v.title.lower()))
+    for v in vacancies_all:
+        v.can_add = v.status in can_add
+    chosen = {int(v) for v in request.GET.getlist("r") if v.isdigit()}
+    vacancies = [v for v in vacancies_all if v.pk in chosen]
+    ids = [int(c) for c in request.GET.getlist("c") if c.isdigit()]
+    try:
+        added = date.fromisoformat(request.GET.get("added", ""))
+    except ValueError:
+        added = timezone.localdate()
+    if ids:
+        people = Candidate.objects.filter(pk__in=ids)
+        scope = f"the {len(ids)} CV{'s' if len(ids) != 1 else ''} you uploaded"
+    else:
+        people = Candidate.objects.filter(created_at__date=added).exclude(source__in=["import", "internal"])
+        scope = f"CVs added on {added:%d %b %Y}"
+    total = people.count()
+    people = list(people.order_by("last_name", "first_name")[:MATCH_LIMIT])
+    rows, columns = [], []
+    if vacancies and people:
+        aliases = db_aliases()
+        applied = set(Application.objects.filter(candidate__in=people, requisition__in=vacancies)
+                      .values_list("candidate_id", "requisition_id"))
+        for person in people:
+            cells = []
+            for vacancy in vacancies:
+                result = compute_match(vacancy, person, aliases)
+                cells.append({
+                    "vacancy": vacancy, "score": result["score"], "grade": result["grade"],
+                    "eligible": result.get("eligible"), "unscored": result.get("unscored"),
+                    "weighted": result["weighted_score"], "applied": (person.pk, vacancy.pk) in applied,
+                    "can_add": vacancy.can_add,
+                    "failed": [f"{s['label']}: {s['has']}" for s in result["screening"] if not s["passed"]],
+                })
+            fits = [c for c in cells if c["eligible"]]
+            best = max(fits, key=lambda c: c["score"]) if fits else None
+            if best:
+                best["best"] = True
+            rows.append({"candidate": person, "cells": cells, "best": best})
+        rows.sort(key=lambda r: (-(r["best"]["score"] if r["best"] else -1), r["candidate"].full_name.lower()))
+        for i, vacancy in enumerate(vacancies):
+            column = [r["cells"][i] for r in rows]
+            columns.append({"vacancy": vacancy, "eligible": sum(1 for c in column if c["eligible"]),
+                            "best": sum(1 for c in column if c.get("best")),
+                            "unscored": any(c["unscored"] for c in column)})
+    return render(request, "candidates/match.html", {
+        "vacancies_all": vacancies_all, "chosen": chosen, "vacancies": vacancies, "columns": columns, "rows": rows,
+        "ids": ids, "added": added, "scope": scope, "total": total, "limit": MATCH_LIMIT,
+        "addable": any(v.can_add for v in vacancies),
+        "query": request.GET.urlencode(),
+    })
+
+
+@hr_required
+@require_POST
+def match_add(request):
+    """Add the ticked CV-vacancy pairs from the match grid as applications (each scored and saved)."""
+    from requisitions.models import Requisition
+
+    from .forms import open_requisitions
+
+    added = 0
+    open_ids = set(open_requisitions().values_list("pk", flat=True))
+    for pair in request.POST.getlist("pair"):
+        person_id, _, vacancy_id = pair.partition(":")
+        if not (person_id.isdigit() and vacancy_id.isdigit() and int(vacancy_id) in open_ids):
+            continue
+        person = Candidate.objects.filter(pk=person_id).first()
+        vacancy = Requisition.objects.filter(pk=vacancy_id).first()
+        if person and vacancy:
+            _, created = create_application(person, vacancy, actor=request.user, notify_team=False)
+            added += created
+    messages.success(request, f"Added {added} application{'s' if added != 1 else ''}, each scored against its "
+                              "vacancy." if added else "Nothing new to add.")
+    query = request.POST.get("query", "")
+    return redirect(reverse("candidates:match") + (f"?{query}" if query else ""))
 
 @login_required
 def refer(request):

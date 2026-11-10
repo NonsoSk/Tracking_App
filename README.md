@@ -250,6 +250,15 @@ Before a department can submit a requisition it must fill in the **required skil
 software / equipment, other requirements, justification and job description / responsibilities**. They score the
 candidates and make up the job description; a draft can be saved without them.
 
+**Have a job description already?** At the top of the requisition form (new or edit), choose the Word, PDF or text
+file and click **Read it**. The portal fills in what the document says: the title (new requisitions only), required
+and nice-to-have skills (a skill written next to "desirable", "an added advantage", "nice to have" and the like is a
+nice-to-have), tools, certifications, accepted courses, the minimum qualification and class of degree ("B.Sc/HND"
+gives HND), years of experience and NYSC, plus the text as the job description (an existing one is kept when
+editing). It only picks terms the portal knows: the knowledge base and the skill tags HR adds in the admin. Nothing is
+sent anywhere and nothing is saved until you save the form, so check every field, move anything that is not a real
+must-have from *Required skills* to *Nice-to-have*, and add anything it missed.
+
 Once the requisition is approved, **Review and publish** opens the job description already drafted in a standard
 format (job title and key facts, job summary, key responsibilities, qualifications and experience, required skills,
 tools, certifications, desirable, other requirements, how to apply). With AI on, Claude writes it from everything the
@@ -296,8 +305,8 @@ Scoring itself is **not** AI. It is a transparent weighted formula (below), so e
 ## How matching works
 
 A candidate is graded only against the requirements of a vacancy they applied for, or that HR deliberately puts them
-forward for (*Consider for a vacancy*): never against other departments' vacancies, and profiles in the talent
-database without an application are not graded at all. Each application is scored out of 100:
+forward for (*Consider for a vacancy*, or the *Match CVs to vacancies* grid below): never against other departments'
+vacancies, and profiles in the talent database without an application are not graded at all. Each application is scored out of 100:
 
 | Component | Experienced hire | Graduate trainee |
 |---|---|---|
@@ -333,6 +342,25 @@ On an application's **Scores** tab, HR sees the full working: each must-have (ne
 and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
 total. Others see the score and the must-haves. Changing a requisition's requirements re-scores all of its applicants
 automatically; existing scores were re-scored with these rules when the portal was updated.
+
+### Matching a batch of CVs to several vacancies
+
+For CVs that arrive outside the careers page (by email, on paper or in a shared folder) and could suit more than one
+job:
+
+1. Create each vacancy (Roles → New requisition, **Read it** from its job description), and approve it.
+2. **CV intake**: leave *Vacancy* empty and upload the CVs (up to 100 files per upload; a bigger folder
+   goes in batches, matched together by the day they were added). New people are added
+   to the talent database; someone already there (same email or phone) is updated instead of duplicated.
+3. Click **Match these CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, which can also take
+   the CVs added on a given day). Tick the vacancies and click **Match**.
+
+The grid scores every CV against every vacancy with the same strict rules: each cell shows the score and grade, or
+*Not eligible* with the first must-have that was not met (point at it for all of them). Each person's best fit is
+starred and ticked; tick or untick any cell, then **Add the ticked matches as applications**. Only then is anything
+saved: each pair becomes an application, scored with the full working on its Scores tab, and the vacancy's ranked
+list includes it. Vacancies still waiting for approval can be scored to see who fits, but take applications only once
+approved. HR only. Up to 400 CVs at a time.
 
 ### Hiring timeline
 

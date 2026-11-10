@@ -39,7 +39,8 @@
   </div>
 
   <section class="sheet" aria-labelledby="res-h">
-    <div class="sheet-h"><h2 class="title" id="res-h">Results</h2>{% if results %}<span class="count">{{ results|length }}</span>{% endif %}</div>
+    <div class="sheet-h"><h2 class="title" id="res-h">Results</h2>{% if results %}<span class="count">{{ results|length }}</span>{% endif %}<span class="spacer"></span>
+      {% if match_url %}<a class="btn btn-primary btn-sm" href="{{ match_url }}">{% icon "list-checks" "ico-16" %} Match these {{ match_count }} CVs to vacancies</a>{% endif %}</div>
     {% if results %}
     <div class="sheet-b intake-results">
       {% for name, r in results %}

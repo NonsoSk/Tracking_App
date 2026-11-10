@@ -12,6 +12,14 @@
   </div>
 </header>
 
+<form method="post" enctype="multipart/form-data" class="sheet jd-read" aria-labelledby="jd-h">{% csrf_token %}
+  <div class="jd-read-t"><span class="tile">{% icon "file-text" "ico-18" %}</span>
+    <div><b id="jd-h">{% if jd_read %}Read from the job description{% else %}Have a job description? Let the portal read it{% endif %}</b>
+      <span class="small muted">Word, PDF or text. It fills in {% if is_new %}the title, {% endif %}the skills (required and nice to have), tools, certifications, accepted courses, minimum qualification, years of experience and NYSC from what the document says. Nothing is saved until you save the form below.</span></div></div>
+  <div class="jd-read-f"><input type="file" name="jd_file" accept=".pdf,.doc,.docx,.rtf,.txt,.odt" aria-label="Job description file" required>
+    <button class="btn btn-secondary btn-sm" type="submit" name="read_jd" value="1">{% icon "sparkles" "ico-16" %} Read it</button></div>
+</form>
+
 <form method="post" id="requisition-form" class="wizard" novalidate data-role-url="{% url 'requisitions:api_role' 0 %}" data-suggest-url="{% url 'requisitions:api_suggest' %}">{% csrf_token %}
   {% if form.non_field_errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>Please check the form</b><span class="small">{{ form.non_field_errors|join:" " }}</span></div></div>{% endif %}
   {% if form.errors and not form.non_field_errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">They are marked in red below.</span></div></div>{% endif %}

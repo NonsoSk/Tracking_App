@@ -12,6 +12,7 @@
     <p class="calm">{% calm_note %}</p>
   </div>
   <div class="actions">
+    <a class="btn btn-secondary" href="{% url 'candidates:match' %}">{% icon "list-checks" "ico-18" %} Match CVs to vacancies</a>
     <a class="btn btn-secondary" href="{% url 'candidates:import' %}">{% icon "file-spreadsheet" "ico-18" %} Import Excel</a>
     <a class="btn btn-ghost" href="{% url 'candidates:create' %}">{% icon "user-plus" "ico-18" %} Add manually</a>
   </div>

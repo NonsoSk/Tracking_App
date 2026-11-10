@@ -1,0 +1,62 @@
+{% extends "ds/base.html" %}
+{% load ds humanize %}
+{% block title %}Match CVs to vacancies{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-16" %}<span aria-current="page">Match CVs to vacancies</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Talent</div>
+    <h1>Match CVs to vacancies</h1>
+    <p class="lede">Every CV is scored against each vacancy you pick, the strict way: must-haves first, then the weighted score. Each person's best fit is marked. Nothing is saved until you add the matches you want.</p>
+  </div>
+</header>
+
+<form class="sheet match-pick" method="get" aria-label="Choose the CVs and vacancies">
+  {% for c in ids %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}
+  <div class="mp-cvs"><span class="mp-l">CVs</span>
+    {% if ids %}<span><b>{{ scope|capfirst }}</b> <a class="small" href="?{% for v in chosen %}r={{ v }}&amp;{% endfor %}">use the CVs added on a day instead</a></span>
+    {% else %}<label class="mp-date">Added on <input class="input input-sm" type="date" name="added" value="{{ added|date:'Y-m-d' }}"></label><span class="small muted">{{ total|intcomma }} CV{{ total|pluralize }} that day</span>{% endif %}
+  </div>
+  <fieldset class="mp-vac"><legend class="mp-l">Vacancies to match against</legend>
+    <div class="mp-chips">
+    {% for v in vacancies_all %}<label class="mp-chip"><input type="checkbox" name="r" value="{{ v.pk }}" {% if v.pk in chosen %}checked{% endif %}> <span>{{ v.title }}<small>{{ v.reference|default:"" }} · {{ v.department.name }}{% if not v.can_add %} · {{ v.get_status_display }}{% endif %}</small></span></label>
+    {% empty %}<p class="small muted">There are no vacancies yet. Create them under Roles: "Read it" fills one in from a job description file.</p>{% endfor %}
+    </div>
+  </fieldset>
+  <div><button class="btn btn-primary" type="submit">{% icon "list-checks" "ico-18" %} Match</button></div>
+</form>
+
+{% if rows %}
+<form method="post" action="{% url 'candidates:match_add' %}" class="sheet" aria-labelledby="mr-h">{% csrf_token %}
+  <input type="hidden" name="query" value="{{ query }}">
+  <div class="sheet-h"><h2 class="title" id="mr-h">Results</h2><span class="count">{{ rows|length|intcomma }}</span><span class="spacer"></span>
+    {% if addable %}<button class="btn btn-primary btn-sm" type="submit">{% icon "plus" "ico-16" %} Add the ticked matches as applications</button>{% endif %}</div>
+  {% if total > limit %}<p class="sheet-b small muted">Showing the first {{ limit }} of {{ total|intcomma }} CVs.</p>{% endif %}
+  <div class="table-wrap match-wrap"><table class="table match-table">
+    <thead><tr><th scope="col">Candidate</th>
+      {% for col in columns %}<th scope="col" class="mt-vac"><a href="{{ col.vacancy.get_absolute_url }}">{{ col.vacancy.title }}</a>
+        <small>{{ col.eligible }} eligible · best fit for {{ col.best }}</small>
+        {% if col.unscored %}<small class="mt-warn">No requirements yet: <a href="{% url 'requisitions:edit' col.vacancy.pk %}">add them</a></small>
+        {% elif not col.vacancy.can_add %}<small class="mt-warn">{{ col.vacancy.get_status_display }}: scores only. Approve it to add applications.</small>{% endif %}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <th scope="row" class="mt-who"><a href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a>
+        <small>{{ r.candidate.qualification_short }}{% if r.candidate.course %} · {{ r.candidate.course }}{% endif %} · {{ r.candidate.experience_label }}</small></th>
+      {% for c in r.cells %}
+      <td class="mt-cell{% if c.best %} is-best{% endif %}{% if c.eligible == False %} is-out{% endif %}">
+        {% if c.unscored %}<span class="small muted">Not scored</span>
+        {% elif c.eligible %}<div class="mt-top"><b class="mt-score">{{ c.score|floatformat:"-1" }}</b><span class="mt-grade g{{ c.grade }}">Grade {{ c.grade }}</span></div>
+          {% if c.best %}<span class="mt-best">{% icon "star" "ico-14" %} Best fit</span>{% endif %}
+        {% else %}<div class="mt-top"><span class="mt-grade gX">Not eligible</span></div><small class="mt-why" title="{{ c.failed|join:'; ' }}">{{ c.failed.0 }}{% if c.failed|length > 1 %} (+{{ c.failed|length|add:"-1" }} more){% endif %}</small>{% endif %}
+        {% if c.applied %}<span class="chip success no-dot mt-done">{% icon "check" %} Applied</span>
+        {% elif c.can_add and not c.unscored %}<label class="mt-add"><input type="checkbox" name="pair" value="{{ r.candidate.pk }}:{{ c.vacancy.pk }}"{% if c.best %} checked{% endif %}> Add</label>{% endif %}
+      </td>{% endfor %}
+    </tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <p class="sheet-b small muted">Best fits are ticked for you; tick or untick any cell, then add. Each added CV becomes an application to that vacancy, scored with the full working on its Scores tab. Point at "Not eligible" to see every must-have the CV did not meet.</p>
+</form>
+{% elif vacancies %}
+{% empty_state "No CVs to match" "Upload CVs on the CV intake page (without choosing a vacancy), or pick the day they were added." object_name="Lab beaker of polymer pellets" %}
+{% endif %}
+{% endblock %}

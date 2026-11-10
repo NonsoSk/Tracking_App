@@ -85,8 +85,32 @@ def _initial_from_query(request):
     return initial
 
 
+def _read_jd(request, *, keep_title: bool = False):
+    """The requirements read from an uploaded job description, as form initial values (nothing is saved)."""
+    from .jd_reader import read_jd
+
+    upload = request.FILES.get("jd_file")
+    if not upload:
+        messages.error(request, "Choose the job description file first.")
+        return None
+    result = read_jd(upload.read(), upload.name)
+    if result["warning"]:
+        messages.error(request, result["warning"])
+        return None
+    values = result["values"]
+    if keep_title:
+        values.pop("title")
+    found = ", ".join(result["found"]) or "no known skills or requirements"
+    messages.info(request, f"Read {upload.name}: {found}. Check every field, add anything it missed, then save.")
+    return values
+
+
 @role_required("can_raise_requisition")
 def requisition_create(request):
+    if request.method == "POST" and "read_jd" in request.POST:
+        values = _read_jd(request)
+        form = RequisitionForm(user=request.user, initial={**_initial_from_query(request), **(values or {})})
+        return render(request, "requisitions/form.html", {"form": form, "is_new": True, "jd_read": bool(values)})
     form = RequisitionForm(request.POST or None, user=request.user, initial=_initial_from_query(request),
                            submitting="submit" in request.POST)
     if request.method == "POST" and form.is_valid():
@@ -111,6 +135,13 @@ def requisition_edit(request, pk):
     ensure(user.is_hr or (requisition.is_editable_by_department and can_view_requisition(user, requisition)
                           and user.can_raise_requisition))
     before = {f: getattr(requisition, f) for f in REQUIREMENT_FIELDS}
+    if request.method == "POST" and "read_jd" in request.POST:
+        values = _read_jd(request, keep_title=True) or {}
+        if values and requisition.job_description.strip():
+            values.pop("job_description")  # keep the job description already written
+        form = RequisitionForm(instance=requisition, user=user, initial=values)
+        return render(request, "requisitions/form.html", {"form": form, "requisition": requisition, "is_new": False,
+                                                          "jd_read": bool(values)})
     form = RequisitionForm(request.POST or None, instance=requisition, user=user,
                            submitting="submit" in request.POST and requisition.is_editable_by_department)
     if request.method == "POST" and form.is_valid():
