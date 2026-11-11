@@ -146,8 +146,9 @@ JOB_FAMILIES = {
         "skills": ["Recruitment and selection", "Employee relations", "Industrial relations", "Performance management",
                    "Learning and development", "Compensation and benefits", "HR policy administration",
                    "Onboarding", "Labour law compliance", "HR analytics", "Payroll administration",
-                   "HR records management", "Employee engagement", "Training needs analysis"],
-        "tools": ["SAP SuccessFactors", "SAP HCM", "Microsoft Excel", "Microsoft 365", "Workday", "HRIS"],
+                   "HR records management", "Employee engagement", "Training needs analysis", "Computer literacy"],
+        "tools": ["SAP SuccessFactors", "SAP HCM", "Microsoft Excel", "Microsoft 365", "Workday", "HRIS",
+                  "Microsoft Word", "Microsoft PowerPoint", "Microsoft Outlook", "Google Workspace"],
         "certifications": ["CIPM", "SHRM-CP", "CIPD", "PHRi"],
         "courses": ["Human Resource Management", "Industrial Relations", "Psychology", "Business Administration",
                     "Public Administration", "Sociology"],
@@ -214,8 +215,19 @@ JOB_FAMILIES = {
 
 # Common alternative spellings used when matching CVs to requirements.
 ALIASES = {
-    "microsoft excel": ["excel", "ms excel", "ms-excel", "spreadsheet"],
-    "microsoft office": ["ms office", "office suite", "microsoft 365", "office 365"],
+    "microsoft excel": ["excel", "ms excel", "ms-excel", "msexcel", "excel spreadsheet", "spreadsheet",
+                        "spreadsheets"],
+    "microsoft office": ["ms office", "ms-office", "msoffice", "office suite", "microsoft 365", "office 365",
+                         "ms 365", "m365", "microsoft office suite", "ms office suite", "microsoft office 365"],
+    "microsoft word": ["word", "ms word", "ms-word", "msword", "word processing"],
+    "microsoft powerpoint": ["powerpoint", "power point", "ms powerpoint", "ms-powerpoint", "ppt"],
+    "microsoft outlook": ["outlook", "ms outlook"],
+    "microsoft access": ["access", "ms access"],
+    "microsoft teams": ["teams", "ms teams"],
+    "google workspace": ["g suite", "gsuite", "google suite", "google apps"],
+    "google sheets": ["sheets"],
+    "computer literacy": ["computer literate", "computer skills", "computer appreciation", "ict skills", "it skills",
+                          "basic computer skills", "computer proficiency"],
     "microsoft project": ["ms project", "msp"],
     "honeywell experion": ["experion", "honeywell dcs", "experion pks"],
     "yokogawa centum vp": ["centum", "centum vp", "yokogawa dcs", "yokogawa"],
@@ -289,6 +301,74 @@ ALIASES = {
     "api 570": ["api-570"],
 }
 
+
+# A broader term meets a narrower one: someone who knows Microsoft 365 knows Excel, Word and PowerPoint; HSE Level 3
+# includes Levels 1 and 2. For a suite, one of its parts also shows the suite is used (Excel -> Microsoft Office).
+SUITES = {
+    "microsoft office": ["microsoft excel", "microsoft word", "microsoft powerpoint", "microsoft outlook",
+                         "microsoft access", "microsoft teams"],
+    "google workspace": ["google sheets", "google docs", "google slides", "gmail"],
+    "adobe creative suite": ["adobe photoshop", "adobe illustrator", "adobe indesign", "adobe premiere pro"],
+}
+LEVELS = [["hse level 1", "hse level 2", "hse level 3"]]  # a higher level covers the lower ones
+BROADER = {
+    "computer literacy": ["microsoft office", "microsoft excel", "microsoft word", "microsoft powerpoint",
+                          "google workspace"],
+    "accounts payable / receivable": ["accounts payable", "accounts receivable"],
+    "reconciliations": ["bank reconciliation", "vendor reconciliation"],
+}
+
+
+def _covered_by() -> dict[str, list[str]]:
+    from core.text import normalize
+
+    covered: dict[str, list[str]] = {}
+
+    def add(term, by):
+        covered.setdefault(normalize(term), []).append(by)
+
+    for suite, parts in SUITES.items():
+        for part in parts:
+            add(part, suite)   # Microsoft 365 covers Excel
+            add(suite, part)   # Excel shows Microsoft Office is used
+    for chain in LEVELS:
+        for i, lower in enumerate(chain):
+            for higher in chain[i + 1:]:
+                add(lower, higher)
+    for term, others in BROADER.items():
+        for other in others:
+            add(term, other)
+    return covered
+
+
+COVERED_BY = _covered_by()
+
+# Courses that are close enough to count (at a reduced weight) when a vacancy asks for one of the others.
+COURSE_FAMILIES = [
+    ["accounting", "accountancy", "finance", "banking and finance", "economics", "business administration",
+     "actuarial science", "taxation", "insurance", "financial management", "business management"],
+    ["human resource management", "industrial relations", "personnel management", "psychology", "sociology",
+     "public administration", "business administration", "labour relations"],
+    ["marketing", "mass communication", "public relations", "advertising", "business administration", "economics",
+     "agricultural economics", "entrepreneurship"],
+    ["chemical engineering", "petroleum engineering", "petrochemical engineering", "industrial chemistry",
+     "chemistry", "process engineering", "polymer engineering", "gas engineering"],
+    ["mechanical engineering", "marine engineering", "production engineering", "metallurgical engineering",
+     "materials engineering", "mechatronics engineering", "agricultural engineering"],
+    ["electrical/electronics engineering", "electrical engineering", "electronics engineering", "instrumentation",
+     "computer engineering", "mechatronics engineering"],
+    ["computer science", "information technology", "computer engineering", "software engineering",
+     "information systems", "cyber security"],
+    ["agriculture", "agronomy", "soil science", "crop science", "agricultural economics", "agricultural extension",
+     "plant science"],
+    ["logistics and transport", "supply chain management", "purchasing and supply", "transport management",
+     "maritime transport", "procurement"],
+    ["civil engineering", "building technology", "quantity surveying", "architecture", "estate management",
+     "surveying"],
+    ["environmental science", "environmental management", "geography", "occupational health and safety",
+     "public health", "environmental health"],
+    ["law", "legal studies"],
+]
 
 def all_terms(kind: str | None = None) -> list[str]:
     """Every term known to the knowledge base, optionally filtered by kind."""

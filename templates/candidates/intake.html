@@ -34,7 +34,8 @@
       <div class="sheet-h"><h2 class="title" id="how-h">How reading works</h2></div>
       <div class="sheet-b">
         <ul class="how-list">
-          <li><span class="tile sm">{% icon "file-text" "ico-16" %}</span><span>PDF and Word CVs are read directly.</span></li>
+          <li><span class="tile sm">{% icon "file-text" "ico-16" %}</span><span>PDF and Word CVs are read directly, including text boxes and tables: the name, contacts, sex, date of birth, state, LGA, education, NYSC, experience and skills.</span></li>
+          <li><span class="tile sm">{% icon "user-check" "ico-16" %}</span><span>Every new profile is then checked against its CV by HR before it is matched or put forward.</span></li>
           <li><span class="tile sm">{% icon "scan-text" "ico-16" %}</span><span>Scanned PDFs and photos of paper CVs are read by {% if AI_ENABLED %}<b>AI</b> (switched on){% else %}AI once an API key is added, or by OCR where it is installed{% endif %}.</span></li>
           <li><span class="tile sm">{% icon "copy" "ico-16" %}</span><span>Duplicates are spotted by email or phone. The existing profile is updated instead.</span></li>
           <li><span class="tile sm">{% icon "mail" "ico-16" %}</span><span>CVs sent to the {{ COMPANY_SHORT_NAME }} careers mailbox can be pulled in automatically.</span></li>
@@ -45,7 +46,9 @@
 
   <section class="sheet" aria-labelledby="res-h">
     <div class="sheet-h"><h2 class="title" id="res-h">Results</h2>{% if results %}<span class="count">{{ results|length }}</span><span class="small muted">{{ read_count }} read{% if problem_count %} · {{ problem_count }} not read (shown in red){% endif %}</span>{% endif %}<span class="spacer"></span>
-      {% if match_url %}<a class="btn btn-primary btn-sm" href="{{ match_url }}">{% icon "list-checks" "ico-16" %} Match these {{ match_count }} CVs to vacancies</a>{% endif %}</div>
+      {% if check_url %}<a class="btn btn-primary btn-sm" href="{{ check_url }}">{% icon "user-check" "ico-16" %} Check the {{ check_count }} new profile{{ check_count|pluralize }}</a>
+      {% elif match_url %}<a class="btn btn-primary btn-sm" href="{{ match_url }}">{% icon "list-checks" "ico-16" %} Match these {{ match_count }} CVs to vacancies</a>{% endif %}</div>
+    {% if check_url %}<p class="sheet-b small muted check-hint">Each new profile is checked against its CV before it can be matched or put forward{% if form.requisition.value %} (the vacancy you chose is applied to then){% endif %}. When the last one is confirmed, you can match them all.</p>{% endif %}
     {% if lost %}<div class="sheet-b"><div class="banner danger"><span class="tile">{% icon "file-x" "ico-18" %}</span><div><b>{{ lost|length }} file{{ lost|length|pluralize }} could not be sent</b><span class="small">The connection to the portal dropped. Add {{ lost|length|pluralize:"it,them" }} again: {{ lost|join:", " }}</span></div></div></div>{% endif %}
     {% if results %}
     <div class="sheet-b intake-results">
@@ -56,7 +59,7 @@
       <article class="card intake-card">
         {% avatar c "md" %}
         <div class="ic-body">
-          <div class="row wrap"><a class="ic-name" href="{{ c.get_absolute_url }}">{{ c.full_name }}</a><span class="chip {% if r.created %}success{% else %}brand{% endif %}">{% if r.created %}New profile{% else %}Updated existing{% endif %}</span></div>
+          <div class="row wrap"><a class="ic-name" href="{{ c.get_absolute_url }}">{{ c.full_name }}</a><span class="chip {% if r.created %}success{% else %}brand{% endif %}">{% if r.created %}New profile{% else %}Updated existing{% endif %}</span>{% if c.needs_check %}<a class="chip warning no-dot" href="{% url 'candidates:check_profile' c.pk %}">To check</a>{% endif %}</div>
           <p class="small muted">{% icon "file-text" "ico-14" %} {{ name }} · read by {{ r.parsed.method|default:"—" }}</p>
           <p class="small soft">{{ c.get_highest_qualification_display|default:"" }} {{ c.course }}{% if c.years_experience %} · {{ c.years_experience|floatformat:"-1" }} yrs{% endif %}{% if c.email %} · {{ c.email }}{% endif %}</p>
           {% if c.skills %}<div class="tags">{% for s in c.skills|slice:":4" %}<span class="tag">{{ s }}</span>{% endfor %}</div>{% endif %}

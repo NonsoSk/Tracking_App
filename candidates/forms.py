@@ -39,6 +39,52 @@ class CandidateForm(BootstrapMixin, forms.ModelForm):
         return super().save(commit)
 
 
+CHECK_GROUPS = [
+    ("Person", ["first_name", "last_name", "email", "phone", "gender", "date_of_birth", "state_of_origin", "lga",
+                "location"]),
+    ("Education", ["highest_qualification", "course", "institution", "graduation_year", "degree_class", "nysc_status"]),
+    ("Experience", ["years_experience", "current_job_title", "current_employer", "summary"]),
+    ("Skills", ["skills", "tools", "certifications"]),
+]
+
+
+class ProfileCheckForm(CandidateForm):
+    """What HR checks against the CV before a profile read from it can be matched or put forward."""
+
+    # Shown as "not found in the CV" when empty, so HR looks for them.
+    KEY_FIELDS = ["first_name", "last_name", "email", "phone", "highest_qualification", "course", "years_experience",
+                  "nysc_status", "date_of_birth", "state_of_origin"]
+
+    class Meta(CandidateForm.Meta):
+        fields = [name for _, names in CHECK_GROUPS for name in names]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["first_name"].required = True
+        self.fields["last_name"].required = True
+        self.fields["summary"].widget.attrs["rows"] = 4
+
+    def clean(self):
+        data = super().clean()
+        email, phone = data.get("email"), data.get("phone")
+        if not email and not phone:
+            raise forms.ValidationError("Give an email address or a phone number, so the candidate can be contacted.")
+        others = Candidate.objects.exclude(pk=self.instance.pk)
+        if email:
+            other = others.filter(email__iexact=email).first()
+            if other:
+                self.add_error("email", f"{other.full_name} already has this email address. If it is the same "
+                                        "person, delete this copy and add the CV to their profile.")
+        return data
+
+    def grouped(self):
+        return [(title, [self[name] for name in names]) for title, names in CHECK_GROUPS]
+
+    def missing(self):
+        return [self.fields[name].label for name in self.KEY_FIELDS
+                if self.initial.get(name) in (None, "", [], 0) and not self.is_bound]
+
+
 class DocumentUploadForm(BootstrapMixin, forms.Form):
     doc_type = forms.ChoiceField(choices=CandidateDocument.DocType.choices, label="Document type")
     file = forms.FileField()

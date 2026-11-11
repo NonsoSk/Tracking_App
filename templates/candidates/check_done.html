@@ -1,0 +1,18 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Profiles checked{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Check new profiles</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Check new profiles</div>
+    <h1>{% if ids %}All checked{% else %}Nothing to check{% endif %}</h1>
+    <p class="lede">{% if ids %}{{ checked }} profile{{ checked|pluralize }} from this upload {{ checked|pluralize:"is,are" }} checked and ready.{% else %}Every profile read from a CV has been checked.{% endif %}</p>
+  </div>
+</header>
+<div class="sheet"><div class="sheet-b row wrap check-next">
+  {% if match_url and checked %}<a class="btn btn-primary" href="{{ match_url }}">{% icon "list-checks" "ico-18" %} Match these CVs to vacancies</a>{% endif %}
+  <a class="btn btn-secondary" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-18" %} Upload more CVs</a>
+  <a class="btn btn-ghost" href="{% url 'candidates:list' %}">Talent database</a>
+</div></div>
+{% endblock %}

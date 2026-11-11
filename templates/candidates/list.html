@@ -12,6 +12,7 @@
     <p class="calm">{% calm_note %}</p>
   </div>
   <div class="actions">
+    {% if to_check %}<a class="btn btn-primary" href="{% url 'candidates:check' %}">{% icon "user-check" "ico-18" %} Check {{ to_check }} new profile{{ to_check|pluralize }}</a>{% endif %}
     <a class="btn btn-secondary" href="{% url 'candidates:match' %}">{% icon "list-checks" "ico-18" %} Match CVs to vacancies</a>
     <a class="btn btn-secondary" href="{% url 'candidates:import' %}">{% icon "file-spreadsheet" "ico-18" %} Import Excel</a>
     <a class="btn btn-ghost" href="{% url 'candidates:create' %}">{% icon "user-plus" "ico-18" %} Add manually</a>
@@ -64,7 +65,7 @@
     <tbody>
     {% for c in candidates %}
       <tr>
-        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>{% if c.has_resume %}<span class="resume-mark" data-tip="Resume on file">{% icon "file-text" "ico-14" label="Resume on file" %}</span>{% endif %}{% people_chip c %}</b><span>{{ c.email|default:c.phone }}</span></div></div></td>
+        <td><div class="who">{% avatar c "sm" %}<div class="who-t"><b><a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>{% if c.has_resume %}<span class="resume-mark" data-tip="Resume on file">{% icon "file-text" "ico-14" label="Resume on file" %}</span>{% endif %}{% people_chip c %}{% if c.needs_check %}<a class="chip warning no-dot" href="{% url 'candidates:check_profile' c.pk %}">To check</a>{% endif %}</b><span>{{ c.email|default:c.phone }}</span></div></div></td>
         <td class="nowrap" data-label="Qualification">{{ c.qualification_short }}<div class="small muted ellip">{{ c.course }}</div></td>
         <td class="num nowrap" data-label="Experience">{{ c.experience_label }}</td>
         <td data-label="Top skills"><div class="tags">{% for s in c.skills|slice:":2" %}<span class="tag">{{ s }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</div></td>

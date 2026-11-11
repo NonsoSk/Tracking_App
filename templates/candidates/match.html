@@ -26,6 +26,7 @@
   <div><button class="btn btn-primary" type="submit">{% icon "list-checks" "ico-18" %} Match</button></div>
 </form>
 
+{% if unchecked %}<div class="banner warning match-unchecked"><span class="tile">{% icon "user-check" "ico-18" %}</span><div><b>{{ unchecked }} of these CVs {{ unchecked|pluralize:"is,are" }} not checked yet, so {{ unchecked|pluralize:"it is,they are" }} left out</b><span class="small">Each profile read from a CV is checked against the CV before it is matched.</span></div><a class="btn btn-primary btn-sm" href="{{ check_url }}">Check {{ unchecked|pluralize:"it,them" }} now</a></div>{% endif %}
 {% if rows %}
 <form method="post" action="{% url 'candidates:match_add' %}" class="sheet" aria-labelledby="mr-h">{% csrf_token %}
   <input type="hidden" name="query" value="{{ query }}">

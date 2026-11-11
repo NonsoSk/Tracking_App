@@ -117,6 +117,7 @@ def candidate_list(request):
     without_who = params.copy()
     without_who.pop("who", None)
     return render(request, "candidates/list.html", {
+        "to_check": Candidate.objects.filter(needs_check=True).count(),
         "candidates": page, "page": page, "q": q, "levels": EducationLevel.choices, "filters": request.GET,
         "total": page.paginator.count, "channels": channels, "portal_sources": Candidate.Source.choices,
         "communities": CommunityStatus.choices, "query": params.urlencode(),
@@ -404,10 +405,113 @@ def delete_document(request, pk):
     return redirect(candidate)
 
 
+def _check_queue(request):
+    """The profiles still to check: those named in ?c= (an upload's CVs), else all of them, oldest first."""
+    ids = [int(c) for c in request.GET.getlist("c") if c.isdigit()]
+    queue = Candidate.objects.filter(needs_check=True)
+    if ids:
+        queue = queue.filter(pk__in=ids)
+    return ids, queue.order_by("created_at", "pk")
+
+
+def _with_ids(url, ids):
+    from urllib.parse import urlencode
+
+    return url + ("?" + urlencode([("c", i) for i in ids]) if ids else "")
+
+
+@hr_required
+def check_queue(request):
+    """Start (or carry on) checking new profiles; when none are left, say so and offer the next step."""
+    ids, queue = _check_queue(request)
+    first = queue.first()
+    if first:
+        return redirect(_with_ids(reverse("candidates:check_profile", args=[first.pk]), ids))
+    return render(request, "candidates/check_done.html", {
+        "ids": ids, "match_url": _with_ids(reverse("candidates:match"), ids) if ids else "",
+        "checked": Candidate.objects.filter(pk__in=ids, needs_check=False).count() if ids else 0,
+    })
+
+
+@hr_required
+def check_profile(request, pk):
+    """Check one profile against its CV: correct what the reader got wrong, then confirm. Only then can it be
+    matched or put forward; the vacancy chosen at upload, if any, is applied to on confirming."""
+    from requisitions.models import Requisition
+
+    from .forms import ProfileCheckForm
+
+    candidate = get_object_or_404(Candidate, pk=pk)
+    ids, queue = _check_queue(request)
+    if not candidate.needs_check and request.method == "GET":
+        messages.info(request, f"{candidate.full_name}'s profile is already checked.")
+        return redirect(_with_ids(reverse("candidates:check"), ids) if ids else candidate.get_absolute_url())
+    if request.method == "POST" and "delete" in request.POST:
+        if not candidate.needs_check:
+            messages.error(request, "Only a profile that has not been checked can be deleted here.")
+            return redirect(candidate)
+        name = candidate.full_name
+        for document in candidate.documents.all():
+            document.file.delete(save=False)
+            if document.original_file:
+                document.original_file.delete(save=False)
+        candidate.delete()
+        messages.success(request, f"Deleted {name}'s profile and its CV.")
+        return redirect(_with_ids(reverse("candidates:check"), ids))
+    if request.method == "POST" and "skip" in request.POST:
+        later = queue.exclude(pk=candidate.pk).filter(Q(created_at__gt=candidate.created_at)
+                                                      | Q(created_at=candidate.created_at, pk__gt=candidate.pk)).first()
+        nxt = later or queue.exclude(pk=candidate.pk).first()
+        if nxt:
+            return redirect(_with_ids(reverse("candidates:check_profile", args=[nxt.pk]), ids))
+        messages.info(request, "That was the only profile left to check.")
+        return redirect(_with_ids(reverse("candidates:check_profile", args=[candidate.pk]), ids))
+    form = ProfileCheckForm(request.POST or None, instance=candidate)
+    if request.method == "POST" and form.is_valid():
+        from django.utils import timezone
+
+        candidate = form.save(commit=False)
+        candidate.needs_check = False
+        candidate.checked_by = request.user
+        candidate.checked_at = timezone.now()
+        vacancy = candidate.pending_requisition
+        candidate.pending_requisition = None
+        candidate.save()
+        form.save_m2m()
+        rescore_candidate(candidate)
+        log(f"Profile checked against the CV by {request.user.display_name}.", verb="profile", candidate=candidate,
+            actor=request.user)
+        if vacancy and vacancy.status in {Requisition.Status.OPEN, Requisition.Status.APPROVED}:
+            application, _ = create_application(candidate, vacancy, source=candidate.source, actor=request.user,
+                                                notify_team=False)
+            messages.success(request, f"{candidate.full_name} checked and added to {vacancy.title}: "
+                                      f"match {application.match_score}% ({application.grade_text.lower()}).")
+        elif vacancy:
+            messages.warning(request, f"{candidate.full_name} checked. {vacancy.title} is no longer open, so the CV "
+                                      "was not added to it.")
+        else:
+            messages.success(request, f"{candidate.full_name} checked.")
+        return redirect(_with_ids(reverse("candidates:check"), ids))
+    from pipeline import presentation
+
+    position = list(queue.values_list("pk", flat=True))
+    resume = candidate.latest_cv
+    return render(request, "candidates/check.html", {
+        "c": candidate, "form": form, "resume": resume, "ids": ids, "left": len(position),
+        "cv_terms": presentation.cv_terms(candidate),
+        "place": position.index(candidate.pk) + 1 if candidate.pk in position else 1,
+        "notes": [n for n in (candidate.parse_notes or "").splitlines() if n.strip()],
+        "query": request.GET.urlencode(),
+    })
+
+
 @hr_required
 @require_POST
 def add_to_requisition(request, pk):
     candidate = get_object_or_404(Candidate, pk=pk)
+    if candidate.needs_check:
+        messages.error(request, "Check this profile against the CV first; it can then be put forward.")
+        return redirect("candidates:check_profile", pk=candidate.pk)
     form = AddToRequisitionForm(request.POST)
     if form.is_valid():
         application, created = create_application(candidate, form.cleaned_data["requisition"], source=candidate.source,
@@ -442,6 +546,7 @@ def _ingest_upload(uploaded, data, user):
         return ingest_cv(
             uploaded.read(), uploaded.name, source=data["source"], requisition=data.get("requisition"), user=user,
             referred_by=data.get("referred_by"), referral_note=data.get("note", ""), notify_team=False,
+            needs_check=True,
         )
     except Exception:
         logger.exception("CV intake could not read %s", uploaded.name)
@@ -490,7 +595,10 @@ def _intake_page(request, form, results, lost=()):
     ok = [r for _, r in results if not r.error]
     context = {"form": form, "results": results, "lost": lost, "read_count": len(ok),
                "problem_count": len(results) - len(ok)}
-    if ok and not any(r.application for r in ok):
+    to_check = list(dict.fromkeys(r.candidate.pk for r in ok if r.candidate.needs_check))
+    if to_check:
+        context.update(check_url=_with_ids(reverse("candidates:check"), to_check), check_count=len(to_check))
+    elif ok and not any(r.application for r in ok):
         # No vacancy was chosen: offer to match them to the vacancies.
         ids = list(dict.fromkeys(r.candidate.pk for r in ok))
         context.update(match_url=reverse("candidates:match") + "?" + urlencode([("c", pk) for pk in ids]),
@@ -571,6 +679,8 @@ def match_vacancies(request):
     else:
         people = uploaded.filter(created_at__date=added)
         scope = f"CVs added on {added:%d %b %Y}"
+    unchecked = list(people.filter(needs_check=True).values_list("pk", flat=True))
+    people = people.filter(needs_check=False)
     total = people.count()
     people = list(people.order_by("last_name", "first_name")[:MATCH_LIMIT])
     rows, columns = [], []
@@ -604,6 +714,7 @@ def match_vacancies(request):
         "vacancies_all": vacancies_all, "chosen": chosen, "vacancies": vacancies, "columns": columns, "rows": rows,
         "ids": ids, "added": added, "scope": scope, "total": total, "limit": MATCH_LIMIT,
         "addable": any(v.can_add for v in vacancies),
+        "unchecked": len(unchecked), "check_url": _with_ids(reverse("candidates:check"), unchecked),
         "query": request.GET.urlencode(),
     })
 
@@ -622,7 +733,7 @@ def match_add(request):
         person_id, _, vacancy_id = pair.partition(":")
         if not (person_id.isdigit() and vacancy_id.isdigit() and int(vacancy_id) in open_ids):
             continue
-        person = Candidate.objects.filter(pk=person_id).first()
+        person = Candidate.objects.filter(pk=person_id, needs_check=False).first()
         vacancy = Requisition.objects.filter(pk=vacancy_id).first()
         if person and vacancy:
             _, created = create_application(person, vacancy, actor=request.user, notify_team=False)

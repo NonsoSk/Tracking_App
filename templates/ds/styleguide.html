@@ -1,6 +1,6 @@
 {% extends "ds/base.html" %}{% load static ds %}
 {% block title %}Style guide{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'ds/styleguide.css' %}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% asset 'ds/styleguide.css' %}">{% endblock %}
 {% block crumbs %}<span>Design system</span>{% icon "chevron-right" "ico-16" %}<span aria-current="page">Style guide</span>{% endblock %}
 {% block content %}
 <header class="page-head">

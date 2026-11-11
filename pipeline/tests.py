@@ -129,13 +129,26 @@ class MatchingTests(TestCase):
         good = compute_match(self.req, self.candidate(degree_class="first", nysc_status="completed", years_experience=0))
         weak = compute_match(self.req, self.candidate(degree_class="2_2", nysc_status="", years_experience=0))
         self.assertEqual((good["eligible"], good["track"], good["score"]), (True, "trainee", 100))
-        self.assertEqual({s["key"] for s in weak["screening"] if not s["passed"]}, {"degree_class", "nysc"})
+        # A class below the minimum fails; NYSC the CV does not mention is "not stated: confirm", not a fail.
+        self.assertEqual({s["key"] for s in weak["screening"] if not s["passed"]}, {"degree_class"})
+        self.assertEqual({s["key"] for s in weak["screening"] if s["unknown"]}, {"nysc"})
         self.assertEqual(weak["score"], 0)
+        serving = compute_match(self.req, self.candidate(degree_class="first", nysc_status="ongoing", years_experience=0))
+        self.assertEqual({s["key"] for s in serving["screening"] if not s["passed"]}, {"nysc"})
+        unstated = compute_match(self.req, self.candidate(degree_class="", nysc_status="completed", years_experience=0))
+        self.assertTrue(unstated["eligible"])
+        self.assertEqual(unstated["components"]["education"]["percent"], 75)
+        self.assertIn("Class of degree: not stated in the CV, confirm with the candidate", unstated["flags"])
 
     def test_courses_written_differently(self):
         self.assertTrue(compute_match(self.req, self.candidate(course="Chemical & Petroleum Engineering"))["eligible"])
         self.assertTrue(compute_match(self.req, self.candidate(course="Chemical Engg."))["eligible"])
-        self.assertFalse(compute_match(self.req, self.candidate(course="Petroleum Engineering"))["eligible"])
+        # A related course passes, counted at 60%; an unrelated one does not.
+        related = compute_match(self.req, self.candidate(course="Petroleum Engineering"))
+        self.assertTrue(related["eligible"])
+        self.assertEqual(related["components"]["course"]["percent"], 60)
+        self.assertIn("is related to", related["components"]["course"]["found"])
+        self.assertFalse(compute_match(self.req, self.candidate(course="Mass Communication"))["eligible"])
 
     def test_a_vacancy_with_no_requirements_is_not_scored(self):
         # As a requisition loaded from the tracker arrives: no skills, courses, qualification or experience.

@@ -18,6 +18,22 @@ from django.utils.html import escape, format_html
 from django.utils.safestring import mark_safe
 
 register = template.Library()
+
+
+@register.simple_tag
+def asset(path: str) -> str:
+    """{% asset 'ds/ds.js' %}: the static URL plus ?v=<when the file last changed>. Browsers may keep a static file
+    for hours; a new version number after an update makes them fetch the new one at once."""
+    from django.contrib.staticfiles import finders
+
+    url = static(path)
+    found = finders.find(path)
+    if found:
+        try:
+            url += f"?v={int(Path(found).stat().st_mtime)}"
+        except OSError:
+            pass
+    return url
 log = logging.getLogger(__name__)
 
 ICON_DIR = Path(settings.BASE_DIR) / "static" / "vendor" / "lucide" / "icons"

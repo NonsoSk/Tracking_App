@@ -1928,3 +1928,29 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .upload-progress.is-error { background: var(--danger-bg); color: var(--danger-ink); }
 .upload-progress.is-error .progress, .upload-progress.is-error [data-up-help] { display: none; }
 @media (prefers-reduced-motion: reduce) { .fileitem.is-sending .progress > i { animation: none; } }
+.dz-folder-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.dz-folder { position: relative; }
+
+/* Checking a profile read from a CV: the CV beside the fields */
+.check-head { align-items: flex-end; }
+.check-progress { min-width: 180px; flex: 0 1 260px; }
+.check-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-24); align-items: start; }
+.check-cv { position: sticky; top: var(--s-16); overflow: hidden; }
+.check-frame { height: calc(100vh - 140px); min-height: 560px; }
+.check-plain { max-height: calc(100vh - 140px); overflow: auto; margin: 0; border-radius: 0; }
+.check-text summary { cursor: pointer; padding: var(--s-12) var(--s-20); font-weight: 600; font-size: var(--fs-small); }
+.check-text .cv-text { max-height: 360px; overflow: auto; margin: 0 var(--s-16) var(--s-16); }
+.check-group { border: 0; padding: 0; margin: 0; min-width: 0; }
+.check-group legend { font-size: 12.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-bottom: var(--s-8); }
+.check-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-8); position: sticky; bottom: 0; background: var(--slab-bg); border-top: 1px solid var(--line); z-index: 2; }
+.check-banner, .match-unchecked { margin-bottom: var(--s-20); }
+.check-next { gap: var(--s-12); }
+.check-hint { margin-top: 0; }
+@media (max-width: 1000px) {
+  .check-grid { grid-template-columns: 1fr; }
+  .check-cv { position: static; }
+  .check-frame { height: 70vh; min-height: 420px; }
+}
+.ms-tags .tag.part { border-style: dashed; }
+.btn-quiet-danger { color: var(--danger-ink); }
+.btn-quiet-danger:hover { background: var(--danger-bg); }

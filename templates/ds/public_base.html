@@ -7,7 +7,7 @@
   <title>{% block title %}Careers{% endblock %} · {{ COMPANY_NAME }}</title>
   <meta name="description" content="{% block description %}Open vacancies at {{ COMPANY_NAME }}. Apply online in about five minutes.{% endblock %}">
   <link rel="preload" href="{% static 'vendor/fonts/nunito-sans/nunito-sans-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{% static 'ds/ds.css' %}">
+  <link rel="stylesheet" href="{% asset 'ds/ds.css' %}">
   <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
   <meta name="theme-color" content="#F2F4F8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0B1224" media="(prefers-color-scheme: dark)">
@@ -45,8 +45,8 @@
   <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-danger" type="button" data-confirm-ok>Continue</button></div>
 </dialog>
 {% include "ds/_icons.html" %}
-<script src="{% static 'ds/ds.js' %}" defer></script>
-<script src="{% static 'ds/app.js' %}" defer></script>
+<script src="{% asset 'ds/ds.js' %}" defer></script>
+<script src="{% asset 'ds/app.js' %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -75,10 +75,15 @@ def variants(term: str, extra_aliases: dict[str, set[str]] | None = None) -> set
     return {v for v in result if v}
 
 
+@lru_cache(maxsize=4096)
+def _phrase_pattern(phrase_norm: str):
+    return re.compile(rf"(?<![a-z0-9]){re.escape(phrase_norm)}(?![a-z0-9])")
+
+
 def contains_phrase(haystack_norm: str, phrase_norm: str) -> bool:
-    if not phrase_norm:
+    if not phrase_norm or phrase_norm not in haystack_norm:  # most phrases are not there at all: no regex needed
         return False
-    return re.search(rf"(?<![a-z0-9]){re.escape(phrase_norm)}(?![a-z0-9])", haystack_norm) is not None
+    return _phrase_pattern(phrase_norm).search(haystack_norm) is not None
 
 
 def term_similarity(a: str, b: str) -> float:

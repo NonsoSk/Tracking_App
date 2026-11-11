@@ -283,7 +283,11 @@ application by reference number and email.
 ## AI features (optional)
 
 Everything works **without AI**: the built-in rule-based CV reader and a skills/tools knowledge base for a
-fertilizer/petrochemical plant cover the basics. Adding a Claude API key (`ANTHROPIC_API_KEY` in `.env`) enables:
+fertilizer/petrochemical plant cover the basics. The reader takes the name from a heading ("ENGR. IFEOMA CHUKWU",
+"OKAFOR, Chinedu", surname in capitals first), a personal-data table or "Surname / Other names" lines, and reads Word
+text boxes, tables, headers and footers; failing that, from the file name ("Chinedu Okafor CV.pdf") or the email
+address, with a note to check. It also reads phone numbers in any grouping, sex, date of birth, state of origin and
+LGA. Adding a Claude API key (`ANTHROPIC_API_KEY` in `.env`) enables:
 
 * **Reading any CV, including scanned hard copies and phone photos**: the PDF or image goes straight to Claude, which
   returns structured data (name, contacts, qualification, course, class of degree, NYSC, years of experience, work
@@ -310,35 +314,47 @@ vacancies, and profiles in the talent database without an application are not gr
 
 | Component | Experienced hire | Graduate trainee |
 |---|---|---|
-| Required + nice-to-have skills (nice-to-have count half) | 30 | 20 |
-| Tools / software / equipment | 15 | 10 |
-| Years of experience (weighted by relevance of background) | 25 | 5 |
+| Required + nice-to-have skills (nice-to-have count half) | 25 | 15 |
+| Tools / software / equipment | 10 | 10 |
+| Years of experience (weighted by relevance of background) | 20 | 5 |
+| Fit with the job (the JD's title and duties against the candidate's summary, past roles and CV) | 15 | 10 |
 | Qualification level (+ minimum class of degree) | 10 | 25 |
-| Course of study | 10 | 30 |
+| Course of study | 10 | 25 |
 | Certifications | 10 | 10 |
 
-Matching is strict, the way an ATS screens and ranks:
+Matching screens and ranks the way an ATS does, without ruling people out on wording:
 
-1. **Must-haves.** Each requirement the requisition sets must be met: the minimum qualification (HND counts as a
-   degree only with `HND_EQUIVALENT_TO_BSC=true`), the minimum class of degree, one of the accepted courses, NYSC
-   completed or exempted, the minimum years of experience, and at least half of the required skills
-   (`MATCH_MIN_REQUIRED_SKILLS_PERCENT`). Something the profile does not state counts as not met. A candidate who
-   fails one is **Not eligible**: score 0, grade X, listed after everyone eligible.
+1. **Must-haves.** The minimum qualification (HND counts as a degree only with `HND_EQUIVALENT_TO_BSC=true`) and the
+   minimum years of experience must be met; at least half of the required skills must be found
+   (`MATCH_MIN_REQUIRED_SKILLS_PERCENT`); the course must be an accepted one or a related one (Banking and Finance for
+   Accounting, Petroleum for Chemical Engineering: counted at 60%); a class of degree or NYSC that is given must
+   meet the minimum. A class of degree, course or NYSC the CV does not mention is marked **Confirm** (ask the
+   candidate) and earns fewer points, but does not rule them out. A candidate who fails a must-have is **Not
+   eligible**: score 0, grade X, listed after everyone eligible.
 2. **The score.** The weights above, spread over the components the requisition asks for so they add up to 100. Each
-   component earns *weight × share met*; the points add up to the score.
+   component earns *weight × share met*; the points add up to the score. Fit with the job is left out (its weight
+   spread over the rest) for a profile with no CV text or past roles, such as one loaded from Excel.
 
-A term counts only when it truly matches: the same term (plurals included), an approved synonym ("MS Excel" =
-"Microsoft Excel", "HYSYS" = "Aspen HYSYS"; HR adds more in the admin under *Skill tags*), or the required term written
-whole inside what the candidate wrote ("AutoCAD" in "AutoCAD 2D/3D"). Near spellings and shared words do not count.
-Terms are looked for on the profile and in the CV text. A course written another way still counts when it covers the
-accepted one ("Chemical & Petroleum Engineering", "Chemical Engg." for Chemical Engineering). Grades: A 85+, B 70+,
-C 55+, D below 55, X not eligible.
+A term counts when the candidate has it in any of these ways (point at a term on the Scores tab to see which):
+
+* the same term (plurals included) or an approved synonym: "MS Word" = "Microsoft Word", "MS Excel" = "Microsoft
+  Excel", "HYSYS" = "Aspen HYSYS" (HR adds more in the admin under *Skill tags*);
+* the required term written inside what the candidate wrote ("AutoCAD" in "AutoCAD 2D/3D");
+* a broader term that includes it: Microsoft 365 / MS Office covers Excel, Word, PowerPoint and Outlook (and Excel
+  shows Office is used), Google Workspace covers Sheets and Docs, HSE Level 3 covers Levels 1 and 2, any office
+  software meets "computer literacy" (`SUITES`, `LEVELS` and `BROADER` in `requisitions/knowledge_base.py`);
+* the same thing said in other words in the CV, the words in one line ("Reconciled vendor statements" for "Vendor
+  reconciliation"): counted at 75%.
+
+Terms are looked for on the profile, in past job titles and duties, and in the CV text. Ordinary words that are also
+product names count only as the product ("Proficient in Word, Excel" counts, "I excel at teamwork" does not).
+Grades: A 85+, B 70+, C 55+, D below 55, X not eligible.
 
 A vacancy that asks for nothing yet (a requisition loaded from the tracker arrives without skills, courses,
 qualification or experience) is not scored: its applicants show *Not scored* until HR adds the requirements, and are
 then scored at once. Nobody gets 100 against an empty vacancy.
 
-On an application's **Scores** tab, HR sees the full working: each must-have (needed, the candidate's, met or not)
+On an application's **Scores** tab, HR sees the full working: each must-have (needed, the candidate's, met, not met or confirm)
 and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
 total. Others see the score and the must-haves. Changing a requisition's requirements re-scores all of its applicants
 automatically; existing scores were re-scored with these rules when the portal was updated.
@@ -355,10 +371,19 @@ job:
    Any number of files can go: more than five are sent five at a time with a progress bar (keep the page open), and
    all the results show at the end. A file that cannot be read is listed in red and never stops the others. New
    people are added to the talent database; someone already there (same email or phone) is updated instead.
-3. Click **Match these CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, or *⋯ → Match CVs to this
-   vacancy* on a requisition; these start from the CVs added on the last upload day, and you can pick another day). Tick the vacancies and click **Match**.
+3. **Check each new profile** (compulsory): click **Check the N new profiles** on the results. Each one opens beside
+   its CV: the name, contacts, sex, date of birth, state and LGA, qualification, course, NYSC, experience and skills
+   the portal read, with notes on what to look at ("Name taken from the file name: check it") and what it could not
+   find. Correct anything, then **Confirm and next** (or *Skip for now*, or *Not a CV: delete*). A name and an email or
+   phone are needed, and an email already on another profile is flagged. Until it is checked, a profile is marked
+   *To check* everywhere, is left out of matching and cannot be put forward for a vacancy; a vacancy chosen at upload is
+   applied to (and scored) when the profile is confirmed. CVs from the recruitment mailbox are checked the same way;
+   *Talent* shows a **Check N new profiles** button while any wait.
+4. When the last one is confirmed, click **Match these CVs to vacancies** (or *Talent → Match CVs to vacancies*, or
+   *⋯ → Match CVs to this vacancy* on a requisition; these start from the CVs added on the last upload day, and you
+   can pick another day). Tick the vacancies and click **Match**.
 
-The grid scores every CV against every vacancy with the same strict rules: each cell shows the score and grade, or
+The grid scores every CV against every vacancy with the same rules as an application: each cell shows the score and grade, or
 *Not eligible* with the first must-have that was not met (point at it for all of them). Each person's best fit is
 starred and ticked; tick or untick any cell, then **Add the ticked matches as applications**. Only then is anything
 saved: each pair becomes an application, scored with the full working on its Scores tab, and the vacancy's ranked

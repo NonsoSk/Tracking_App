@@ -80,7 +80,7 @@ class Command(BaseCommand):
                 if options["dry_run"]:
                     continue
                 result = ingest_cv(content, filename, source=Candidate.Source.EMAIL, requisition=requisition,
-                                   fallback_email=sender, notify_team=False)
+                                   fallback_email=sender, notify_team=False, needs_check=True)
                 if not result.error:
                     imported += 1
             if options["dry_run"]:
@@ -88,5 +88,6 @@ class Command(BaseCommand):
         client.logout()
         if imported:
             notify(hr_team(), f"{imported} CV(s) imported from the recruitment mailbox",
-                   "They have been read, filed and scored where a vacancy was identified.", url="/candidates/", email=False)
+                   "They have been read and filed. Check each new profile against its CV; it is then matched and "
+                   "scored.", url="/candidates/check/", email=False)
         self.stdout.write(self.style.SUCCESS(f"Imported {imported} CV(s)."))

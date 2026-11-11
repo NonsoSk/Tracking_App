@@ -5,11 +5,13 @@
 {% block primary_action %}
   {% if request.user.is_hr %}
   <a class="btn btn-secondary btn-sm desktop-only" href="{% url 'candidates:edit' c.pk %}">{% icon "pencil" "ico-16" %} Edit profile</a>
-  <button class="btn btn-primary btn-sm" type="button" data-open="add-modal">{% icon "plus" "ico-16" %} Consider for a vacancy</button>
+  {% if c.needs_check %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:check_profile' c.pk %}">{% icon "user-check" "ico-16" %} Check profile</a>
+  {% else %}<button class="btn btn-primary btn-sm" type="button" data-open="add-modal">{% icon "plus" "ico-16" %} Consider for a vacancy</button>{% endif %}
   {% endif %}
 {% endblock %}
 {% block content %}
 {% with u=request.user %}
+{% if c.needs_check %}<div class="banner warning check-banner"><span class="tile">{% icon "user-check" "ico-18" %}</span><div><b>This profile was read from a CV and has not been checked yet</b><span class="small">Check it against the CV before it is matched or put forward{% if c.pending_requisition %} (it then goes to {{ c.pending_requisition.title }}){% endif %}.</span></div>{% if u.is_hr %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:check_profile' c.pk %}">Check it now</a>{% endif %}</div>{% endif %}
 <section class="sheet profile-head" aria-labelledby="who">
   <div class="ph-row">
     {% avatar c "xl" %}

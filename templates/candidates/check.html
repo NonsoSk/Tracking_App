@@ -1,0 +1,52 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Check {{ c.full_name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Check new profiles</span>{% endblock %}
+{% block content %}
+<header class="page-head check-head">
+  <div>
+    <div class="eyebrow">Check new profiles · {{ place }} of {{ left }}</div>
+    <h1>{{ c.full_name }}</h1>
+    <p class="lede">Read from a CV. Compare it with the CV, correct anything the reader got wrong or missed, then confirm. Until then it cannot be matched or put forward for a vacancy.</p>
+  </div>
+  <div class="check-progress" aria-hidden="true"><div class="progress"><i style="width:{% widthratio place left 100 %}%"></i></div></div>
+</header>
+
+<div class="check-grid">
+  <section class="sheet check-cv" aria-labelledby="cv-h">
+    <div class="sheet-h">{% icon "file-text" "ico-18" %}<h2 class="title" id="cv-h">The CV</h2>
+      {% if resume %}<span class="small muted ellip">{{ resume.original_name|truncatechars:44 }}</span><span class="spacer"></span>
+      <a class="btn btn-ghost btn-sm" href="{% url 'candidates:document' resume.pk %}{% if resume.original_file %}?original=1{% endif %}" target="_blank" rel="noopener">{% icon "external-link" "ico-16" %} Open</a>{% endif %}
+    </div>
+    {% if resume and resume.is_pdf %}
+      <iframe class="resume-frame check-frame" src="{% url 'candidates:document' resume.pk %}#view=FitH&amp;navpanes=0" title="CV of {{ c.full_name }}"></iframe>
+      {% if c.cv_text %}<details class="check-text"><summary>Text the portal read from it</summary><div class="paper cv-text">{% cv_highlight c.cv_text cv_terms %}</div></details>{% endif %}
+    {% elif c.cv_text %}
+      <div class="paper cv-text check-plain" tabindex="0" aria-label="Text read from the CV">{% cv_highlight c.cv_text cv_terms %}</div>
+    {% else %}
+      <div class="sheet-b"><p class="small muted">No text could be read from this file (a scan or a photo). Open it and type the details in.</p></div>
+    {% endif %}
+  </section>
+
+  <form method="post" class="sheet check-form" novalidate aria-labelledby="pf-h">{% csrf_token %}
+    <div class="sheet-h"><h2 class="title" id="pf-h">Profile</h2></div>
+    <div class="sheet-b stack">
+      {% if c.pending_requisition %}<div class="banner info"><span class="tile">{% icon "briefcase" "ico-18" %}</span><div><b>Once confirmed, this CV goes to {{ c.pending_requisition.title }}</b><span class="small">It is added as an application and scored then.</span></div></div>{% endif %}
+      {% if notes %}<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Check these</b><span class="small">{{ notes|join:" " }}</span></div></div>{% endif %}
+      {% with missing=form.missing %}{% if missing %}<div class="banner"><span class="tile">{% icon "search" "ico-18" %}</span><div><b>Not found in the CV</b><span class="small">{{ missing|join:", " }}. Fill in any the CV does give.</span></div></div>{% endif %}{% endwith %}
+      {% if form.non_field_errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div>{% for e in form.non_field_errors %}<b>{{ e }}</b>{% endfor %}</div></div>{% endif %}
+      {% for title, fields in form.grouped %}
+      <fieldset class="check-group"><legend>{{ title }}</legend>
+        <div class="form-grid">{% for f in fields %}{% if f.name == "summary" or f.name == "skills" or f.name == "tools" or f.name == "certifications" or f.name == "location" %}{% dsfield f "span-4" %}{% else %}{% dsfield f "span-2" %}{% endif %}{% endfor %}</div>
+      </fieldset>
+      {% endfor %}
+    </div>
+    <div class="sheet-f check-actions">
+      <button class="btn btn-ghost btn-quiet-danger" type="submit" name="delete" value="1" formnovalidate data-confirm="Delete this profile and its CV? Use this when the file is not a CV, or the person is already in the database." data-confirm-label="Delete">{% icon "trash-2" "ico-18" %} Not a CV: delete</button>
+      <span class="spacer"></span>
+      {% if left > 1 %}<button class="btn btn-secondary" type="submit" name="skip" value="1" formnovalidate>Skip for now</button>{% endif %}
+      <button class="btn btn-primary" type="submit" name="confirm" value="1">{% icon "check" "ico-18" %} Confirm{% if left > 1 %} and next{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

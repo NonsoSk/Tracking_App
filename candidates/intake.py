@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 SCALAR_FIELDS = [
     "first_name", "last_name", "email", "phone", "gender", "date_of_birth", "location", "linkedin_url",
     "highest_qualification", "course", "institution", "graduation_year", "degree_class", "nysc_status",
-    "current_employer", "current_job_title", "summary",
+    "current_employer", "current_job_title", "summary", "state_of_origin", "lga",
 ]
 LIST_FIELDS = ["skills", "tools", "certifications"]
 HISTORY_FIELDS = ["education_history", "work_history"]
@@ -143,9 +143,13 @@ class IntakeResult:
 
 @transaction.atomic
 def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, user=None, referred_by=None,
-              referral_note: str = "", fallback_email: str = "", notify_team: bool = True) -> IntakeResult:
+              referral_note: str = "", fallback_email: str = "", notify_team: bool = True,
+              needs_check: bool = False) -> IntakeResult:
     """Read a CV file, create or update the candidate, file the CV in their folder
-    and (when a requisition is given) create and score the application."""
+    and (when a requisition is given) create and score the application.
+
+    With ``needs_check`` (CV intake, the mailbox), a new profile waits for HR to check it against the CV; the vacancy,
+    if one was chosen, is applied to once it is checked."""
     from pipeline.services import create_application, log
 
     ext = os.path.splitext(filename)[1].lower()
@@ -166,10 +170,14 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
         candidate.referral_note = referral_note
     apply_parsed(candidate, parsed)
     if not candidate.first_name and not candidate.last_name:
-        stem = re.sub(r"(?i)\b(cv|resume|curriculum vitae)\b|[_\-.\d]+", " ", os.path.splitext(filename)[0]).split()
-        if stem:
-            candidate.first_name = stem[0].title()[:80]
-            candidate.last_name = " ".join(stem[1:]).title()[:80]
+        from .cv_details import name_from_filename
+
+        candidate.first_name, candidate.last_name = (part[:80] for part in name_from_filename(filename))
+    if needs_check and (created or candidate.needs_check):
+        candidate.needs_check = True
+        if requisition is not None:
+            candidate.pending_requisition = requisition
+            requisition = None  # applied once the profile is checked
     candidate.save()
     document = save_document(candidate, content=content, filename=filename, user=user)
     document.is_parsed = True

@@ -103,10 +103,75 @@ def _pdf_extract(data: bytes) -> ExtractedText:
     return result
 
 
+W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
+
+
+def _word_lines(element, out: list[str]) -> None:
+    """Text lines of a Word XML element in reading order: paragraphs, tables (cells joined with ' | ') and the text
+    boxes inside them. A text box saved twice (modern shape + old fallback copy) is read once."""
+    for child in element:
+        tag = child.tag
+        if tag == MC_FALLBACK:
+            continue
+        if tag == W_NS + "p":
+            buffer: list[str] = []
+            _paragraph_text(child, buffer, out)
+            line = "".join(buffer)
+            for part in line.split("\n"):
+                out.append(part)
+        elif tag == W_NS + "tbl":
+            for row in child:
+                if row.tag != W_NS + "tr":
+                    continue
+                cells = []
+                for cell in row:
+                    if cell.tag not in (W_NS + "tc", W_NS + "sdt"):
+                        continue
+                    cell_lines: list[str] = []
+                    _word_lines(cell, cell_lines)
+                    value = " ".join(l.strip() for l in cell_lines if l.strip())
+                    if value and value not in cells:
+                        cells.append(value)
+                if cells:
+                    out.append(" | ".join(cells))
+        else:
+            _word_lines(child, out)
+
+
+def _paragraph_text(element, buffer: list[str], out: list[str]) -> None:
+    for child in element:
+        tag = child.tag
+        if tag == MC_FALLBACK:
+            continue
+        if tag == W_NS + "txbxContent":
+            _word_lines(child, out)  # a text box: its own lines
+        elif tag == W_NS + "t":
+            buffer.append(child.text or "")
+        elif tag == W_NS + "tab":
+            buffer.append("\t")
+        elif tag in (W_NS + "br", W_NS + "cr"):
+            buffer.append("\n")
+        else:
+            _paragraph_text(child, buffer, out)
+
+
 def _docx_extract(data: bytes) -> str:
     import docx
 
     document = docx.Document(io.BytesIO(data))
+    try:
+        heads, feet, body = [], [], []
+        for part in document.part.package.iter_parts():
+            name = str(part.partname)
+            if "/header" in name or "/footer" in name:
+                lines: list[str] = []
+                _word_lines(part.element, lines)
+                (heads if "/header" in name else feet).extend(lines)
+        _word_lines(document.element.body, body)
+        return "\n".join(heads + body + feet)
+    except Exception as exc:  # fall back to the plain reading below
+        logger.warning("Full Word reading failed (%s); reading paragraphs and tables only.", exc)
     parts = [p.text for p in document.paragraphs]
     for table in document.tables:
         for row in table.rows:
@@ -272,24 +337,6 @@ def _split_sections(lines: list[str]) -> dict[str, str]:
     return {k: "\n".join(v) for k, v in sections.items()}
 
 
-def _guess_name(lines: list[str]) -> tuple[str, str]:
-    for line in lines[:12]:
-        raw = line.strip()
-        match = re.match(r"^(?:full\s+)?name\s*[:\-]\s*(.+)$", raw, re.I)
-        if match:
-            raw = match.group(1)
-        elif SKIP_NAME_WORDS.search(raw) or raw.islower():
-            continue
-        words = [w for w in re.split(r"\s+", raw.replace(",", " ")) if w]
-        if 2 <= len(words) <= 4 and all(re.fullmatch(r"[A-Za-z][A-Za-z.'-]*", w) for w in words):
-            if raw.isupper() or raw.islower():
-                words = [w.capitalize() for w in words]
-            words = [w for w in words if w.lower().rstrip(".") not in {"mr", "mrs", "miss", "ms", "engr", "dr"}]
-            if len(words) >= 2:
-                return words[0], " ".join(words[1:])
-    return "", ""
-
-
 def _parse_date_token(token: str):
     token = token.strip().lower()
     if token in {"present", "current", "date", "now", "till date", "to date"}:
@@ -393,29 +440,47 @@ def _list_items(section_text: str, max_words: int) -> list[str]:
     return items
 
 
-def heuristic_extract(text: str) -> dict:
+def heuristic_extract(text: str, filename: str = "") -> dict:
+    from .cv_details import name_from_filename, read_details
+
     data: dict = {}
     if not text.strip():
+        first, last = name_from_filename(filename)
+        if first:
+            data.update(first_name=first, last_name=last, notes=["Name taken from the file name: check it."])
         return data
     lines = [l for l in text.splitlines()]
     non_empty = [l for l in lines if l.strip()]
     sections = _split_sections(lines)
     lower = text.lower()
 
-    data["first_name"], data["last_name"] = _guess_name(non_empty)
-    email = EMAIL_RE.search(text)
-    data["email"] = email.group(0).lower() if email else ""
-    phone = PHONE_RE.search(text) or PHONE_FALLBACK_RE.search(text)
-    data["phone"] = re.sub(r"[^\d+]", "", phone.group(0)) if phone else ""
+    details = read_details(non_empty, text, filename=filename)
+    data["first_name"], data["last_name"] = details["first_name"], details["last_name"]
+    data["notes"] = details["notes"]
+    data["email"] = details["email"]
+    phone = details["phone"]
+    if not phone:
+        found = PHONE_RE.search(text)
+        phone = re.sub(r"[^\d+]", "", found.group(0)) if found else ""
+    data["phone"] = phone
     linkedin = LINKEDIN_RE.search(text)
     data["linkedin_url"] = ("https://" + linkedin.group(0).split("://")[-1]) if linkedin else ""
 
-    header = "\n".join(non_empty[:15]) + "\n" + sections.get("personal", "")
+    origin = re.compile(r"state of origin|\bl\.?\s?g\.?\s?a\b|local gov|place of birth|home town|hometown", re.I)
+    header = "\n".join(line for line in non_empty[:15] + sections.get("personal", "").splitlines()
+                        if not origin.search(line)) + "\n" + details["address"]
     data["location"] = next((loc for loc in LOCATIONS if re.search(rf"\b{re.escape(loc)}\b", header, re.I)), "")
-    gender = re.search(r"\b(?:sex|gender)\s*[:\-]?\s*(male|female)\b", text, re.I)
-    data["gender"] = gender.group(1).lower() if gender else ""
-    dob = re.search(r"(?:date of birth|d\.?o\.?b\.?)\s*[:\-]?\s*([0-9A-Za-z ,/.-]{6,25})", text, re.I)
-    data["date_of_birth"] = _parse_dob(dob.group(1)) if dob else None
+    gender = re.search(r"\b(?:sex|gender)\s*[:\-|]?\s*(male|female)\b", text, re.I)
+    data["gender"] = details.get("gender") or (gender.group(1).lower() if gender else "")
+    dob = None
+    if details["dob_text"]:
+        dob = _parse_dob(details["dob_text"])
+    if not dob:
+        found = re.search(r"(?:date of birth|d\.?o\.?b\.?)\s*[:\-|]?\s*([0-9A-Za-z ,/.-]{6,25})", text, re.I)
+        dob = _parse_dob(found.group(1)) if found else None
+    data["date_of_birth"] = dob
+    data["state_of_origin"] = details["state_of_origin"]
+    data["lga"] = details["lga"][:150]
 
     education = sections.get("education") or text
     edu_lower = education.lower()
@@ -490,8 +555,10 @@ def heuristic_extract(text: str) -> dict:
 
 def _parse_dob(value: str):
     value = value.strip().rstrip(".,")
+    value = re.split(r"\s{2,}|\t|\|", value)[0].strip().rstrip(".,")
     for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y",
-                "%d %B, %Y", "%Y-%m-%d", "%dth %B %Y", "%dst %B %Y", "%dnd %B %Y", "%drd %B %Y"):
+                "%d %B, %Y", "%Y-%m-%d", "%dth %B %Y", "%dst %B %Y", "%dnd %B %Y", "%drd %B %Y", "%d-%b-%Y",
+                "%d/%m/%y", "%B %d %Y"):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
@@ -628,7 +695,8 @@ def parse_cv(data: bytes, filename: str) -> dict:
     """Return a dict of candidate fields plus ``text``, ``method`` and ``notes``."""
     extracted = extract_text(data, filename)
     notes = list(extracted.notes)
-    heuristic = heuristic_extract(extracted.text)
+    heuristic = heuristic_extract(extracted.text, filename)
+    name_notes = heuristic.pop("notes", [])
 
     ai_data = None
     if ai.ai_enabled():
@@ -659,6 +727,8 @@ def parse_cv(data: bytes, filename: str) -> dict:
     if not text.strip() and not ai_data and extracted.scanned:
         notes.append("Enable AI (ANTHROPIC_API_KEY) or install Tesseract OCR to read scanned CVs automatically.")
 
+    if not (ai_data and ai_data.get("first_name")):
+        notes += name_notes
     parsed["text"] = text
     parsed["method"] = method
     parsed["notes"] = notes

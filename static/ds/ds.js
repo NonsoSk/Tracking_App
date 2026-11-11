@@ -454,7 +454,8 @@
     var folder = $("[data-folder]", field), pick = $("[data-folder-pick]", field);
     if (folder && pick) {
       if (!("webkitdirectory" in folder)) { pick.parentNode.hidden = true; }
-      pick.addEventListener("click", function () { folder.click(); });
+      // The button is a label for the folder input, so a click opens the chooser on its own; Enter and Space too.
+      pick.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); folder.click(); } });
       folder.addEventListener("change", function () { add(Array.prototype.slice.call(folder.files)); folder.value = ""; });
     }
   }

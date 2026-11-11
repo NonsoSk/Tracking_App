@@ -346,7 +346,7 @@
           <tbody>{% for s in breakdown.screening %}<tr>
             <td><b>{{ s.label }}</b></td><td>{{ s.needed }}</td>
             <td>{{ s.has }}{% if s.note %}<div class="small muted">{{ s.note }}</div>{% endif %}</td>
-            <td>{% if s.passed %}<span class="chip success no-dot">{% icon "check" %} Met</span>{% else %}<span class="chip danger no-dot">{% icon "x" %} Not met</span>{% endif %}</td></tr>{% endfor %}</tbody>
+            <td>{% if s.unknown %}<span class="chip warning no-dot">Confirm</span>{% elif s.passed %}<span class="chip success no-dot">{% icon "check" %} Met</span>{% else %}<span class="chip danger no-dot">{% icon "x" %} Not met</span>{% endif %}</td></tr>{% endfor %}</tbody>
         </table></div>
         {% else %}<p class="small muted">This requisition sets no must-haves (minimum qualification, class of degree, courses, NYSC, minimum experience or required skills).</p>{% endif %}
 
@@ -359,14 +359,14 @@
             <td><b>{{ c.label }}</b></td><td>{{ c.asked }}</td>
             <td>{{ c.found }}
               {% if c.matched or c.missing or c.missing_preferred %}<div class="tags ms-tags">
-                {% for x in c.matched %}<span class="tag on" title="{{ x.evidence }}: {{ x.how }}{% if x.wrote != x.term %} — the candidate wrote “{{ x.wrote }}”{% endif %}">{% icon "check" "ico-14" %} {{ x.term }}{% if x.preferred %} · nice to have{% endif %}<small>{{ x.evidence }}</small></span>{% endfor %}
+                {% for x in c.matched %}<span class="tag on{% if x.credit and x.credit < 1 %} part{% endif %}" title="{{ x.evidence }}: {{ x.how }}{% if x.wrote != x.term %} — the candidate wrote “{{ x.wrote }}”{% endif %}{% if x.credit and x.credit < 1 %} (counted at {% widthratio x.credit 1 100 %}%){% endif %}">{% icon "check" "ico-14" %} {{ x.term }}{% if x.preferred %} · nice to have{% endif %}<small>{% if x.how == "similar wording in the CV" %}similar wording{% elif "covered by" in x.how %}{{ x.how }}{% else %}{{ x.evidence }}{% endif %}</small></span>{% endfor %}
                 {% for x in c.missing %}<span class="chip danger no-dot">{% icon "x" %} {{ x }}</span>{% endfor %}
                 {% for x in c.missing_preferred %}<span class="tag" title="Nice to have, not found">{{ x }}</span>{% endfor %}
               </div>{% endif %}</td>
             <td class="num">{{ c.weight|floatformat:"-1" }}</td><td class="num">{{ c.percent }}%</td><td class="num"><b>{{ c.points|floatformat:"-1" }}</b></td></tr>{% endfor %}</tbody>
           <tfoot><tr><td colspan="3"><b>Total</b>{% if not breakdown.eligible %} <span class="muted">(not eligible, so the score is 0)</span>{% endif %}</td><td class="num">100</td><td></td><td class="num"><b>{{ breakdown.weighted_score|floatformat:"-1" }}</b></td></tr></tfoot>
         </table></div>
-        <p class="small muted">Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts only when it is the same term, an approved synonym, or written whole inside what the candidate wrote: “Profile” means it is on the profile, “CV text” that it is written in the CV. Nice-to-have skills count half. Grades: A 85+, B 70+, C 55+, D below 55, X not eligible.</p>
+        <p class="small muted">Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts when it is the same term or an approved synonym (MS Word = Microsoft Word), written inside what the candidate wrote, covered by a broader term (Microsoft 365 covers Excel), or said in other words in the CV (counted at 75%): point at a term to see how. Fit with the job compares the job title and description with the candidate's summary, past roles and CV. A related course counts at 60%; a detail the CV does not give is marked “Confirm” rather than failed. Nice-to-have skills count half. Grades: A 85+, B 70+, C 55+, D below 55, X not eligible.</p>
         {% else %}<p class="small muted">This requisition asks for nothing that can be scored yet: add skills, tools, courses, a qualification, experience or certifications to it.</p>{% endif %}
         {% endif %}
         {% elif app.matched_at %}

@@ -87,9 +87,9 @@ class ManyCvsTests(TestCase):
         names = [name for name, _ in page.context["results"]]
         self.assertEqual(names, ["Ada.docx", "Bola.docx", "Chidi.docx", "notes.zip"])
         self.assertEqual((page.context["read_count"], page.context["problem_count"]), (3, 1))
-        self.assertContains(page, "Match these 3 CVs to vacancies")
+        self.assertContains(page, "Check the 3 new profiles")
         ids = sorted(Candidate.objects.values_list("pk", flat=True))
-        self.assertEqual(page.context["match_url"], reverse("candidates:match") + "?" + "&".join(f"c={i}" for i in ids))
+        self.assertEqual(page.context["check_url"], reverse("candidates:check") + "?" + "&".join(f"c={i}" for i in ids))
         self.assertContains(page, "1 file could not be sent")
         self.assertContains(page, "Dayo.pdf")
 
