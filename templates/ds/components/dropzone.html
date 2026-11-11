@@ -7,6 +7,9 @@
     <span class="help">{{ hint|default:f.help_text }}</span>
     {{ f }}
   </label>
+  {% if folder %}<div class="dz-folder"><span class="small muted">CVs all in one folder?</span>
+    <button class="btn btn-secondary btn-sm" type="button" data-folder-pick>{% icon "folder-open" "ico-16" %} Choose a whole folder</button>
+    <input type="file" data-folder webkitdirectory multiple hidden aria-label="Folder of CVs"></div>{% endif %}
   <div class="filelist" id="{{ f.id_for_label }}-list" aria-live="polite"></div>
   {% for error in f.errors %}<span class="error">{% icon "circle-alert" "ico-16" %} {{ error }}</span>{% endfor %}
 </div>

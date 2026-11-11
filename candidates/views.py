@@ -1,12 +1,14 @@
+import logging
 import mimetypes
 import os
+import re
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -27,6 +29,8 @@ from .intake import find_existing, ingest_cv, parse_document, save_document
 from . import people
 from .models import Candidate, CandidateDocument, CommunityStatus
 from .regions import REGION_CHOICES, ZONES
+
+logger = logging.getLogger(__name__)
 
 
 @hr_required
@@ -416,30 +420,112 @@ def add_to_requisition(request, pk):
     return redirect(candidate)
 
 
+RUN_TOKEN = re.compile(r"^[A-Za-z0-9]{8,40}$")
+INTAKE_RUNS_KEPT = 3
+
+
+def _ingest_upload(uploaded, data, user):
+    """Read one uploaded CV. A file that is not a CV, is too large or cannot be read is reported, and the other
+    files carry on."""
+    from django.conf import settings
+
+    from .cv_parser import SUPPORTED_EXTENSIONS
+    from .intake import IntakeResult
+
+    ext = os.path.splitext(uploaded.name)[1].lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        return IntakeResult(error=f"Skipped: not a file type the portal reads ({ext or 'no extension'}). "
+                                  "CVs can be PDF, Word, text or photos.")
+    if uploaded.size > settings.MAX_UPLOAD_MB * 1024 * 1024:
+        return IntakeResult(error=f"Skipped: larger than {settings.MAX_UPLOAD_MB} MB.")
+    try:
+        return ingest_cv(
+            uploaded.read(), uploaded.name, source=data["source"], requisition=data.get("requisition"), user=user,
+            referred_by=data.get("referred_by"), referral_note=data.get("note", ""), notify_team=False,
+        )
+    except Exception:
+        logger.exception("CV intake could not read %s", uploaded.name)
+        return IntakeResult(error="Could not be read. Open it to check it is a CV, then add it again on its own.")
+
+
+def _remember_run(request, token, results):
+    """Keep a batched upload's results in the session, so the page can show them all once the last batch is in."""
+    runs = request.session.get("intake_runs", {})
+    entries = runs.pop(token, [])
+    for name, r in results:
+        parsed = r.parsed or {}
+        entries.append({"name": name, "candidate": r.candidate.pk if r.candidate else None, "created": r.created,
+                        "application": getattr(r.application, "pk", None), "method": parsed.get("method", ""),
+                        "notes": [str(n) for n in (parsed.get("notes") or [])][:5], "error": r.error})
+    runs[token] = entries
+    while len(runs) > INTAKE_RUNS_KEPT:
+        runs.pop(next(iter(runs)))
+    request.session["intake_runs"] = runs
+
+
+def _results_of_run(request, token):
+    from types import SimpleNamespace
+
+    from pipeline.models import Application
+
+    entries = request.session.get("intake_runs", {}).get(token)
+    if entries is None:
+        return None
+    people_by_id = Candidate.objects.in_bulk([e["candidate"] for e in entries if e["candidate"]])
+    apps = Application.objects.select_related("requisition").in_bulk(
+        [e["application"] for e in entries if e["application"]])
+    results = []
+    for e in entries:
+        person = people_by_id.get(e["candidate"])
+        error = e["error"] or ("" if person else "This profile has since been deleted.")
+        results.append((e["name"], SimpleNamespace(
+            candidate=person, created=e["created"], application=apps.get(e["application"]), error=error,
+            parsed={"method": e["method"], "notes": e["notes"]})))
+    return results
+
+
+def _intake_page(request, form, results, lost=()):
+    from urllib.parse import urlencode
+
+    ok = [r for _, r in results if not r.error]
+    context = {"form": form, "results": results, "lost": lost, "read_count": len(ok),
+               "problem_count": len(results) - len(ok)}
+    if ok and not any(r.application for r in ok):
+        # No vacancy was chosen: offer to match them to the vacancies.
+        ids = list(dict.fromkeys(r.candidate.pk for r in ok))
+        context.update(match_url=reverse("candidates:match") + "?" + urlencode([("c", pk) for pk in ids]),
+                       match_count=len(ids))
+    return render(request, "candidates/intake.html", context)
+
+
 @hr_required
 def intake(request):
-    """Upload many CVs at once (emailed CVs, scanned hard copies, referrals)."""
+    """Upload many CVs at once (emailed CVs, scanned hard copies, referrals). The page sends a big selection a few
+    files at a time (header X-Intake-Batch names the run) and then shows all the results (?run=)."""
+    token = request.headers.get("X-Intake-Batch", "")
+    batch = request.method == "POST" and bool(RUN_TOKEN.match(token))
     form = IntakeForm(request.POST or None, request.FILES or None)
-    results = []
-    if request.method == "POST" and form.is_valid():
+    if request.method == "POST":
+        if not form.is_valid():
+            if batch:
+                problems = [str(e) for errors in form.errors.values() for e in errors]
+                return JsonResponse({"error": " ".join(problems) or "Check the form."}, status=400)
+            return _intake_page(request, form, [])
         data = form.cleaned_data
-        for uploaded in data["files"]:
-            result = ingest_cv(
-                uploaded.read(), uploaded.name, source=data["source"], requisition=data.get("requisition"),
-                user=request.user, referred_by=data.get("referred_by"), referral_note=data.get("note", ""),
-                notify_team=False,
-            )
-            results.append((uploaded.name, result))
+        results = [(uploaded.name, _ingest_upload(uploaded, data, request.user)) for uploaded in data["files"]]
+        if batch:
+            _remember_run(request, token, results)
+            return JsonResponse({"results": [{"name": name, "ok": not r.error, "error": r.error}
+                                             for name, r in results]})
         ok = [r for _, r in results if not r.error]
         messages.success(request, f"Processed {len(ok)} of {len(results)} CV(s). Review the extracted details below.")
         form = IntakeForm(initial={"source": data["source"], "requisition": data.get("requisition")})
-        if not data.get("requisition") and ok:
-            from urllib.parse import urlencode
-
-            match_url = reverse("candidates:match") + "?" + urlencode([("c", r.candidate.pk) for r in ok])
-            return render(request, "candidates/intake.html", {"form": form, "results": results,
-                                                              "match_url": match_url, "match_count": len(ok)})
-    return render(request, "candidates/intake.html", {"form": form, "results": results})
+        return _intake_page(request, form, results)
+    run = request.GET.get("run", "")
+    results = _results_of_run(request, run) if RUN_TOKEN.match(run) else None
+    if results is not None:
+        return _intake_page(request, form, results, lost=request.GET.getlist("lost")[:30])
+    return _intake_page(request, form, [])
 
 
 

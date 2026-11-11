@@ -349,9 +349,12 @@ For CVs that arrive outside the careers page (by email, on paper or in a shared 
 job:
 
 1. Create each vacancy (Roles → New requisition, **Read it** from its job description), and approve it.
-2. **CV intake**: leave *Vacancy* empty and upload the CVs (up to 100 files per upload; a bigger folder
-   goes in batches, matched together by the day they were added). New people are added
-   to the talent database; someone already there (same email or phone) is updated instead of duplicated.
+2. **CV intake**: leave *Vacancy* empty, click **Choose a whole folder** (or drop the folder on the box, or pick files;
+   each pick adds to the list), then **Read & add CVs**. Files that are not CVs (a spreadsheet, a zip, Word's `~$`
+   lock files) or are over `MAX_UPLOAD_MB` are set aside with the reason, and any file can be taken off the list.
+   Any number of files can go: more than five are sent five at a time with a progress bar (keep the page open), and
+   all the results show at the end. A file that cannot be read is listed in red and never stops the others. New
+   people are added to the talent database; someone already there (same email or phone) is updated instead.
 3. Click **Match these CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, or *⋯ → Match CVs to this
    vacancy* on a requisition; these start from the CVs added on the last upload day, and you can pick another day). Tick the vacancies and click **Match**.
 

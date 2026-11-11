@@ -1,8 +1,9 @@
 from django import forms
+from django.conf import settings
 
 from accounts.models import User
-from core.forms import (DOCUMENT_EXTENSIONS, BootstrapMixin, DateInput, MultipleFileField, TagListField,
-                        validate_upload)
+from core.forms import (DOCUMENT_EXTENSIONS, BootstrapMixin, DateInput, MultipleFileField, MultipleFileInput,
+                        TagListField, validate_upload)
 from requisitions.models import Requisition
 
 from .cv_parser import SUPPORTED_EXTENSIONS
@@ -50,7 +51,10 @@ class DocumentUploadForm(BootstrapMixin, forms.Form):
 class IntakeForm(BootstrapMixin, forms.Form):
     """Bulk upload of CVs received by email, hard copy (scanned) or referral."""
 
-    files = MultipleFileField(label="CV files", help_text="PDF, Word, text or scanned images. Select many at once.")
+    files = MultipleFileField(label="CV files", help_text="PDF, Word, text or scanned images. Select many at once.",
+                              widget=MultipleFileInput(attrs={
+                                  "accept": ",".join(sorted(SUPPORTED_EXTENSIONS)),
+                                  "data-max-mb": settings.MAX_UPLOAD_MB}))
     source = forms.ChoiceField(
         choices=[c for c in Candidate.Source.choices if c[0] not in {"portal", "import"}],
         initial=Candidate.Source.EMAIL,
@@ -68,10 +72,12 @@ class IntakeForm(BootstrapMixin, forms.Form):
         self.fields["requisition"].queryset = open_requisitions()
 
     def clean_files(self):
+        # Each file is checked on its own when it is read (a stray spreadsheet or a file that is too large is
+        # reported and skipped), so one bad file never stops the others.
         files = self.cleaned_data["files"]
         if not files:
             raise forms.ValidationError("Choose at least one file.")
-        return [validate_upload(f, SUPPORTED_EXTENSIONS) for f in files]
+        return files
 
 
 class ReferralForm(BootstrapMixin, forms.Form):

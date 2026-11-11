@@ -1907,3 +1907,24 @@ a.sboard-source:hover { box-shadow: inset 0 0 0 1px var(--b-line-2); }
   .mt-cell { min-width: 136px; }
 }
 .match-table .mt-who, .match-table .mt-vac { white-space: normal; overflow-wrap: break-word; }
+
+/* Many files in a drop-zone: a running list (adds up, scrolls when long), a folder picker and upload progress */
+.dz-folder { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--s-8) var(--s-12); margin-top: var(--s-12); }
+.filelist.is-long { max-height: 340px; overflow-y: auto; padding-right: 4px; }
+.filelist-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-12); position: sticky; top: 0; z-index: 1; padding: 4px 0; background: var(--slab-bg); font-size: var(--fs-small); }
+.fileitem.has-remove { grid-template-columns: 32px 1fr auto auto; }
+.fileitem .fi-remove { width: 28px; height: 28px; }
+.fileitem.is-skipped { opacity: .75; border-style: dashed; }
+.fileitem.is-skipped .caption { color: var(--warning-ink); }
+.fileitem.is-done .caption { color: var(--success-ink); }
+.fileitem.is-failed { border-color: var(--danger-ink); }
+.fileitem.is-failed .caption { color: var(--danger-ink); white-space: normal; max-width: 260px; }
+.fileitem.is-sending .progress > i { animation: up-pulse 1s ease-in-out infinite alternate; }
+@keyframes up-pulse { from { opacity: .45; } to { opacity: 1; } }
+form.is-uploading .fi-remove, form.is-uploading [data-clear], form.is-uploading .dz-folder { visibility: hidden; }
+form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
+.upload-progress { display: grid; gap: 6px; padding: var(--s-12) var(--s-16); border-radius: var(--r-md); background: var(--tint); }
+.upload-progress .up-head { display: flex; justify-content: space-between; gap: var(--s-12); }
+.upload-progress.is-error { background: var(--danger-bg); color: var(--danger-ink); }
+.upload-progress.is-error .progress, .upload-progress.is-error [data-up-help] { display: none; }
+@media (prefers-reduced-motion: reduce) { .fileitem.is-sending .progress > i { animation: none; } }

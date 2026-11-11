@@ -13,14 +13,19 @@
 
 <div class="intake-grid">
   <div class="stack-24">
-    <form method="post" enctype="multipart/form-data" class="sheet" data-loading aria-labelledby="add-h">{% csrf_token %}
+    <form method="post" enctype="multipart/form-data" class="sheet" data-loading data-batch-upload="5" aria-labelledby="add-h">{% csrf_token %}
       <div class="sheet-h"><h2 class="title" id="add-h">Add CVs</h2></div>
       <div class="sheet-b stack">
-        {% include "ds/components/dropzone.html" with f=form.files title="Drop CVs here or" hint="PDF, Word, text, or photos of paper CVs. Select many at once." %}
+        {% include "ds/components/dropzone.html" with f=form.files title="Drop CVs or a whole folder here, or" hint="PDF, Word, text, or photos of paper CVs. Pick as many as you like: each pick adds to the list." folder=True %}
         <div class="form-grid">
           {% dsfield form.source "span-2" %}{% dsfield form.requisition "span-2" %}
           {% dsfield form.referred_by "span-4" %}
           {% dsfield form.note "span-4" %}
+        </div>
+        <div class="upload-progress" data-upload-progress hidden role="status" aria-live="polite">
+          <div class="up-head"><b data-up-text>Reading the CVs…</b><span class="small muted" data-up-count></span></div>
+          <div class="progress"><i data-up-bar style="width:0%"></i></div>
+          <p class="small muted" data-up-help>Keep this page open. They are read a few at a time; the results open when all are done.</p>
         </div>
         <button class="btn btn-primary btn-lg btn-block" type="submit">{% icon "scan-text" "ico-18" %} Read &amp; add CVs</button>
       </div>
@@ -39,8 +44,9 @@
   </div>
 
   <section class="sheet" aria-labelledby="res-h">
-    <div class="sheet-h"><h2 class="title" id="res-h">Results</h2>{% if results %}<span class="count">{{ results|length }}</span>{% endif %}<span class="spacer"></span>
+    <div class="sheet-h"><h2 class="title" id="res-h">Results</h2>{% if results %}<span class="count">{{ results|length }}</span><span class="small muted">{{ read_count }} read{% if problem_count %} · {{ problem_count }} not read (shown in red){% endif %}</span>{% endif %}<span class="spacer"></span>
       {% if match_url %}<a class="btn btn-primary btn-sm" href="{{ match_url }}">{% icon "list-checks" "ico-16" %} Match these {{ match_count }} CVs to vacancies</a>{% endif %}</div>
+    {% if lost %}<div class="sheet-b"><div class="banner danger"><span class="tile">{% icon "file-x" "ico-18" %}</span><div><b>{{ lost|length }} file{{ lost|length|pluralize }} could not be sent</b><span class="small">The connection to the portal dropped. Add {{ lost|length|pluralize:"it,them" }} again: {{ lost|join:", " }}</span></div></div></div>{% endif %}
     {% if results %}
     <div class="sheet-b intake-results">
       {% for name, r in results %}

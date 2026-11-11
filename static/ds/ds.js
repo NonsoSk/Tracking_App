@@ -311,28 +311,225 @@
     })(start);
   }
 
-  /* ---------- Drop-zone: highlight, list chosen files with progress bars ---------- */
+  /* ---------- Drop-zone: pick or drop files. With several allowed, each pick or drop adds to the list (a whole
+     folder too), files that cannot be used are set aside with the reason, and any file can be taken off. ---------- */
+  function fileKey(f) { return f.name + "|" + f.size + "|" + f.lastModified; }
+  function iconHtml(name) { return (($("#ds-icon-" + name) || {}).innerHTML || ""); }
+  function readEntry(entry, out) {
+    return new Promise(function (resolve) {
+      if (entry.isFile) { entry.file(function (f) { out.push(f); resolve(); }, function () { resolve(); }); return; }
+      if (!entry.isDirectory) { resolve(); return; }
+      var reader = entry.createReader(), pending = [];
+      (function next() {  // a folder's entries arrive in chunks
+        reader.readEntries(function (chunk) {
+          if (!chunk.length) { Promise.all(pending).then(function () { resolve(); }); return; }
+          chunk.forEach(function (e) { pending.push(readEntry(e, out)); });
+          next();
+        }, function () { Promise.all(pending).then(function () { resolve(); }); });
+      })();
+    });
+  }
+  function droppedFiles(dt) {
+    // Must run inside the drop event: the dropped items are only readable there.
+    var items = dt.items ? Array.prototype.slice.call(dt.items) : [];
+    var entries = items.map(function (i) { return i.webkitGetAsEntry ? i.webkitGetAsEntry() : null; }).filter(Boolean);
+    var plain = Array.prototype.slice.call(dt.files || []);
+    if (!entries.length || !window.Promise) return Promise.resolve(plain);
+    var out = [];
+    return Promise.all(entries.map(function (e) { return readEntry(e, out); })).then(function () { return out; });
+  }
+  function fileRow(name, caption) {
+    var row = document.createElement("div");
+    row.className = "fileitem";
+    row.innerHTML = '<span class="tile sm">' + iconHtml("file") + '</span><div><div class="name"></div><div class="progress"><i style="width:0%"></i></div></div><span class="caption muted"></span>';
+    $(".name", row).textContent = name;
+    $(".caption", row).textContent = caption;
+    return row;
+  }
   function initDropzone(zone) {
     var input = $('input[type="file"]', zone);
+    var field = zone.closest(".field") || zone.parentNode;
     var list = zone.dataset.list ? document.getElementById(zone.dataset.list) : null;
+    var many = !!(input && input.multiple && window.DataTransfer);
+    var chosen = [], skipped = [], rows = {};
+    var accept = (input && input.accept ? input.accept.toLowerCase().split(",") : [])
+      .map(function (s) { return s.trim(); }).filter(function (s) { return s.charAt(0) === "."; });
+    var maxMb = input && input.dataset.maxMb ? parseFloat(input.dataset.maxMb) : 0;
     ["dragenter", "dragover"].forEach(function (ev) { zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add("is-over"); }); });
     ["dragleave", "drop"].forEach(function (ev) { zone.addEventListener(ev, function () { zone.classList.remove("is-over"); }); });
+    zone.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && input) { e.preventDefault(); input.click(); } });
+    if (!input) return;
+
+    if (!many) {  // one file: a new pick replaces the old one
+      zone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; input.dispatchEvent(new Event("change", { bubbles: true })); }
+      });
+      if (list) input.addEventListener("change", function () {
+        list.innerHTML = "";
+        Array.prototype.forEach.call(input.files, function (f) {
+          var row = fileRow(f.name, (f.size / 1048576).toFixed(1) + " MB");
+          list.appendChild(row);
+          requestAnimationFrame(function () { $(".progress i", row).style.width = "100%"; });
+        });
+      });
+      return;
+    }
+
+    function reason(f) {
+      var name = f.name, dot = name.lastIndexOf("."), ext = dot > 0 ? name.slice(dot).toLowerCase() : "";
+      if (name.charAt(0) === "." || name.slice(0, 2) === "~$" || /^(thumbs\.db|desktop\.ini)$/i.test(name)) return "hidden";
+      if (accept.length && accept.indexOf(ext) < 0) return "not a CV file type";
+      if (maxMb && f.size > maxMb * 1048576) return "larger than " + maxMb + " MB";
+      return "";
+    }
+    function sync() {
+      var dt = new DataTransfer();
+      chosen.forEach(function (f) { dt.items.add(f); });
+      input.files = dt.files;
+    }
+    function add(files) {
+      if (zone._busy) return;
+      var seen = {};
+      chosen.forEach(function (f) { seen[fileKey(f)] = true; });
+      Array.prototype.forEach.call(files, function (f) {
+        var why = reason(f);
+        if (why === "hidden") return;
+        if (why) { if (!skipped.some(function (s) { return s.name === f.name; })) skipped.push({ name: f.name, why: why }); return; }
+        if (!seen[fileKey(f)]) { seen[fileKey(f)] = true; chosen.push(f); }
+      });
+      sync();
+      render();
+    }
+    function render() {
+      if (!list) return;
+      list.innerHTML = "";
+      rows = {};
+      list.classList.toggle("is-long", chosen.length + skipped.length > 6);
+      if (chosen.length || skipped.length) {
+        var head = document.createElement("div");
+        head.className = "filelist-head";
+        head.innerHTML = '<b></b><button type="button" class="btn btn-ghost btn-sm" data-clear>Clear the list</button>';
+        $("b", head).textContent = chosen.length + (chosen.length === 1 ? " file" : " files") + " ready" +
+          (skipped.length ? " · " + skipped.length + " set aside" : "");
+        $("[data-clear]", head).addEventListener("click", function () { if (zone._busy) return; chosen = []; skipped = []; sync(); render(); });
+        list.appendChild(head);
+      }
+      chosen.forEach(function (f) {
+        var row = fileRow(f.name, (f.size / 1048576).toFixed(1) + " MB");
+        row.classList.add("has-remove");
+        var x = document.createElement("button");
+        x.type = "button";
+        x.className = "btn btn-ghost btn-icon btn-sm fi-remove";
+        x.setAttribute("aria-label", "Take " + f.name + " off the list");
+        x.innerHTML = iconHtml("x");
+        x.addEventListener("click", function () { if (zone._busy) return; chosen.splice(chosen.indexOf(f), 1); sync(); render(); });
+        row.appendChild(x);
+        rows[fileKey(f)] = row;
+        list.appendChild(row);
+      });
+      skipped.forEach(function (s) {
+        var row = fileRow(s.name, "Set aside: " + s.why);
+        row.classList.add("is-skipped");
+        list.appendChild(row);
+      });
+    }
+    zone._files = function () { return chosen.slice(); };
+    zone._mark = function (files, state, note) {
+      files.forEach(function (f) {
+        var row = rows[fileKey(f)];
+        if (!row) return;
+        row.classList.remove("is-sending", "is-done", "is-failed");
+        row.classList.add(state);
+        $(".progress i", row).style.width = state === "is-sending" ? "60%" : "100%";
+        if (note) $(".caption", row).textContent = note;
+        if (state === "is-sending" && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+      });
+    };
+    input.addEventListener("change", function () { add(Array.prototype.slice.call(input.files)); });
     zone.addEventListener("drop", function (e) {
       e.preventDefault();
-      if (input && e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; input.dispatchEvent(new Event("change", { bubbles: true })); }
+      if (e.dataTransfer) droppedFiles(e.dataTransfer).then(add);
     });
-    zone.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && input) { e.preventDefault(); input.click(); } });
-    if (input && list) input.addEventListener("change", function () {
-      list.innerHTML = "";
-      Array.prototype.forEach.call(input.files, function (f) {
-        var row = document.createElement("div");
-        row.className = "fileitem";
-        row.innerHTML = '<span class="tile sm">' + (($("#ds-icon-file") || {}).innerHTML || "") + '</span><div><div class="name"></div><div class="progress"><i style="width:0%"></i></div></div><span class="caption muted"></span>';
-        $(".name", row).textContent = f.name;
-        $(".caption", row).textContent = (f.size / 1024 / 1024).toFixed(1) + " MB";
-        list.appendChild(row);
-        requestAnimationFrame(function () { $(".progress i", row).style.width = "100%"; });
-      });
+    var folder = $("[data-folder]", field), pick = $("[data-folder-pick]", field);
+    if (folder && pick) {
+      if (!("webkitdirectory" in folder)) { pick.parentNode.hidden = true; }
+      pick.addEventListener("click", function () { folder.click(); });
+      folder.addEventListener("change", function () { add(Array.prototype.slice.call(folder.files)); folder.value = ""; });
+    }
+  }
+
+  /* ---------- A big selection of CVs goes up a few files at a time, with progress; then all the results show.
+     Each request stays short, so nothing times out and there is no limit on how many files are chosen. ---------- */
+  function initBatchUpload(form) {
+    var zone = $(".dropzone", form);
+    var panel = $("[data-upload-progress]", form);
+    if (!zone || !zone._files || !panel || !window.fetch || !window.FormData || !window.Promise) return;
+    var size = parseInt(form.dataset.batchUpload, 10) || 5;
+    form.addEventListener("submit", function (e) {
+      var files = zone._files();
+      if (files.length <= size) return;  // a handful goes as one ordinary upload
+      e.preventDefault();
+      var token = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+      var button = e.submitter || $('button[type="submit"]', form);
+      var batches = [], done = 0, lost = [];
+      for (var i = 0; i < files.length; i += size) batches.push(files.slice(i, i + size));
+      var text = $("[data-up-text]", panel), count = $("[data-up-count]", panel), bar = $("[data-up-bar]", panel);
+      function progress() {
+        count.textContent = done + " of " + files.length;
+        bar.style.width = Math.round(done / files.length * 100) + "%";
+      }
+      function stayOnPage(ev) { ev.preventDefault(); ev.returnValue = ""; }
+      function busy(on) {
+        zone._busy = on;
+        form.classList.toggle("is-uploading", on);
+        if (button) { button.disabled = on; button.classList.toggle("is-loading", on); button.setAttribute("aria-busy", String(on)); }
+        if (on) window.addEventListener("beforeunload", stayOnPage); else window.removeEventListener("beforeunload", stayOnPage);
+      }
+      function send(batch, tries) {
+        var data = new FormData(form);
+        data.delete("files");
+        batch.forEach(function (f) { data.append("files", f, f.name); });
+        zone._mark(batch, "is-sending", "Reading…");
+        return fetch(location.pathname, { method: "POST", body: data, credentials: "same-origin",
+                                          headers: { "X-Intake-Batch": token } })
+          .then(function (r) {
+            return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
+          })
+          .then(function (res) {
+            if (res.status === 400 && res.body && res.body.error) throw { stop: res.body.error };
+            if (!res.ok || !res.body.results) throw new Error("upload failed");
+            res.body.results.forEach(function (item, k) {
+              zone._mark([batch[k]], item.ok ? "is-done" : "is-failed", item.ok ? "Read" : item.error);
+            });
+          })
+          .catch(function (err) {
+            if (err && err.stop) throw err;
+            if (tries < 1) return send(batch, tries + 1);
+            zone._mark(batch, "is-failed", "Not sent: the connection dropped");
+            batch.forEach(function (f) { lost.push(f.name); });
+          })
+          .then(function () { done += batch.length; progress(); });
+      }
+      busy(true);
+      panel.hidden = false;
+      panel.classList.remove("is-error");
+      text.textContent = "Reading the CVs…";
+      progress();
+      batches.reduce(function (chain, batch) { return chain.then(function () { return send(batch, 0); }); }, Promise.resolve())
+        .then(function () {
+          if (lost.length === files.length) throw { stop: "Could not reach the portal. Check it is still running (its black window is open), then click Read & add CVs again." };
+          busy(false);
+          text.textContent = "Done. Opening the results…";
+          var url = location.pathname + "?run=" + token;
+          lost.slice(0, 30).forEach(function (n) { url += "&lost=" + encodeURIComponent(n); });
+          location.href = url;
+        })
+        .catch(function (err) {
+          busy(false);
+          panel.classList.add("is-error");
+          text.textContent = (err && err.stop) || "Something went wrong. Try again.";
+        });
     });
   }
 
@@ -504,6 +701,7 @@
     });
     $$("dialog.palette").forEach(initPalette);
     $$(".dropzone").forEach(initDropzone);
+    $$("form[data-batch-upload]").forEach(initBatchUpload);
     $$(".enter").forEach(function (box) {
       Array.prototype.slice.call(box.children, 0, 8).forEach(function (c, n) { c.style.setProperty("--i", n); });
     });
