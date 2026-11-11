@@ -17,3 +17,4 @@ htmlcov/
 *.xls
 /backups/
 /import-reports/
+/excel-updates/

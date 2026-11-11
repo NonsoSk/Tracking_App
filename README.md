@@ -196,6 +196,46 @@ HR Admins see each linked file, when it was last loaded and what changed under *
 saved workbook on that page instead; the scheduler loads it. Once everyone works in the portal, click **Stop
 following** (or run `sync_workbooks --unlink`). The records already loaded stay.
 
+### The CV folder: new CVs read on their own
+
+When CVs are saved into one folder (for example by an Outlook rule that saves attachments, or by whoever receives
+them), the portal can read them as they arrive. On **Excel link**, under **CV folder**, paste the folder's path (from
+the File Explorer address bar), choose how these CVs arrive (by email, hard copy, agency…), optionally a vacancy, and
+whether to read the CVs already in it, then **Watch this folder**.
+
+The same Excel link window (or the server's scheduler) then looks in the folder every `CV_FOLDER_SECONDS` (60):
+
+* Each new file, subfolders included, is read like an upload on the CV intake page and becomes a profile marked
+  *To check*; HR gets a notification and checks it under **Talent → Check new profiles**. If the folder has a
+  vacancy, the CV is applied to it (and scored) once its profile is checked.
+* Each file is read once. A file saved again with changes is read again (and updates the same person, found by email
+  or phone); a copy of a CV already read, under another name, is not. A file still being copied waits for the next
+  check, and at most 50 files are read per check, so a big folder is worked through in turns.
+* Files that are not CVs (spreadsheets, Word lock files, Thumbs.db) are skipped. **Files in the folder are never moved,
+  renamed or deleted.**
+
+The page shows each folder, when it was last checked, how many CVs were read and the latest ones, with **Check now**
+and **Stop watching** (the profiles already read stay). On a server, the folder must be one the server can reach (a
+shared folder IT links).
+
+### Portal updates.xlsx: the portal's latest data, in Excel
+
+The portal never writes to the team's workbooks. Instead it keeps a workbook of its own, **Portal updates.xlsx**,
+beside the linked workbook that holds the requisition tracker (or at `PORTAL_UPDATES_PATH`), and rewrites it whenever
+something changes in the portal:
+
+| Sheet | What it holds |
+|---|---|
+| Applicants | Every application: candidate, contacts, vacancy, channel, date applied, score and grade, key requirements not met, the hiring manager's call, stage, status and reason, last and next interview, the department's review |
+| CVs received | Every profile that came in through the portal (careers page, CV intake, the CV folder, the mailbox, referrals): checked or to check, qualification, course, experience, the vacancies it went to, the CV file |
+| Vacancies | Every requisition: status, positions, dates, and how many candidates are at each stage, on hold, rejected or withdrawn |
+| Interviews | Every interview scheduled in the portal, with the panel, status and the candidate's response |
+
+The new version replaces the old one in one step. While the file is open in Excel it cannot be replaced: the page
+says so, and it is written as soon as the file is closed. Do not edit it (changes are not kept); work in your own
+workbooks or in the portal. **Excel link** shows where it is and when it was written, with **Write now** and
+**Download** (useful when the portal runs on a server).
+
 ## Roles and what they see
 
 | Role | Access |
@@ -415,7 +455,7 @@ workbook was loaded. A date that does not fit the order of the steps is marked *
 |---|---|---|
 | `python manage.py send_retirement_alerts` | daily | Asks departments about staff retiring within `RETIREMENT_ALERT_MONTHS` (at most once every 90 days per person) |
 | `python manage.py send_reminders` | every 15–60 min | Interview reminders 24 hours ahead, chasers for overdue selection reports, expired-offer alerts |
-| `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes (see Keeping in step with Excel). `--watch` keeps checking; `start-portal.bat` runs it on Windows |
+| `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes, reads new CVs from the CV folder, and rewrites Portal updates.xlsx when the portal's data changed (see Keeping in step with Excel). `--watch` keeps going (workbooks every `EXCEL_SYNC_MINUTES`, the folder every `CV_FOLDER_SECONDS`); `start-portal.bat` runs it on Windows |
 | `python manage.py fetch_resumes` | after loading the applications dump | Saves the resumes from the website links as PDFs (`load-resumes.bat`). The Excel link window also saves up to 100 new ones each time it checks |
 | `python manage.py send_department_summaries` | every 15–60 min | Emails the candidate summary to departments for vacancies set to send it daily or weekly (once per day or week, from `SUMMARY_EMAIL_HOUR`) |
 | `python manage.py fetch_cv_emails` | every 15 min | Reads unread emails in the recruitment mailbox (IMAP) and adds their CV attachments. A requisition reference (e.g. `REQ-2026-0004`) or the vacancy title in the subject applies the CV to that vacancy |

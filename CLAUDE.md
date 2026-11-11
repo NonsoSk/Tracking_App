@@ -28,4 +28,6 @@ remove an item from this list once it is done.
    recruitment mailbox (IMAP) and the scheduled jobs. Guide them through README → Deployment and Scheduled jobs. Until
    SMTP is set, emails (including candidate summaries to departments) are only printed in the portal window. Once
    hosted, the server cannot see the Excel files on their PC: they upload the workbook on the Excel link page, or IT
-   links a shared-folder path (README → Keeping in step with Excel).
+   links a shared-folder path (README → Keeping in step with Excel). The same goes for the watched CV folder (IT links
+   a shared folder the server can reach), and Portal updates.xlsx is then written on the server: they download it
+   from the Excel link page, or IT sets `PORTAL_UPDATES_PATH` to a shared folder.

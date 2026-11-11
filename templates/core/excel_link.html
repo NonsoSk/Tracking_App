@@ -7,17 +7,20 @@
   <div>
     <div class="eyebrow">While the team still works in Excel</div>
     <h1>Excel link</h1>
-    <p class="lede">The portal follows the recruitment workbooks below. Each time one is saved with changes, the portal loads it: new rows are added, edited rows are updated, nothing is duplicated, and what you did in the portal is kept.</p>
+    <p class="lede">The portal follows the recruitment workbooks below and reads new CVs from the CV folder on its own. Each time a workbook is saved with changes, the portal loads it: new rows are added, edited rows are updated, nothing is duplicated, and what you did in the portal is kept. In return, it keeps <b>Portal updates.xlsx</b> beside your workbooks with its latest data.</p>
   </div>
   {% if workbooks %}<div class="actions"><form method="post">{% csrf_token %}<button class="btn btn-primary" type="submit" name="action" value="refresh">{% icon "refresh-cw" "ico-18" %} Refresh now</button></form></div>{% endif %}
 </header>
 
-{% if workbooks %}
+{% if workbooks or folders %}
   {% if watching %}
-  <div class="banner success"><span class="tile">{% icon "radio-tower" "ico-18" %}</span><div><b>Watching for changes</b><span class="small">The files are checked every {{ minutes }} minute{{ minutes|pluralize }}.</span></div></div>
+  <div class="banner success"><span class="tile">{% icon "radio-tower" "ico-18" %}</span><div><b>Watching for changes</b><span class="small">{% if workbooks %}The workbooks are checked every {{ minutes }} minute{{ minutes|pluralize }}{% if folders %} and the CV folder every {{ folder_seconds }} seconds{% endif %}.{% else %}The CV folder is checked every {{ folder_seconds }} seconds.{% endif %}</span></div></div>
   {% else %}
-  <div class="banner warning"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>Nothing is checking the files right now</b><span class="small">On this PC, start the portal with <b>start-portal.bat</b>: it opens a small "Excel link" window that does the checking. On the server, the scheduler does it.</span></div></div>
+  <div class="banner warning"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>Nothing is checking right now</b><span class="small">On this PC, start the portal with <b>start-portal.bat</b>: it opens a small "Excel link" window that does the checking, for the workbooks and the CV folder. On the server, the scheduler does it.</span></div></div>
   {% endif %}
+{% endif %}
+
+{% if workbooks %}
 
   <section class="sheet" aria-labelledby="wb-h">
     <div class="sheet-h"><h2 class="title" id="wb-h">Linked workbooks</h2></div>
@@ -27,7 +30,7 @@
       {% for wb in workbooks %}
         <tr>
           <td><b>{{ wb.name }}</b><div class="small muted">{{ wb.sheets|default:"—" }}</div><div class="small muted break">{{ wb.path }}</div></td>
-          <td data-label="State"><span class="chip {% if wb.state == 'ok' %}success{% elif wb.state == 'waiting' %}brand{% else %}danger{% endif %}">{{ wb.get_state_display }}</span>{% if wb.refresh_requested %}<div class="small muted">Refresh requested</div>{% endif %}{% if wb.checked_at %}<div class="small muted">Checked {{ wb.checked_at|short_since }} ago</div>{% endif %}</td>
+          <td data-label="State"><span class="chip {% if wb.state == 'ok' %}success{% elif wb.state == 'waiting' %}brand{% else %}danger{% endif %}">{{ wb.get_state_display }}</span>{% if wb.refresh_requested %}<div class="small muted">Refresh requested</div>{% endif %}{% if wb.checked_at %}<div class="small muted">Checked {{ wb.checked_at|ago }}</div>{% endif %}</td>
           <td data-label="Last loaded" class="num">{% if wb.synced_at %}{{ wb.synced_at|date:"j M Y, H:i" }}{% if wb.file_modified_at %}<div class="small muted">File saved {{ wb.file_modified_at|date:"j M, H:i" }}</div>{% endif %}{% else %}<span class="muted">Not yet</span>{% endif %}</td>
           <td data-label="What changed" class="small">{{ wb.message|default:"—" }}{% if wb.report_path %} <a href="?report={{ wb.pk }}">{% icon "file-spreadsheet" "ico-14" %} Report</a>{% endif %}</td>
           <td><form method="post">{% csrf_token %}<input type="hidden" name="workbook" value="{{ wb.pk }}"><button class="btn btn-ghost btn-sm" type="submit" name="action" value="unlink" data-confirm="Stop following {{ wb.name }}? The records already loaded stay in the portal." data-confirm-label="Stop following">Stop following</button></form></td>
@@ -40,6 +43,52 @@
   <div class="banner info"><span class="tile">{% icon "file-spreadsheet" "ico-18" %}</span>
     <div><b>No workbooks linked yet</b><span class="small">On the PC that runs the portal, double-click <b>link-excel.bat</b> and pick the recruitment workbooks: the master workbook, the CV file and any other file with recruitment records. Or upload a copy below.</span></div></div>
 {% endif %}
+
+<section class="sheet" aria-labelledby="cvf-h" id="cv-folder">
+  <div class="sheet-h"><span class="tile sm">{% icon "folder-open" "ico-16" %}</span><h2 class="title" id="cvf-h">CV folder</h2>
+    <span class="small muted">New CVs saved into this folder are read on their own and wait for you under <a href="{% url 'candidates:check' %}">Check new profiles</a>.</span></div>
+  {% if folders %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Folder</th><th>State</th><th>CVs read</th><th>Latest</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{% for f in folders %}<tr>
+      <td><b>{{ f.name }}</b><div class="small muted break">{{ f.path }}</div><div class="small muted">{{ f.source_label }}{% if f.requisition %} · applied to {{ f.requisition.title }} once checked{% endif %}</div></td>
+      <td data-label="State"><span class="chip {% if f.state == 'ok' %}success{% else %}danger{% endif %}">{{ f.get_state_display }}</span>{% if f.checked_at %}<div class="small muted">Checked {{ f.checked_at|ago }}</div>{% endif %}{% if f.message %}<div class="small muted">{{ f.message }}</div>{% endif %}</td>
+      <td data-label="CVs read" class="num"><b>{{ f.stats.read }}</b>{% if f.stats.skipped %}<div class="small muted">{{ f.stats.skipped }} skipped (not CVs or copies)</div>{% endif %}</td>
+      <td data-label="Latest" class="small">{% for x in f.stats.recent %}<div>{% if x.candidate %}<a href="{{ x.candidate.get_absolute_url }}">{{ x.candidate.full_name }}</a>{% else %}{{ x.name }}{% endif %} <span class="muted">· {{ x.read_at|ago }}</span></div>{% empty %}<span class="muted">None yet</span>{% endfor %}</td>
+      <td><div class="row wrap"><form method="post">{% csrf_token %}<input type="hidden" name="folder" value="{{ f.pk }}"><button class="btn btn-secondary btn-sm" type="submit" name="action" value="folder_check">{% icon "refresh-cw" "ico-16" %} Check now</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="folder" value="{{ f.pk }}"><button class="btn btn-ghost btn-sm" type="submit" name="action" value="folder_unlink" data-confirm="Stop reading CVs from {{ f.name }}? The profiles already read stay, and the files in the folder are not touched." data-confirm-label="Stop watching">Stop watching</button></form></div></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  <form method="post" class="sheet-b folder-link" aria-label="Watch a CV folder">{% csrf_token %}
+    <div class="form-grid">
+      <div class="field span-4"><label class="label" for="cvf-path">{% if folders %}Watch another folder{% else %}Folder the CVs are saved into{% endif %}</label>
+        <input class="input" id="cvf-path" name="path" required placeholder="C:\Users\you\Documents\CVs" autocomplete="off">
+        <span class="help">In File Explorer, open the folder, click the address bar and copy the path. Subfolders are read too. Files are never moved or deleted.</span></div>
+      <div class="field span-2"><label class="label" for="cvf-source">How these CVs arrive</label>
+        <select class="select" id="cvf-source" name="source">{% for value, label in sources %}<option value="{{ value }}" {% if value == "email" %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="field span-2"><label class="label" for="cvf-req">Vacancy (optional)</label>
+        <select class="select" id="cvf-req" name="requisition"><option value="">None: match them later</option>{% for v in vacancies %}<option value="{{ v.pk }}">{{ v.title }} ({{ v.reference }})</option>{% endfor %}</select>
+        <span class="help">Each CV is applied to it once its profile is checked.</span></div>
+      <label class="check span-4"><input type="checkbox" name="read_existing" value="1" checked> Also read the CVs already in the folder (untick to read only files added from now on)</label>
+    </div>
+    <div class="row wrap"><span class="spacer"></span><button class="btn btn-primary" type="submit" name="action" value="folder_link">{% icon "folder-open" "ico-18" %} Watch this folder</button></div>
+  </form>
+</section>
+
+<section class="sheet" aria-labelledby="pu-h" id="portal-updates">
+  <div class="sheet-h"><span class="tile sm">{% icon "file-spreadsheet" "ico-16" %}</span><h2 class="title" id="pu-h">Portal updates.xlsx</h2><span class="spacer"></span>
+    <a class="btn btn-ghost btn-sm" href="?updates=download">{% icon "download" "ico-16" %} Download</a>
+    <form method="post">{% csrf_token %}<button class="btn btn-secondary btn-sm" type="submit" name="action" value="updates_write">{% icon "refresh-cw" "ico-16" %} Write now</button></form></div>
+  <div class="sheet-b stack">
+    <p class="small soft">The portal's latest data, in a workbook of its own next to yours, rewritten whenever something changes in the portal: <b>Applicants</b> (score, key requirements not met, the hiring manager's call, stage, status, interviews), <b>CVs received</b> (including the CV folder, checked or to check), <b>Vacancies</b> (how many at each stage) and <b>Interviews</b>. Your own workbooks are never written to. Do not edit this file: it is replaced at the next change.</p>
+    <dl class="kv small">
+      <dt>Saved to</dt><dd class="break">{{ updates.path|default:updates_path }}</dd>
+      <dt>Last written</dt><dd>{% if updates.written_at %}{{ updates.written_at|date:"j M Y, H:i" }} ({{ updates.written_at|ago }}){% else %}Not yet{% endif %}{% if updates.rows %} · {% for k, n in updates.rows.items %}{{ n }} {{ k|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</dd>
+    </dl>
+    {% if updates.message %}<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Waiting</b><span class="small">{{ updates.message }}</span></div></div>{% endif %}
+  </div>
+</section>
 
 <div class="split split-even">
   <form method="post" enctype="multipart/form-data" class="sheet" data-loading aria-labelledby="up-h">{% csrf_token %}

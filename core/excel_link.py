@@ -51,6 +51,11 @@ def link(paths, *, user=None) -> list[LinkedWorkbook]:
             raise WorkbookError(f"File not found: {path}")
         if path.suffix.lower() != ".xlsx":
             raise WorkbookError(f"{path.name} is not an .xlsx workbook. In Excel, use File > Save As > Excel Workbook.")
+        from .excel_updates import is_updates_file
+
+        if is_updates_file(path):
+            raise WorkbookError(f"{path.name} is the file the portal writes its updates to, not a recruitment "
+                                "workbook: link your own workbooks instead.")
         sheets = read_sheets([str(path)], require_all=False)
         workbook, _ = LinkedWorkbook.objects.update_or_create(path=str(path), defaults={
             "sheets": ", ".join(SHEET_LABELS[k] for k in SHEET_LABELS if k in sheets), "linked_by": user,
@@ -61,8 +66,12 @@ def link(paths, *, user=None) -> list[LinkedWorkbook]:
 
 
 def watcher_running() -> bool:
-    """Whether something has checked the links recently (the watcher window or the scheduler)."""
-    latest = LinkedWorkbook.objects.exclude(checked_at=None).order_by("-checked_at").values_list("checked_at", flat=True).first()
+    """Whether something has checked the links or the CV folder recently (the watcher window or the scheduler)."""
+    from .models import WatchedFolder
+
+    stamps = [model.objects.exclude(checked_at=None).order_by("-checked_at").values_list("checked_at", flat=True).first()
+              for model in (LinkedWorkbook, WatchedFolder)]
+    latest = max((s for s in stamps if s), default=None)
     return bool(latest) and (timezone.now() - latest).total_seconds() < 60 * max(3 * settings.EXCEL_SYNC_MINUTES, 20)
 
 

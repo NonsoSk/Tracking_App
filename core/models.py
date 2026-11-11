@@ -191,3 +191,79 @@ class LinkedWorkbook(models.Model):
     @property
     def name(self) -> str:
         return self.path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+class WatchedFolder(models.Model):
+    """A folder the portal reads CVs from on its own: every new or changed file in it is read into a profile waiting
+    for its check (see core/cv_folder.py). Files in the folder are never moved, renamed or deleted."""
+
+    class State(models.TextChoices):
+        OK = "ok", "Watching"
+        MISSING = "missing", "Folder not found"
+        ERROR = "error", "Could not be read"
+
+    path = models.CharField(max_length=500, unique=True,
+                            help_text="Full path of the folder on the computer running the portal.")
+    source = models.CharField("Channel", max_length=20, default="email",
+                              help_text="How these CVs reached IEFCL (recorded on each profile).")
+    requisition = models.ForeignKey("requisitions.Requisition", null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+", help_text="Optional: apply each CV to this vacancy once checked.")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.OK)
+    message = models.CharField(max_length=500, blank=True)
+    files_read = models.PositiveIntegerField(default=0)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    last_read_at = models.DateTimeField(null=True, blank=True)
+    check_requested = models.BooleanField(default=False)
+    linked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return self.path
+
+    @property
+    def name(self) -> str:
+        return self.path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or self.path
+
+
+class FolderFile(models.Model):
+    """A file seen in a watched folder, so each one is read once (and again only when its content changes)."""
+
+    folder = models.ForeignKey(WatchedFolder, on_delete=models.CASCADE, related_name="files")
+    name = models.CharField(max_length=500, help_text="Path inside the folder.")
+    size = models.BigIntegerField(default=0)
+    modified = models.FloatField(default=0)
+    digest = models.CharField(max_length=64, blank=True, db_index=True)
+    candidate = models.ForeignKey("candidates.Candidate", null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+")
+    skipped = models.CharField(max_length=255, blank=True, help_text="Why the file was not read (if it was not).")
+    seen_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-seen_at"]
+        constraints = [models.UniqueConstraint(fields=["folder", "name"], name="unique_file_in_folder")]
+
+    def __str__(self):
+        return self.name
+
+
+class PortalUpdatesFile(models.Model):
+    """The 'Portal updates.xlsx' workbook the portal keeps beside the linked workbooks (see core/excel_updates.py)."""
+
+    path = models.CharField(max_length=500, blank=True)
+    signature = models.CharField(max_length=64, blank=True, help_text="What the portal held when it was last written.")
+    written_at = models.DateTimeField(null=True, blank=True)
+    rows = models.JSONField(default=dict, blank=True)
+    message = models.CharField(max_length=500, blank=True)
+    write_requested = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.path or "Portal updates.xlsx"
+
+    @classmethod
+    def current(cls) -> "PortalUpdatesFile":
+        return cls.objects.get_or_create(pk=1)[0]

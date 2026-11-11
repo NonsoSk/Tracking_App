@@ -366,6 +366,13 @@ def short_since(moment):
     return "now"
 
 
+@register.filter
+def ago(moment):
+    """'just now', '5m ago', '2h ago'."""
+    age = short_since(moment)
+    return "" if not age else ("just now" if age == "now" else f"{age} ago")
+
+
 @register.simple_tag
 def donut(rows, size=148, value_key="n", label_key="label"):
     """SVG donut with a legend. Chart colours come from the --chart-* tokens (blue first, gold second)."""

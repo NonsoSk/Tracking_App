@@ -484,7 +484,7 @@ def excel_link(request):
     from django.http import FileResponse, Http404
 
     from . import excel_link as link
-    from .models import LinkedWorkbook
+    from .models import LinkedWorkbook, WatchedFolder
     from .workbook_import import WorkbookError
 
     if not _excel_admin(request.user):
@@ -510,14 +510,83 @@ def excel_link(request):
             workbook = get_object_or_404(LinkedWorkbook, pk=request.POST["workbook"])
             workbook.delete()
             messages.info(request, f"The portal no longer follows {workbook.name}. Records already loaded stay.")
+        elif action == "folder_link":
+            _link_cv_folder(request)
+        elif action in {"folder_check", "folder_unlink"} and request.POST.get("folder", "").isdigit():
+            folder = get_object_or_404(WatchedFolder, pk=request.POST["folder"])
+            if action == "folder_check":
+                folder.check_requested = True
+                folder.save(update_fields=["check_requested"])
+                messages.success(request, "The folder is checked within a minute." if link.watcher_running() else
+                                 "Check requested, but nothing is watching right now: start the portal with "
+                                 "start-portal.bat on this PC.")
+            else:
+                folder.delete()
+                messages.info(request, f"The portal no longer reads CVs from {folder.name}. The profiles already read "
+                                       "stay, and the files in the folder are untouched.")
+        elif action == "updates_write":
+            from . import excel_updates
+
+            state = excel_updates.write(force=True)
+            if state.message:
+                messages.error(request, state.message)
+            else:
+                messages.success(request, f"Written: {state.path}")
         return redirect("core:excel_link")
+    if request.GET.get("updates") == "download":
+        import tempfile
+        from pathlib import Path
+
+        from . import excel_updates
+
+        handle = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        handle.close()
+        excel_updates.build(Path(handle.name))
+        return FileResponse(open(handle.name, "rb"), as_attachment=True, filename=excel_updates.FILE_NAME)
     if request.GET.get("report", "").isdigit():
         workbook = get_object_or_404(LinkedWorkbook, pk=request.GET["report"])
         report = workbook.report_path and link.report_dir().joinpath(workbook.report_path.replace("\\", "/").rsplit("/", 1)[-1])
         if not report or not report.is_file():
             raise Http404
         return FileResponse(open(report, "rb"), as_attachment=True, filename=report.name)
+    from candidates.forms import IntakeForm
+    from candidates.views import open_requisitions_for_folder
+
+    from . import cv_folder, excel_updates
+    from .models import PortalUpdatesFile
+
+    from candidates.models import Candidate
+
+    folders = list(WatchedFolder.objects.select_related("requisition"))
+    for folder in folders:
+        folder.stats = cv_folder.summary(folder)
+        folder.source_label = dict(Candidate.Source.choices).get(folder.source, folder.source)
     return render(request, "core/excel_link.html", {
         "workbooks": LinkedWorkbook.objects.all(), "watching": link.watcher_running(),
-        "minutes": settings.EXCEL_SYNC_MINUTES,
+        "minutes": settings.EXCEL_SYNC_MINUTES, "folder_seconds": settings.CV_FOLDER_SECONDS,
+        "folders": folders, "sources": IntakeForm.base_fields["source"].choices,
+        "vacancies": open_requisitions_for_folder(), "updates": PortalUpdatesFile.objects.filter(pk=1).first(),
+        "updates_path": excel_updates.target_path(),
     })
+
+
+def _link_cv_folder(request):
+    from candidates.models import Candidate
+    from requisitions.models import Requisition
+
+    from . import cv_folder
+
+    source = request.POST.get("source", Candidate.Source.EMAIL)
+    if source not in Candidate.Source.values or source in {Candidate.Source.PORTAL, Candidate.Source.IMPORT}:
+        source = Candidate.Source.EMAIL
+    vacancy = None
+    if request.POST.get("requisition", "").isdigit():
+        vacancy = Requisition.objects.filter(pk=request.POST["requisition"]).first()
+    try:
+        folder = cv_folder.link(request.POST.get("path", ""), source=source, requisition=vacancy, user=request.user,
+                                read_existing=request.POST.get("read_existing") == "1")
+    except cv_folder.FolderError as exc:
+        messages.error(request, str(exc))
+        return
+    messages.success(request, f"Watching {folder.path}. New CVs in it are read within a minute and wait for you under "
+                              "Talent → Check new profiles.")

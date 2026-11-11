@@ -1984,3 +1984,10 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .rank-note { margin: 0; padding-top: 0; }
 .mt-cell .mt-best { display: flex; width: fit-content; }
 .mt-cell .mt-add { display: flex; width: fit-content; }
+
+/* Excel link page: the CV folder and Portal updates.xlsx */
+#cv-folder, #portal-updates { margin-bottom: var(--s-24); }
+.folder-link { border-top: 1px solid var(--line); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px var(--s-16); margin: 0; }
+.kv dt { font-weight: 700; color: var(--text-3); }
+.kv dd { margin: 0; }

@@ -637,6 +637,12 @@ def intake(request):
 
 
 
+def open_requisitions_for_folder():
+    from .forms import open_requisitions
+
+    return open_requisitions().order_by("title")
+
+
 MATCH_LIMIT = 400
 
 
