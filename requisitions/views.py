@@ -406,9 +406,13 @@ def run_auto_shortlist(request, pk):
     except ValueError:
         messages.error(request, "Enter valid numbers.")
         return redirect(requisition)
-    picked = auto_shortlist(requisition, actor=request.user, threshold=threshold, top_n=top_n)
+    undecided: list = []
+    picked = auto_shortlist(requisition, actor=request.user, threshold=threshold, top_n=top_n, undecided=undecided)
     messages.success(request, f"Shortlisted {len(picked)} candidate(s)." if picked else
                      "No new candidates met the threshold.")
+    if undecided:
+        messages.info(request, f"{len(undecided)} more scored {threshold:g}%+ but miss a key requirement, so they were "
+                               "left for you to decide on (marked “Decide” in the ranked list).")
     return redirect(requisition.get_absolute_url() + "?stage=shortlisted")
 
 

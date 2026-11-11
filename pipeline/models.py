@@ -72,6 +72,17 @@ class Application(models.Model):
     decided_at = models.DateTimeField(null=True, blank=True)
     status_reason = models.CharField(max_length=255, blank=True)
 
+    # Missing a key requirement never rules a candidate out on its own: the hiring manager (HR or the vacancy's
+    # department) decides whether they stay in the running.
+    class Eligibility(models.TextChoices):
+        KEPT = "kept", "Kept in the running"
+        NOT_ELIGIBLE = "not_eligible", "Not eligible"
+
+    eligibility = models.CharField(max_length=20, choices=Eligibility.choices, blank=True)
+    eligibility_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                       related_name="+")
+    eligibility_at = models.DateTimeField(null=True, blank=True)
+
     # The department's answer when asked to approve who moves on (see requisitions/summary.py).
     class DepartmentReview(models.TextChoices):
         APPROVED = "approved", "Approved to move on"
@@ -152,10 +163,24 @@ class Application(models.Model):
 
     @property
     def grade_text(self) -> str:
-        """'Grade A' … 'Grade D', 'Not eligible' (failed a must-have), or 'Not scored'."""
+        """'Grade A' … 'Grade D', or 'Not scored'. ('Not eligible' only for a score made before the hiring manager
+        decided eligibility; it is re-scored on the next update.)"""
         if not self.matched_at:
             return "Not scored"
         return "Not eligible" if self.match_grade == "X" else f"Grade {self.match_grade or '–'}"
+
+    @property
+    def unmet_requirements(self) -> list[str]:
+        """The key requirements the candidate does not meet, for the hiring manager to judge."""
+        breakdown = self.match_breakdown or {}
+        if breakdown.get("unmet") is not None:
+            return list(breakdown["unmet"])
+        return [s["label"] for s in breakdown.get("screening", []) if not s.get("passed")]
+
+    @property
+    def needs_eligibility_call(self) -> bool:
+        """Misses a key requirement and nobody has decided yet whether they stay in the running."""
+        return bool(self.matched_at and self.unmet_requirements and not self.eligibility and self.is_open)
 
     @property
     def status_color(self) -> str:

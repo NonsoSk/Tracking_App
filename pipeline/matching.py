@@ -1,11 +1,11 @@
 """
 Candidate ↔ requisition matching, the way an ATS screens and ranks, without ruling people out on wording.
 
-1. Screening (must-haves). The minimum qualification and the minimum years of experience must be met, at least half
-   of the required skills must be found (MATCH_MIN_REQUIRED_SKILLS_PERCENT), and the course must be an accepted one
-   or a related one. A class of degree, course or NYSC the CV does not mention is not held against the candidate:
-   it passes, marked "Not stated: confirm", and earns fewer points. A candidate who fails a must-have is
-   "Not eligible": score 0, grade X, ranked after everyone eligible.
+1. Key requirements, checked and shown for the hiring manager: the minimum qualification and years of experience,
+   at least half of the required skills (MATCH_MIN_REQUIRED_SKILLS_PERCENT), an accepted or related course, the
+   class of degree and NYSC. A detail the CV does not mention is "Not stated: confirm". Missing a key requirement
+   never zeroes the score or rules anyone out: the score still counts everything the candidate has, and the hiring
+   manager decides whether they stay in the running (Application.eligibility).
 2. Weighted score (0-100) from skills, tools, experience, fit with the job, qualification, course and certifications.
    Weights depend on the hiring track and are spread over the criteria this requisition asks for (adding up to 100).
 
@@ -33,7 +33,7 @@ from django.utils import timezone
 from core.choices import DEGREE_CLASS_RANK, EDUCATION_RANK, DegreeClass, EducationLevel, NyscStatus, TRAINEE_TYPES
 from core.text import contains_phrase, db_aliases, normalize, tokens, variants
 
-VERSION = 3
+VERSION = 4
 WEIGHTS = {
     "experienced": {"skills": 25, "tools": 10, "experience": 20, "relevance": 15, "education": 10, "course": 10,
                     "certifications": 10},
@@ -47,7 +47,6 @@ COMPONENT_LABELS = {
 }
 ORDER = ["skills", "tools", "experience", "relevance", "education", "course", "certifications"]
 GRADES = [(85, "A", "Excellent match"), (70, "B", "Strong match"), (55, "C", "Possible match"), (0, "D", "Weak match")]
-NOT_ELIGIBLE = ("X", "Not eligible")
 SIMILAR_CREDIT = 0.75          # a skill found only as similar wording in the CV
 RELATED_COURSE_CREDIT = 0.6    # a related course rather than an accepted one
 NOT_STATED = "Not stated: confirm with the candidate"
@@ -486,10 +485,11 @@ def compute_match(requisition, candidate, aliases=None) -> dict:
         need = min_required_skills()
         screen("required_skills", "Required skills", f"At least {round(need * 100)}% of {len(required)}",
                f"{len(req_found)} of {len(required)} found", len(req_found) >= need * len(required))
-    eligible = all(s["passed"] for s in screening)
+    meets_all = all(s["passed"] for s in screening)
 
     # ---- 2. Weighted score
-    preferred = list(requisition.preferred_skills or [])
+    required_keys = {normalize(r) for r in required}
+    preferred = [p for p in requisition.preferred_skills or [] if normalize(p) not in required_keys]
     if required or preferred:
         pref_found, pref_missing = match_terms(preferred, skills_have, evidence, aliases)
         denominator = len(required) + 0.5 * len(preferred)
@@ -561,15 +561,14 @@ def compute_match(requisition, candidate, aliases=None) -> dict:
     weighted = round(sum(components[k]["points"] for k in keys), 1) if keys else 0.0
 
     failed = [s for s in screening if not s["passed"]]
-    if eligible:
-        score, (grade, label) = weighted, grade_for(weighted)
-    else:
-        score, (grade, label) = 0.0, NOT_ELIGIBLE
+    score, (grade, label) = weighted, grade_for(weighted)  # never zeroed: the hiring manager judges the gaps
     flags = [f"{s['label']}: {s['has']} (needs {s['needed']})" for s in failed]
     flags += [f"{s['label']}: not stated in the CV, confirm with the candidate" for s in screening if s["unknown"]]
     flags += notes
     return {
-        "version": VERSION, "score": score, "weighted_score": weighted, "eligible": eligible, "grade": grade,
+        # "eligible": meets every key requirement (True), or misses one for the hiring manager to judge (False).
+        "version": VERSION, "score": score, "weighted_score": weighted, "eligible": meets_all, "grade": grade,
+        "unmet": [s["label"] for s in failed],
         "grade_label": label, "track": track, "track_label": TRACK_LABELS[track],
         "weights": {k: weights[k] for k in keys}, "screening": screening,
         "components": {k: components[k] for k in keys}, "flags": flags,

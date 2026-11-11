@@ -334,13 +334,35 @@
           {% if is_hr %}<a class="btn btn-secondary btn-sm" href="{% url 'requisitions:edit' req.pk %}">Add requirements</a>{% endif %}</div>
         {% elif breakdown.version >= 2 %}
         <div class="ms-head">
-          <div class="ms-score{% if not breakdown.eligible %} is-out{% endif %}"><b>{{ breakdown.score|floatformat:"-1" }}</b><span>/ 100</span></div>
+          <div class="ms-score{% if app.eligibility == 'not_eligible' %} is-out{% endif %}"><b>{{ breakdown.score|floatformat:"-1" }}</b><span>/ 100</span></div>
           <div><b>{{ breakdown.grade_label }}</b>
-            <p class="small muted">{{ breakdown.track_label }} · scored {{ app.matched_at|naturaltime }}.{% if not breakdown.eligible %} A must-have is not met, so the score is 0 and the candidate is ranked after everyone eligible. On the scored criteria alone they would have {{ breakdown.weighted_score|floatformat:"-1" }}.{% endif %}</p></div>
+            <p class="small muted">{{ breakdown.track_label }} · scored {{ app.matched_at|naturaltime }}.{% if breakdown.version < 4 and not breakdown.eligible %} This score was worked out when a missing must-have set it to 0; re-score to count everything the candidate has.{% endif %}</p></div>
         </div>
+        {% with gaps=app.unmet_requirements %}{% if gaps and breakdown.version >= 4 %}
+        <div class="banner {% if app.eligibility == 'kept' %}success{% elif app.eligibility == 'not_eligible' %}danger{% else %}warning{% endif %} elig-banner" id="eligibility">
+          <span class="tile">{% icon "scale" "ico-18" %}</span>
+          <div>
+            {% if app.eligibility == "kept" %}<b>Kept in the running by {{ app.eligibility_by.display_name|default:"the hiring team" }}</b>
+              <span class="small">{{ app.eligibility_at|date:"j M Y" }}, although these key requirements are not met: {{ gaps|join:", " }}.</span>
+            {% elif app.eligibility == "not_eligible" %}<b>Marked not eligible by {{ app.eligibility_by.display_name|default:"the hiring team" }}</b>
+              <span class="small">{{ app.eligibility_at|date:"j M Y" }}: {{ gaps|join:", " }}. The application is closed.</span>
+            {% else %}<b>{{ gaps|length }} key requirement{{ gaps|length|pluralize }} not met: {{ gaps|join:", " }}</b>
+              <span class="small">The score above still counts everything this candidate has. Whether they stay in the running is the hiring manager's decision.</span>{% endif %}
+          </div>
+          {% if can_decide %}
+          {% if not app.eligibility and app.is_open %}
+          <form method="post" action="{% url 'pipeline:eligibility' app.pk %}" class="elig-actions">{% csrf_token %}
+            <button class="btn btn-primary btn-sm" type="submit" name="decision" value="kept">{% icon "check" "ico-16" %} Keep in the running</button>
+            <button class="btn btn-ghost btn-sm btn-quiet-danger" type="submit" name="decision" value="not_eligible" data-confirm="Mark {{ c.full_name }} not eligible for {{ req.title }}? The application is closed (the candidate is not emailed)." data-confirm-label="Not eligible">Not eligible</button>
+          </form>
+          {% elif app.eligibility == "kept" %}
+          <form method="post" action="{% url 'pipeline:eligibility' app.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit" name="decision" value="undo">Undo</button></form>
+          {% endif %}{% endif %}
+        </div>
+        {% endif %}{% endwith %}
 
         {% if breakdown.screening %}
-        <h3 class="ms-h">1. Must-haves</h3>
+        <h3 class="ms-h">1. Key requirements <span class="ms-sub">for the hiring manager to judge; they never set the score to 0</span></h3>
         <div class="table-wrap ms-wrap"><table class="table ms-table">
           <thead><tr><th>Requirement</th><th>Needed</th><th>This candidate</th><th>Result</th></tr></thead>
           <tbody>{% for s in breakdown.screening %}<tr>
@@ -348,7 +370,7 @@
             <td>{{ s.has }}{% if s.note %}<div class="small muted">{{ s.note }}</div>{% endif %}</td>
             <td>{% if s.unknown %}<span class="chip warning no-dot">Confirm</span>{% elif s.passed %}<span class="chip success no-dot">{% icon "check" %} Met</span>{% else %}<span class="chip danger no-dot">{% icon "x" %} Not met</span>{% endif %}</td></tr>{% endfor %}</tbody>
         </table></div>
-        {% else %}<p class="small muted">This requisition sets no must-haves (minimum qualification, class of degree, courses, NYSC, minimum experience or required skills).</p>{% endif %}
+        {% else %}<p class="small muted">This requisition sets no key requirements (minimum qualification, class of degree, courses, NYSC, minimum experience or required skills).</p>{% endif %}
 
         {% if is_hr %}
         <h3 class="ms-h">2. How the score was worked out</h3>
@@ -364,9 +386,9 @@
                 {% for x in c.missing_preferred %}<span class="tag" title="Nice to have, not found">{{ x }}</span>{% endfor %}
               </div>{% endif %}</td>
             <td class="num">{{ c.weight|floatformat:"-1" }}</td><td class="num">{{ c.percent }}%</td><td class="num"><b>{{ c.points|floatformat:"-1" }}</b></td></tr>{% endfor %}</tbody>
-          <tfoot><tr><td colspan="3"><b>Total</b>{% if not breakdown.eligible %} <span class="muted">(not eligible, so the score is 0)</span>{% endif %}</td><td class="num">100</td><td></td><td class="num"><b>{{ breakdown.weighted_score|floatformat:"-1" }}</b></td></tr></tfoot>
+          <tfoot><tr><td colspan="3"><b>Total</b></td><td class="num">100</td><td></td><td class="num"><b>{{ breakdown.weighted_score|floatformat:"-1" }}</b></td></tr></tfoot>
         </table></div>
-        <p class="small muted">Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts when it is the same term or an approved synonym (MS Word = Microsoft Word), written inside what the candidate wrote, covered by a broader term (Microsoft 365 covers Excel), or said in other words in the CV (counted at 75%): point at a term to see how. Fit with the job compares the job title and description with the candidate's summary, past roles and CV. A related course counts at 60%; a detail the CV does not give is marked “Confirm” rather than failed. Nice-to-have skills count half. Grades: A 85+, B 70+, C 55+, D below 55, X not eligible.</p>
+        <p class="small muted">Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts when it is the same term or an approved synonym (MS Word = Microsoft Word), written inside what the candidate wrote, covered by a broader term (Microsoft 365 covers Excel), or said in other words in the CV (counted at 75%): point at a term to see how. Fit with the job compares the job title and description with the candidate's summary, past roles and CV. A related course counts at 60%; a detail the CV does not give is marked “Confirm” rather than failed. Nice-to-have skills count half. A key requirement that is not met is shown for the hiring manager to judge; it never sets the score to 0. Grades: A 85+, B 70+, C 55+, D below 55.</p>
         {% else %}<p class="small muted">This requisition asks for nothing that can be scored yet: add skills, tools, courses, a qualification, experience or certifications to it.</p>{% endif %}
         {% endif %}
         {% elif app.matched_at %}

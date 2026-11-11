@@ -119,14 +119,46 @@ def shortlist(application, *, actor=None):
     return move_to_stage(application, Stage.SHORTLISTED, actor=actor)
 
 
-def auto_shortlist(requisition, *, actor=None, threshold: float | None = None, top_n: int | None = None) -> list:
+def decide_eligibility(application, decision: str, *, actor=None, note: str = ""):
+    """The hiring manager's call on a candidate who misses a key requirement: keep them in the running, or not
+    eligible (the application is closed as rejected, without emailing the candidate)."""
+    from django.utils import timezone
+
+    if decision not in Application.Eligibility.values:
+        raise WorkflowError("Choose keep or not eligible.")
+    gaps = ", ".join(application.unmet_requirements) or "the key requirements"
+    application.eligibility = decision
+    application.eligibility_by = actor
+    application.eligibility_at = timezone.now()
+    application.save(update_fields=["eligibility", "eligibility_by", "eligibility_at", "updated_at"])
+    who = getattr(actor, "display_name", "") or "The hiring team"
+    if decision == Application.Eligibility.KEPT:
+        log(f"{who} kept the candidate in the running despite: {gaps}." + (f" Note: {note}" if note else ""),
+            verb="eligibility", application=application, actor=actor)
+    else:
+        set_status(application, Application.Status.REJECTED, actor=actor,
+                   reason=(f"Not eligible: {gaps}" + (f". {note}" if note else ""))[:255])
+    return application
+
+
+def auto_shortlist(requisition, *, actor=None, threshold: float | None = None, top_n: int | None = None,
+                   undecided: list | None = None) -> list:
+    """Shortlist the active applicants scoring the threshold or more. Someone who misses a key requirement is left
+    for the hiring manager to decide on (collected in ``undecided``), unless already kept in the running."""
     threshold = settings.RECRUITMENT["AUTO_SHORTLIST_THRESHOLD"] if threshold is None else threshold
     qs = requisition.applications.filter(stage=Stage.APPLIED, status=Application.Status.ACTIVE,
                                          match_score__gte=threshold).order_by("-match_score")
-    if top_n:
-        qs = qs[:top_n]
-    picked = []
+    ready = []
     for application in qs:
+        if application.unmet_requirements and application.eligibility != Application.Eligibility.KEPT:
+            if undecided is not None:
+                undecided.append(application)
+            continue
+        ready.append(application)
+    if top_n:
+        ready = ready[:top_n]
+    picked = []
+    for application in ready:
         move_to_stage(application, Stage.SHORTLISTED, actor=actor, quiet=True)
         picked.append(application)
     if picked:

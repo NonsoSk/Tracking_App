@@ -1954,3 +1954,10 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .ms-tags .tag.part { border-style: dashed; }
 .btn-quiet-danger { color: var(--danger-ink); }
 .btn-quiet-danger:hover { background: var(--danger-bg); }
+
+/* The hiring manager's call on a candidate who misses a key requirement */
+.elig-banner { margin: var(--s-12) 0; align-items: center; }
+.elig-actions { display: flex; flex-wrap: wrap; gap: var(--s-8); }
+.elig-chip { margin-left: 6px; height: 22px; font-size: 12px; }
+.ms-sub { font-size: 12.5px; font-weight: 500; color: var(--text-3); margin-left: 6px; }
+.mt-why { display: flex; align-items: center; gap: 4px; }

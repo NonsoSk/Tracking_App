@@ -75,6 +75,8 @@ def profile_row(application) -> list[str]:
         c.qualification_short if c.highest_qualification else "", c.degree_class_short, c.course) if part)
     match = (("Not eligible" if application.match_grade == "X" else
               f"{float(application.match_score):g}% ({application.match_grade})") if application.matched_at else "Not scored")
+    if application.matched_at and application.unmet_requirements and application.eligibility != "kept":
+        match += f"; not met: {', '.join(application.unmet_requirements)}"
     return [c.full_name, background or "—", c.experience_label, match, review_label(application)]
 
 

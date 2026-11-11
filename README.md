@@ -324,13 +324,15 @@ vacancies, and profiles in the talent database without an application are not gr
 
 Matching screens and ranks the way an ATS does, without ruling people out on wording:
 
-1. **Must-haves.** The minimum qualification (HND counts as a degree only with `HND_EQUIVALENT_TO_BSC=true`) and the
-   minimum years of experience must be met; at least half of the required skills must be found
-   (`MATCH_MIN_REQUIRED_SKILLS_PERCENT`); the course must be an accepted one or a related one (Banking and Finance for
-   Accounting, Petroleum for Chemical Engineering: counted at 60%); a class of degree or NYSC that is given must
-   meet the minimum. A class of degree, course or NYSC the CV does not mention is marked **Confirm** (ask the
-   candidate) and earns fewer points, but does not rule them out. A candidate who fails a must-have is **Not
-   eligible**: score 0, grade X, listed after everyone eligible.
+1. **Key requirements.** The portal checks the minimum qualification and years of experience, at least half of the
+   required skills (`MATCH_MIN_REQUIRED_SKILLS_PERCENT`), an accepted or related course (Banking and Finance for
+   Accounting, Petroleum for Chemical Engineering: counted at 60%), the class of degree and NYSC. A detail the CV
+   does not mention is marked **Confirm**. A key requirement that is not met **never sets the score to 0 or rules
+   the candidate out**: the score still counts everything they have, and the application says which key requirement
+   is missing. The hiring manager (HR, or the vacancy's own department) decides on the application page: **Keep in
+   the running**, or **Not eligible** (the application is closed, without emailing the candidate). The ranked list
+   marks those waiting for a decision (*Decide: 1 key requirement not met*), and auto-shortlist leaves them for the
+   hiring manager unless they were kept in.
 2. **The score.** The weights above, spread over the components the requisition asks for so they add up to 100. Each
    component earns *weight × share met*; the points add up to the score. Fit with the job is left out (its weight
    spread over the rest) for a profile with no CV text or past roles, such as one loaded from Excel.
@@ -348,15 +350,15 @@ A term counts when the candidate has it in any of these ways (point at a term on
 
 Terms are looked for on the profile, in past job titles and duties, and in the CV text. Ordinary words that are also
 product names count only as the product ("Proficient in Word, Excel" counts, "I excel at teamwork" does not).
-Grades: A 85+, B 70+, C 55+, D below 55, X not eligible.
+Grades: A 85+, B 70+, C 55+, D below 55.
 
 A vacancy that asks for nothing yet (a requisition loaded from the tracker arrives without skills, courses,
 qualification or experience) is not scored: its applicants show *Not scored* until HR adds the requirements, and are
 then scored at once. Nobody gets 100 against an empty vacancy.
 
-On an application's **Scores** tab, HR sees the full working: each must-have (needed, the candidate's, met, not met or confirm)
+On an application's **Scores** tab, HR sees the full working: each key requirement (needed, the candidate's, met, not met or confirm)
 and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
-total. Others see the score and the must-haves. Changing a requisition's requirements re-scores all of its applicants
+total. Others see the score and the key requirements. Changing a requisition's requirements re-scores all of its applicants
 automatically; existing scores were re-scored with these rules when the portal was updated.
 
 ### Matching a batch of CVs to several vacancies
@@ -383,8 +385,7 @@ job:
    *⋯ → Match CVs to this vacancy* on a requisition; these start from the CVs added on the last upload day, and you
    can pick another day). Tick the vacancies and click **Match**.
 
-The grid scores every CV against every vacancy with the same rules as an application: each cell shows the score and grade, or
-*Not eligible* with the first must-have that was not met (point at it for all of them). Each person's best fit is
+The grid scores every CV against every vacancy with the same rules as an application: each cell shows the score and grade, and how many key requirements are not met, if any (point at it for which). Each person's best fit is
 starred and ticked; tick or untick any cell, then **Add the ticked matches as applications**. Only then is anything
 saved: each pair becomes an application, scored with the full working on its Scores tab, and the vacancy's ranked
 list includes it. Vacancies still waiting for approval can be scored to see who fits, but take applications only once

@@ -187,6 +187,33 @@ def change_status(request, pk):
     return _back(application)
 
 
+@login_required
+@require_POST
+def decide_eligibility(request, pk):
+    """The hiring manager (HR, or the vacancy's department) decides on a candidate who misses a key requirement."""
+    application = _get_application(request, pk)
+    user = request.user
+    ensure(user.is_hr or (user.is_department_user and user.department_id == application.requisition.department_id))
+    decision = request.POST.get("decision", "")
+    if decision == "undo" and application.eligibility == Application.Eligibility.KEPT:
+        application.eligibility, application.eligibility_by, application.eligibility_at = "", None, None
+        application.save(update_fields=["eligibility", "eligibility_by", "eligibility_at", "updated_at"])
+        services.log("Decision to keep the candidate in the running undone.", verb="eligibility",
+                     application=application, actor=user)
+        messages.info(request, "Undone: the decision is open again.")
+        return _back(application, "match")
+    try:
+        services.decide_eligibility(application, decision, actor=user, note=request.POST.get("note", "").strip())
+    except WorkflowError as exc:
+        messages.error(request, str(exc))
+        return _back(application, "match")
+    if decision == Application.Eligibility.KEPT:
+        messages.success(request, f"{application.candidate.full_name} stays in the running.")
+    else:
+        messages.success(request, f"{application.candidate.full_name} marked not eligible; the application is closed.")
+    return _back(application, "match")
+
+
 @hr_required
 @require_POST
 def rescore(request, pk):

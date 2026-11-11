@@ -89,11 +89,15 @@ class MatchingTests(TestCase):
         self.assertEqual(strict_hit("Process safety management", ["Safety"]), (None, ""))
         self.assertEqual(strict_hit("AutoCAD", ["AutoCAD 2D/3D"])[1], "includes it")
 
-    def test_a_must_have_not_met_makes_the_candidate_not_eligible(self):
+    def test_a_key_requirement_not_met_is_listed_but_never_zeroes_the_score(self):
         accountant = self.candidate(course="Accounting", skills=["Financial reporting (IFRS)"], tools=["Microsoft Excel"],
                                     certifications=["ICAN"])
         result = compute_match(self.req, accountant)
-        self.assertEqual((result["score"], result["grade"], result["eligible"]), (0, "X", False))
+        # The score counts what the candidate has; the hiring manager judges the gaps.
+        self.assertEqual(result["score"], result["weighted_score"])
+        self.assertGreater(result["score"], 0)
+        self.assertEqual((result["grade"], result["eligible"]), ("D", False))
+        self.assertEqual(result["unmet"], ["Accepted course", "Required skills"])
         failed = {s["key"] for s in result["screening"] if not s["passed"]}
         self.assertEqual(failed, {"course", "required_skills"})
         self.assertLess(result["weighted_score"], 30)
@@ -105,7 +109,8 @@ class MatchingTests(TestCase):
         failed = {s["key"]: s for s in result["screening"] if not s["passed"]}
         self.assertEqual(set(failed), {"qualification", "experience"})
         self.assertEqual(failed["qualification"]["has"], "Not stated")
-        self.assertEqual(result["grade"], "X")
+        self.assertEqual(result["unmet"], ["Minimum qualification", "Minimum experience"])
+        self.assertNotEqual(result["grade"], "X")
 
     def test_required_skills_threshold(self):
         half = compute_match(self.req, self.candidate(skills=["HAZOP"]))
@@ -132,7 +137,8 @@ class MatchingTests(TestCase):
         # A class below the minimum fails; NYSC the CV does not mention is "not stated: confirm", not a fail.
         self.assertEqual({s["key"] for s in weak["screening"] if not s["passed"]}, {"degree_class"})
         self.assertEqual({s["key"] for s in weak["screening"] if s["unknown"]}, {"nysc"})
-        self.assertEqual(weak["score"], 0)
+        self.assertEqual((weak["eligible"], weak["unmet"]), (False, ["Class of degree"]))
+        self.assertGreater(weak["score"], 0)
         serving = compute_match(self.req, self.candidate(degree_class="first", nysc_status="ongoing", years_experience=0))
         self.assertEqual({s["key"] for s in serving["screening"] if not s["passed"]}, {"nysc"})
         unstated = compute_match(self.req, self.candidate(degree_class="", nysc_status="completed", years_experience=0))
@@ -164,7 +170,8 @@ class MatchingTests(TestCase):
         bare.save()
         result = score_application(app)
         self.assertNotIn("unscored", result)
-        self.assertEqual(result["grade"], "X")  # no qualification or skills stated: not eligible
+        self.assertFalse(result["eligible"])  # no qualification or skills stated: for the hiring manager to judge
+        self.assertIn("Minimum qualification", result["unmet"])
 
     def test_education_and_experience_helpers(self):
         self.assertTrue(meets_education("msc", "bsc"))

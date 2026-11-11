@@ -110,11 +110,11 @@ class ScoreBreakdownAccessTests(TestCase):
         self.client.force_login(hr)
         page = self.client.get(app.get_absolute_url())
         self.assertContains(page, "How the score was worked out")
-        self.assertContains(page, "Must-haves")
+        self.assertContains(page, "Key requirements")
         self.assertContains(page, "the candidate wrote “AutoCAD 2D/3D”")
         self.client.force_login(hod)
         page = self.client.get(app.get_absolute_url())
-        self.assertContains(page, "Must-haves")
+        self.assertContains(page, "Key requirements")
         self.assertNotContains(page, "How the score was worked out")
 
 

@@ -11,6 +11,7 @@ urlpatterns = [
     path("applications/<int:pk>/shortlist/", views.shortlist, name="shortlist"),
     path("applications/<int:pk>/status/", views.change_status, name="status"),
     path("applications/<int:pk>/rescore/", views.rescore, name="rescore"),
+    path("applications/<int:pk>/eligibility/", views.decide_eligibility, name="eligibility"),
     path("applications/<int:pk>/ai-summary/", views.ai_summary, name="ai_summary"),
     path("applications/<int:pk>/interviews/new/", views.schedule_interview, name="schedule_interview"),
     path("applications/<int:pk>/evaluate/", views.evaluate, name="evaluate"),

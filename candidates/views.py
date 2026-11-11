@@ -699,8 +699,8 @@ def match_vacancies(request):
                     "can_add": vacancy.can_add,
                     "failed": [f"{s['label']}: {s['has']}" for s in result["screening"] if not s["passed"]],
                 })
-            fits = [c for c in cells if c["eligible"]]
-            best = max(fits, key=lambda c: c["score"]) if fits else None
+            fits = [c for c in cells if not c["unscored"]]
+            best = max(fits, key=lambda c: (c["score"], not c["failed"])) if fits else None
             if best:
                 best["best"] = True
             rows.append({"candidate": person, "cells": cells, "best": best})

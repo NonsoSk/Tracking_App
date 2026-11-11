@@ -59,6 +59,14 @@ class BroaderTermTests(TestCase):
         self.assertEqual(found["Vendor reconciliation"]["credit"], SIMILAR_CREDIT)
         self.assertIn("Reconciled vendor statements", found["Vendor reconciliation"]["wrote"])
 
+    def test_hr_work_as_cvs_describe_it(self):
+        cv = ("HR Officer, Indorama 2019 - 2024\n- Handled staff relations, grievances and disciplinary matters\n"
+              "- Organised staff welfare programmes\n- Liaised with the union on collective bargaining\n"
+              "- Ran performance appraisals and the induction of new staff")
+        found, missing = self.found(["Employee engagement", "Employee relations", "Industrial relations",
+                                     "Performance management", "Onboarding"], person(cv_text=cv))
+        self.assertEqual(missing, [])
+
     def test_words_far_apart_are_not_similar_wording(self):
         cv = "Worked with vendors on deliveries\nBank reconciliation and cash book"
         _, missing = self.found(["Vendor reconciliation"], person(cv_text=cv))
