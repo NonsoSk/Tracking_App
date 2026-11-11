@@ -114,6 +114,21 @@ class MatchGridTests(TestCase):
         response = self.client.get(reverse("candidates:match"), {"r": self.payable.pk, "added": "2001-01-01"})
         self.assertEqual(response.context["total"], 0)
 
+    def test_starts_from_the_last_day_cvs_were_added(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        Candidate.objects.update(created_at=timezone.now() - timedelta(days=3))
+        response = self.client.get(reverse("candidates:match"), {"r": self.payable.pk})
+        self.assertEqual(response.context["added"], timezone.localdate() - timedelta(days=3))
+        self.assertEqual(response.context["total"], 2)
+
+    def test_the_vacancy_page_links_to_the_grid(self):
+        response = self.client.get(self.payable.get_absolute_url())
+        self.assertContains(response, f'href="{reverse("candidates:match")}?r={self.payable.pk}"')
+        self.assertContains(response, "Match CVs to this vacancy")
+
     def test_hr_only(self):
         hod = User.objects.create_user("hod", password="x", role=User.Role.HOD, department=self.finance)
         self.client.force_login(hod)

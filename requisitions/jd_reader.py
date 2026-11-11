@@ -47,7 +47,7 @@ def title_from(text: str, filename: str) -> str:
         return tidy_title(found.group(1))
     stem = os.path.splitext(os.path.basename(filename))[0]
     stem = re.sub(r"[_\-.()]+", " ", stem)
-    stem = " ".join(re.sub(r"(?i)\b(jd|job description|job desc|description|final|draft|v\d+)\b", " ", stem).split())
+    stem = " ".join(re.sub(r"(?i)\b(jd|job description|job desc|description|job posting|job post|job advert|advert|vacancy|final|draft|v\d+)\b", " ", stem).split())
     wanted = {w for w in stem.lower().split() if not w.isdigit()}
     for line in [line.strip() for line in text.splitlines() if line.strip()][:8]:
         words = set(re.sub(r"[^a-z0-9 ]+", " ", line.lower()).split())

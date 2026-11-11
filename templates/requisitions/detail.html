@@ -24,6 +24,7 @@
       <div class="pop-wrap">
         <button class="btn btn-secondary btn-icon" type="button" data-popover="req-menu" aria-haspopup="true" aria-expanded="false" aria-label="More actions">{% icon "ellipsis" "ico-18" %}</button>
         <div class="popover" id="req-menu" hidden>
+          <a class="menu-item" href="{{ match_url }}">{% icon "list-checks" "ico-18" %} Match CVs to this vacancy</a>
           <a class="menu-item" href="{% url 'requisitions:advert' req.pk %}">{% icon "file-text" "ico-18" %} Edit job description</a>
           <button class="menu-item" type="button" data-open="summary-dlg">{% icon "mail" "ico-18" %} Email candidate summary to {{ req.department }}</button>
           <a class="menu-item" href="{% url 'requisitions:export' req.pk %}">{% icon "file-spreadsheet" "ico-18" %} Export applicants (Excel)</a>
@@ -129,6 +130,8 @@
       <button class="btn btn-primary btn-sm" type="submit" data-needs-selection>Apply to selected</button>
     </div>
     {% endif %}
+    {% elif u.is_hr %}
+      {% empty_state "No candidates here yet" "Applications from the careers page and referrals appear here on their own, ranked by match. For CVs you have (email, paper, a folder): upload them on CV intake with no vacancy chosen, then match them to this vacancy." match_url "Match CVs to this vacancy" "Lab beaker of polymer pellets" "list-checks" %}
     {% else %}
       {% empty_state "No candidates here yet" "Applications from the careers page, referrals and uploaded CVs appear here automatically, ranked by match." object_name="Lab beaker of polymer pellets" %}
     {% endif %}

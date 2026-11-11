@@ -192,7 +192,10 @@ def requisition_detail(request, pk):
     interviews = Interview.objects.filter(application__requisition=requisition).select_related(
         "application__candidate").prefetch_related("panel").order_by("-scheduled_at")
     records = list(requisition.interview_records.select_related("candidate", "application"))
+    from django.urls import reverse
+
     return render(request, "requisitions/detail.html", {
+        "match_url": reverse("candidates:match") + f"?r={requisition.pk}",
         "req": requisition, "applications": listed, "board": [(s, board[s.value]) for s in stages],
         "stage_filter": stage_filter, "status_filter": status_filter, "counts": counts, "grade_counts": grade_counts,
         "total_apps": applications.count(), "interviews": interviews,

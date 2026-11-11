@@ -75,6 +75,7 @@ class JobDescriptionReaderTests(TestCase):
         self.assertEqual(title_from("IEFCL\nHR OFFICER\nSummary", "hr officer.docx"), "HR Officer")
         self.assertEqual(title_from("Position: head of HSE", "x.docx"), "Head of HSE")
         self.assertEqual(title_from("", "JD (2).docx"), "")
+        self.assertEqual(title_from("", "Marketing Officer Job Post.docx"), "Marketing Officer")
 
 
 class ReadIntoRequisitionTests(TestCase):

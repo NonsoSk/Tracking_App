@@ -352,8 +352,8 @@ job:
 2. **CV intake**: leave *Vacancy* empty and upload the CVs (up to 100 files per upload; a bigger folder
    goes in batches, matched together by the day they were added). New people are added
    to the talent database; someone already there (same email or phone) is updated instead of duplicated.
-3. Click **Match these CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, which can also take
-   the CVs added on a given day). Tick the vacancies and click **Match**.
+3. Click **Match these CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, or *⋯ → Match CVs to this
+   vacancy* on a requisition; these start from the CVs added on the last upload day, and you can pick another day). Tick the vacancies and click **Match**.
 
 The grid scores every CV against every vacancy with the same strict rules: each cell shows the score and grade, or
 *Not eligible* with the first must-have that was not met (point at it for all of them). Each person's best fit is

@@ -473,15 +473,17 @@ def match_vacancies(request):
     chosen = {int(v) for v in request.GET.getlist("r") if v.isdigit()}
     vacancies = [v for v in vacancies_all if v.pk in chosen]
     ids = [int(c) for c in request.GET.getlist("c") if c.isdigit()]
+    uploaded = Candidate.objects.exclude(source__in=["import", "internal"])
     try:
         added = date.fromisoformat(request.GET.get("added", ""))
     except ValueError:
-        added = timezone.localdate()
+        latest = uploaded.order_by("-created_at").values_list("created_at", flat=True).first()
+        added = timezone.localdate(latest) if latest else timezone.localdate()
     if ids:
         people = Candidate.objects.filter(pk__in=ids)
         scope = f"the {len(ids)} CV{'s' if len(ids) != 1 else ''} you uploaded"
     else:
-        people = Candidate.objects.filter(created_at__date=added).exclude(source__in=["import", "internal"])
+        people = uploaded.filter(created_at__date=added)
         scope = f"CVs added on {added:%d %b %Y}"
     total = people.count()
     people = list(people.order_by("last_name", "first_name")[:MATCH_LIMIT])
