@@ -1,0 +1,28 @@
+{% load ds %}{# Take the ticked candidates (or everyone shown) out: CVs as a .zip, the basic list as Excel or CSV; download, share or email. Used inside a POST form whose checkboxes are named {{ picked }}. #}
+<input type="hidden" name="next" value="{{ request.get_full_path }}">
+<div class="sheet-b export-bar">
+  <span class="small">{% if picked == "pick" %}<b data-selected-count>None selected</b><span class="muted"> · with none ticked, everyone shown is taken</span>{% else %}<b>Export</b><span class="muted"> the ticked candidates, or everyone shown when none is ticked</span>{% endif %}</span>
+  <span class="spacer"></span>
+  <button class="btn btn-secondary btn-sm" type="submit" formaction="{% url 'candidates:export' %}" name="format" value="zip" data-tip="One .zip with each candidate's CV, named after them">{% icon "files" "ico-16" %} Download CVs</button>
+  <button class="btn btn-secondary btn-sm" type="submit" formaction="{% url 'candidates:export' %}" name="format" value="xlsx" data-tip="Name, email, phone, course, degree, age, position applied for">{% icon "file-spreadsheet" "ico-16" %} Excel</button>
+  <button class="btn btn-secondary btn-sm" type="submit" formaction="{% url 'candidates:export' %}" name="format" value="csv">{% icon "file-text" "ico-16" %} CSV</button>
+  <div class="pop-wrap">
+    <button class="btn btn-secondary btn-sm" type="button" data-popover="share-menu" aria-haspopup="true" aria-expanded="false">{% icon "share-2" "ico-16" %} Share</button>
+    <div class="popover" id="share-menu" hidden>
+      <button class="menu-item" type="button" data-share-export data-url="{% url 'candidates:export' %}" data-format="xlsx">{% icon "file-spreadsheet" "ico-18" %} Share the list (Excel)</button>
+      <button class="menu-item" type="button" data-share-export data-url="{% url 'candidates:export' %}" data-format="zip">{% icon "files" "ico-18" %} Share the CVs (.zip)</button>
+      <button class="menu-item" type="button" data-open="export-email">{% icon "mail" "ico-18" %} Email from the portal…</button>
+    </div>
+  </div>
+</div>
+<dialog class="modal" id="export-email" aria-labelledby="export-email-h">
+  <div class="modal-h"><span class="tile">{% icon "mail" %}</span><h3 id="export-email-h">Email the export</h3><span class="spacer"></span><button class="icon-btn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+  <div class="modal-b stack">
+    <p class="small soft">The ticked candidates (or everyone shown when none is ticked). It is sent from the portal's mailbox and copied to you. It holds personal data: send it only to the hiring team.</p>
+    <div class="field"><label class="label" for="export-to">To</label><input class="input" id="export-to" name="to" type="text" autocomplete="email" placeholder="name@iefcl.com, another@iefcl.com"><span class="help">Up to ten addresses, separated by commas.</span></div>
+    <div class="field"><label class="label" for="export-what">What to send</label>
+      <select class="select" id="export-what" name="email_format"><option value="xlsx">The list (Excel)</option><option value="csv">The list (CSV)</option><option value="zip">The CVs (.zip, up to 20 MB)</option></select></div>
+    <div class="field"><label class="label" for="export-note">Message (optional)</label><textarea class="textarea" id="export-note" name="note" rows="2" placeholder="E.g. Shortlist for the marketing officer role, for your review."></textarea></div>
+  </div>
+  <div class="modal-f"><button class="btn btn-ghost" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit" formaction="{% url 'candidates:export' %}" name="deliver" value="email">{% icon "send" "ico-18" %} Send</button></div>
+</dialog>

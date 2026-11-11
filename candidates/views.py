@@ -1,8 +1,10 @@
+import io
 import logging
 import mimetypes
 import os
 import re
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -637,6 +639,89 @@ def intake(request):
 
 
 
+@hr_required
+def candidate_cv(request, pk):
+    """The candidate's latest CV as a file to save, named after them ('Ada Obi - CV.pdf')."""
+    from . import exports
+
+    candidate = get_object_or_404(Candidate, pk=pk)
+    document = exports.latest_cvs([candidate]).get(candidate.pk)
+    if not document or not os.path.exists(document.file.path):
+        raise Http404("No CV on file")
+    content_type = mimetypes.guess_type(document.file.name)[0] or "application/octet-stream"
+    return FileResponse(document.file.open("rb"), as_attachment=True, content_type=content_type,
+                        filename=exports.cv_file_name(candidate, document))
+
+
+@hr_required
+@require_POST
+def export_selection(request):
+    """The ticked candidates (or everyone shown): their CVs as a .zip, or the basic list as Excel or CSV. Downloaded
+    (or shared from the browser), or emailed from the portal."""
+    from django.core.mail import EmailMessage
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    from . import exports
+
+    back = safe_next(request, reverse("candidates:match"), request.POST.get("next"))
+    fmt = request.POST.get("email_format" if request.POST.get("deliver") == "email" else "format", "xlsx")
+    if fmt not in exports.FORMATS:
+        fmt = "xlsx"
+    pairs, title = exports.selection(request.POST)
+    if not pairs:
+        messages.error(request, "Nothing to export: there are no candidates in the list.")
+        return redirect(back)
+    content, name, content_type, notes = exports.build(fmt, pairs, title)
+    count = len({c.pk for c, _ in pairs})
+    if fmt == "zip" and not notes["cvs"]:
+        content.close()
+        messages.error(request, "None of these candidates has a CV on file.")
+        return redirect(back)
+    logger.info("%s exported %s for %d candidate(s)", request.user, name, count)
+    if request.POST.get("deliver") != "email":
+        stream = content if fmt == "zip" else io.BytesIO(content)  # the .zip's temporary file goes when closed
+        return FileResponse(stream, as_attachment=True, filename=name, content_type=content_type)
+
+    recipients = [a.strip() for a in re.split(r"[,;\s]+", request.POST.get("to", "")) if a.strip()]
+    try:
+        if not recipients or len(recipients) > 10:
+            raise ValidationError("Enter one to ten email addresses.")
+        for address in recipients:
+            validate_email(address)
+    except ValidationError as exc:
+        messages.error(request, f"Not sent: {exc.messages[0]}" if exc.messages else "Not sent: check the addresses.")
+        if fmt == "zip":
+            content.close()
+        return redirect(back)
+    if fmt == "zip":
+        data = content.read()
+        content.close()
+    else:
+        data = content
+    if len(data) > exports.EMAIL_LIMIT_MB * 1024 * 1024:
+        messages.error(request, f"Not sent: the file is {len(data) / 1048576:.0f} MB, too big to email (limit "
+                                f"{exports.EMAIL_LIMIT_MB} MB). Download it and share it from your PC, or pick fewer "
+                                "candidates.")
+        return redirect(back)
+    note = request.POST.get("note", "").strip()
+    what = (f"the CVs of {notes['cvs']} candidate{'s' if notes['cvs'] != 1 else ''}" if fmt == "zip"
+            else f"{count} candidate{'s' if count != 1 else ''}' details")
+    body = (f"{note}\n\n" if note else "") + (
+        f"Attached: {what} for {title} ({name}).\n\nSent by {request.user.display_name} from the "
+        f"{settings.COMPANY_SHORT_NAME} Recruitment Portal. It contains personal data: keep it within the hiring team.")
+    message = EmailMessage(subject=f"{title}: {'CVs' if fmt == 'zip' else 'candidates'}", body=body,
+                           to=recipients, cc=[request.user.email] if request.user.email else None)
+    message.attach(name, data, content_type)
+    message.send()
+    from requisitions.views import email_connected
+
+    messages.success(request, f"Sent {name} to {', '.join(recipients)}." + (
+        "" if email_connected() else " Email is not connected on this computer yet, so it was printed in the portal "
+                                     "window instead of delivered."))
+    return redirect(back)
+
+
 def open_requisitions_for_folder():
     from .forms import open_requisitions
 
@@ -748,8 +833,14 @@ def match_vacancies(request):
         # Ready to add: the ranked cell of each row shown, when it is a possible match or better (or in the chosen
         # score range).
         floor = filters["min"] if filters["min"] is not None else ranking.GOOD_ENOUGH
+        from .models import CandidateDocument
+
+        with_cv = set(CandidateDocument.objects.filter(candidate__in=[r["candidate"] for r in rows], doc_type="cv")
+                      .exclude(file="").values_list("candidate_id", flat=True))
         for row in rows:
             key = row["key"]
+            vacancy = (key or row["cells"][0])["vacancy"]
+            row["pick"], row["has_cv"] = f"{row['candidate'].pk}:{vacancy.pk}", row["candidate"].pk in with_cv
             if key:
                 key["is_key"] = len(vacancies) > 1
             if key and key["can_add"] and not key["applied"] and key["score"] >= floor:

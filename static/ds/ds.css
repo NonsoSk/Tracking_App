@@ -1991,3 +1991,11 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px var(--s-16); margin: 0; }
 .kv dt { font-weight: 700; color: var(--text-3); }
 .kv dd { margin: 0; }
+
+/* Exports: CVs and the basic list of the ticked candidates */
+.export-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-8); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--sunken); }
+.export-bar .pop-wrap { position: relative; }
+.export-bar .popover { right: 0; left: auto; }
+.mt-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mt-cv { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--link); text-transform: none; letter-spacing: 0; }
+.match-table td.cb, .match-table th.cb { width: 40px; vertical-align: top; }

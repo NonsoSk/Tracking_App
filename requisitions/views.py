@@ -6,6 +6,8 @@ from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+
+from candidates.models import CandidateDocument
 from django.views.decorators.http import require_POST
 
 from core.ai import ai_enabled
@@ -214,6 +216,9 @@ def requisition_detail(request, pk):
         "match_url": reverse("candidates:match") + f"?r={requisition.pk}",
         "req": requisition, "applications": listed, "board": [(s, board[s.value]) for s in stages],
         "stage_filter": stage_filter, "status_filter": status_filter, "counts": counts, "grade_counts": grade_counts,
+        "with_cv": set(CandidateDocument.objects.filter(
+            candidate__in=[a.candidate_id for a in listed], doc_type="cv").exclude(file="")
+            .values_list("candidate_id", flat=True)),
         "filters": filters, "filtered": ranking.active(filters), "filter_text": ranking.describe(filters),
         "top_choices": ranking.TOP_CHOICES, "in_range": in_range,
         "total_apps": applications.count(), "interviews": interviews,

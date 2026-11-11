@@ -396,6 +396,24 @@ A vacancy that asks for nothing yet (a requisition loaded from the tracker arriv
 qualification or experience) is not scored: its applicants show *Not scored* until HR adds the requirements, and are
 then scored at once. Nobody gets 100 against an empty vacancy.
 
+### Taking matched candidates out: CVs and a basic list
+
+On the match grid and on a vacancy's **Ranked candidates** (HR), tick the candidates you want, or tick none to take
+everyone shown (after any top-N or score filter), then:
+
+* **Download CVs**: one .zip with each candidate's latest CV, named after them ("Ada Obi - CV.pdf"); anyone without a
+  CV on file is listed in a note inside. A single CV downloads from the **CV** link beside the name.
+* **Excel** or **CSV**: the basic list with *Name, Email address, Phone No., Course of Study, Degree Obtained*
+  (qualification and class, e.g. "BSc / BEng (2:1)"), *Age* (from the date of birth, blank when not known) and
+  *Position applied for*. The CSV opens directly in Excel.
+* **Share**: the list or the CVs through the computer's or phone's share sheet (Mail, Outlook, Teams, WhatsApp…, in
+  browsers that can share files, such as Edge and Chrome on Windows 10/11 and phones). Elsewhere the file is
+  downloaded instead, ready to attach.
+* **Email from the portal…**: up to ten addresses, the list (Excel or CSV) or the CVs (.zip, up to 20 MB), with an
+  optional message; copied to you. Until SMTP is set up, the email is only printed in the portal window.
+
+Exports hold personal data: send them only to the hiring team.
+
 A vacancy's **Ranked candidates** list has the same filters beside the stage and status: the top 5, 10, 20 or 50,
 a score range, and only those meeting every key requirement (highest score first).
 

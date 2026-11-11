@@ -460,6 +460,50 @@
   /* Print buttons */
   document.addEventListener("click", function (e) { if (e.target.closest("[data-print]")) window.print(); });
 
+  /* Share an export through the device's share sheet (mail, Outlook, Teams, WhatsApp...). Where the browser cannot
+     share files, the file is downloaded instead, ready to attach. */
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-share-export]");
+    if (!btn) return;
+    e.preventDefault();
+    var form = btn.closest("form");
+    if (!form) return;
+    var data = new FormData(form);
+    data.set("format", btn.dataset.format || "xlsx");
+    data.delete("deliver");
+    btn.classList.add("is-loading");
+    function save(file, why) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+      toast({ title: "Downloaded instead", body: why + " Attach " + file.name + " from your Downloads folder.", tone: "info" });
+    }
+    fetch(btn.dataset.url, { method: "POST", body: data, credentials: "same-origin" })
+      .then(function (r) {
+        var kind = r.headers.get("Content-Type") || "";
+        if (!r.ok || kind.indexOf("text/html") === 0) throw new Error("export");
+        var cd = r.headers.get("Content-Disposition") || "";
+        var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+        var name = m ? decodeURIComponent(m[1]) : "candidates";
+        return r.blob().then(function (b) { return new File([b], name, { type: b.type || kind }); });
+      })
+      .then(function (file) {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          return navigator.share({ files: [file], title: file.name }).catch(function (err) {
+            if (err && err.name === "AbortError") return;  // closed the share sheet
+            save(file, "The share sheet could not open.");
+          });
+        }
+        save(file, "This browser cannot share files directly.");
+      })
+      .catch(function () { toast({ title: "Could not prepare the file", body: "Try Download instead.", tone: "danger" }); })
+      .then(function () { btn.classList.remove("is-loading"); });
+  });
+
   /* Filters that apply as soon as they change */
   document.addEventListener("change", function (e) {
     var el = e.target.closest("[data-autosubmit]");

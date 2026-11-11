@@ -54,8 +54,9 @@
     <span class="spacer"></span>
     {% if addable %}<button class="btn btn-primary btn-sm" type="submit">{% icon "plus" "ico-16" %} Add the ticked matches as applications</button>{% endif %}</div>
   {% if total > limit %}<p class="sheet-b small muted">Showing the first {{ limit }} of {{ total|intcomma }} CVs.</p>{% endif %}
+  {% include "candidates/_export_bar.html" with picked="pick" %}
   <div class="table-wrap match-wrap"><table class="table match-table">
-    <thead><tr><th scope="col">Candidate</th>
+    <thead><tr><th scope="col" class="cb"><input type="checkbox" class="form-check-input" data-select-all="pick" aria-label="Select everyone shown"></th><th scope="col">Candidate</th>
       {% for col in columns %}<th scope="col" class="mt-vac"><a href="{{ col.vacancy.get_absolute_url }}">{{ col.vacancy.title }}</a>
         <small>{{ col.scored }} scored · {{ col.meets_all }} meet every key requirement</small>
         {% if col.scored %}<span class="mt-dist">{% for g, n in col.grades.items %}{% if n %}<span class="mt-grade g{{ g }}" title="Grade {{ g }}">{{ g }} {{ n }}</span>{% endif %}{% endfor %}</span>{% endif %}
@@ -63,7 +64,8 @@
         {% elif not col.vacancy.can_add %}<small class="mt-warn">{{ col.vacancy.get_status_display }}: scores only. Approve it to add applications.</small>{% endif %}</th>{% endfor %}</tr></thead>
     <tbody>
     {% for r in rows %}<tr>
-      <th scope="row" class="mt-who"><a href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a>
+      <td class="cb"><input type="checkbox" class="form-check-input" name="pick" value="{{ r.pick }}" aria-label="Select {{ r.candidate.full_name }}"><input type="hidden" name="shown" value="{{ r.pick }}"></td>
+      <th scope="row" class="mt-who"><span class="mt-name"><a href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a>{% if r.has_cv %}<a class="mt-cv" href="{% url 'candidates:cv' r.candidate.pk %}" title="Download {{ r.candidate.full_name }}'s CV" aria-label="Download {{ r.candidate.full_name }}'s CV">{% icon "download" "ico-14" %} CV</a>{% endif %}</span>
         <small>{{ r.candidate.qualification_short }}{% if r.candidate.course %} · {{ r.candidate.course }}{% endif %} · {{ r.candidate.experience_label }}</small></th>
       {% for c in r.cells %}
       <td class="mt-cell{% if c.is_key %} is-key{% endif %}">
