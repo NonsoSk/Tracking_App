@@ -7,7 +7,7 @@
   <div>
     <div class="eyebrow">Talent</div>
     <h1>Match CVs to vacancies</h1>
-    <p class="lede">Every CV is scored against each vacancy you pick, the strict way: must-haves first, then the weighted score. Each person's best fit is marked. Nothing is saved until you add the matches you want.</p>
+    <p class="lede">Every CV is scored against each vacancy you pick and ranked for it. Narrow the results to the top 10, 20 or 50, a score range, or those meeting every key requirement. Nothing is saved until you add the matches you want.</p>
   </div>
 </header>
 
@@ -27,16 +27,38 @@
 </form>
 
 {% if unchecked %}<div class="banner warning match-unchecked"><span class="tile">{% icon "user-check" "ico-18" %}</span><div><b>{{ unchecked }} of these CVs {{ unchecked|pluralize:"is,are" }} not checked yet, so {{ unchecked|pluralize:"it is,they are" }} left out</b><span class="small">Each profile read from a CV is checked against the CV before it is matched.</span></div><a class="btn btn-primary btn-sm" href="{{ check_url }}">Check {{ unchecked|pluralize:"it,them" }} now</a></div>{% endif %}
+{% if columns %}
+<form class="sheet match-filter" method="get" aria-label="Filter the results">
+  {% for c in ids %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}{% for v in chosen %}<input type="hidden" name="r" value="{{ v }}">{% endfor %}{% if not ids %}<input type="hidden" name="added" value="{{ added|date:'Y-m-d' }}">{% endif %}
+  <label class="mf-field"><span>Rank by</span>
+    <select name="rank" class="select select-sm" data-autosubmit>
+      {% if columns|length > 1 %}<option value="any" {% if rank_by == "any" %}selected{% endif %}>Each CV's strongest role</option>{% endif %}
+      {% for col in columns %}<option value="{{ col.vacancy.pk }}" {% if rank_by == col.vacancy.pk|stringformat:"s" %}selected{% endif %}>{{ col.vacancy.title }}</option>{% endfor %}
+    </select></label>
+  <label class="mf-field"><span>Show</span>
+    <select name="top" class="select select-sm" data-autosubmit><option value="">Everyone</option>{% for n, label in top_choices %}<option value="{{ n }}" {% if filters.top == n %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <span class="mf-field"><span>Score</span><span class="mf-range">
+    <input class="input input-sm num" type="number" name="min" min="0" max="100" step="1" placeholder="0" value="{{ filters.min|default_if_none:''|floatformat:'-1' }}" aria-label="Lowest score">
+    <span class="muted">to</span>
+    <input class="input input-sm num" type="number" name="max" min="0" max="100" step="1" placeholder="100" value="{{ filters.max|default_if_none:''|floatformat:'-1' }}" aria-label="Highest score"></span></span>
+  <label class="check small mf-check"><input type="checkbox" name="keyreq" value="1" {% if filters.keyreq %}checked{% endif %} data-autosubmit> Only those meeting every key requirement</label>
+  <div class="mf-actions"><button class="btn btn-secondary btn-sm" type="submit">Apply</button>
+    {% if filtered %}<a class="btn btn-ghost btn-sm" href="?{% for c in ids %}c={{ c }}&amp;{% endfor %}{% for v in chosen %}r={{ v }}&amp;{% endfor %}{% if not ids %}added={{ added|date:'Y-m-d' }}&amp;{% endif %}rank={{ rank_by }}">Clear filters</a>{% endif %}</div>
+</form>
+{% endif %}
 {% if rows %}
 <form method="post" action="{% url 'candidates:match_add' %}" class="sheet" aria-labelledby="mr-h">{% csrf_token %}
   <input type="hidden" name="query" value="{{ query }}">
-  <div class="sheet-h"><h2 class="title" id="mr-h">Results</h2><span class="count">{{ rows|length|intcomma }}</span><span class="spacer"></span>
+  <div class="sheet-h"><h2 class="title" id="mr-h">Results</h2><span class="count">{{ rows|length|intcomma }}</span>
+    <span class="small muted">{% if filtered %}{{ filter_text|capfirst }}{% if rows|length < shown_total %} · {{ shown_total }} match the score range{% endif %}{% else %}All {{ rows|length }} CVs, ranked by {% if rank_by == "any" %}their strongest role{% else %}score{% endif %}{% endif %}</span>
+    <span class="spacer"></span>
     {% if addable %}<button class="btn btn-primary btn-sm" type="submit">{% icon "plus" "ico-16" %} Add the ticked matches as applications</button>{% endif %}</div>
   {% if total > limit %}<p class="sheet-b small muted">Showing the first {{ limit }} of {{ total|intcomma }} CVs.</p>{% endif %}
   <div class="table-wrap match-wrap"><table class="table match-table">
     <thead><tr><th scope="col">Candidate</th>
       {% for col in columns %}<th scope="col" class="mt-vac"><a href="{{ col.vacancy.get_absolute_url }}">{{ col.vacancy.title }}</a>
-        <small>{{ col.eligible }} meet every key requirement · best fit for {{ col.best }}</small>
+        <small>{{ col.scored }} scored · {{ col.meets_all }} meet every key requirement</small>
+        {% if col.scored %}<span class="mt-dist">{% for g, n in col.grades.items %}{% if n %}<span class="mt-grade g{{ g }}" title="Grade {{ g }}">{{ g }} {{ n }}</span>{% endif %}{% endfor %}</span>{% endif %}
         {% if col.unscored %}<small class="mt-warn">No requirements yet: <a href="{% url 'requisitions:edit' col.vacancy.pk %}">add them</a></small>
         {% elif not col.vacancy.can_add %}<small class="mt-warn">{{ col.vacancy.get_status_display }}: scores only. Approve it to add applications.</small>{% endif %}</th>{% endfor %}</tr></thead>
     <tbody>
@@ -44,19 +66,22 @@
       <th scope="row" class="mt-who"><a href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a>
         <small>{{ r.candidate.qualification_short }}{% if r.candidate.course %} · {{ r.candidate.course }}{% endif %} · {{ r.candidate.experience_label }}</small></th>
       {% for c in r.cells %}
-      <td class="mt-cell{% if c.best %} is-best{% endif %}">
+      <td class="mt-cell{% if c.is_key %} is-key{% endif %}">
         {% if c.unscored %}<span class="small muted">Not scored</span>
         {% else %}<div class="mt-top"><b class="mt-score">{{ c.score|floatformat:"-1" }}</b><span class="mt-grade g{{ c.grade }}">Grade {{ c.grade }}</span></div>
-          {% if c.best %}<span class="mt-best">{% icon "star" "ico-14" %} Best fit</span>{% endif %}
+          <span class="mt-label g{{ c.grade }}">{{ c.label }}</span> <span class="mt-rank" title="Rank among the {{ c.of }} CVs scored for {{ c.vacancy.title }}">#{{ c.rank }} of {{ c.of }}</span>
+          {% if c.strongest %}<span class="mt-best">{% icon "star" "ico-14" %} Fits this role best</span>{% endif %}
           {% if c.failed %}<small class="mt-why" title="Not met: {{ c.failed|join:'; ' }}">{% icon "triangle-alert" "ico-14" %} {{ c.failed|length }} key requirement{{ c.failed|length|pluralize }} not met</small>{% endif %}{% endif %}
         {% if c.applied %}<span class="chip success no-dot mt-done">{% icon "check" %} Applied</span>
-        {% elif c.can_add and not c.unscored %}<label class="mt-add"><input type="checkbox" name="pair" value="{{ r.candidate.pk }}:{{ c.vacancy.pk }}"{% if c.best %} checked{% endif %}> Add</label>{% endif %}
+        {% elif c.can_add and not c.unscored %}<label class="mt-add"><input type="checkbox" name="pair" value="{{ r.candidate.pk }}:{{ c.vacancy.pk }}"{% if c.tick %} checked{% endif %}> Add</label>{% endif %}
       </td>{% endfor %}
     </tr>{% endfor %}
     </tbody>
   </table></div>
-  <p class="sheet-b small muted">Best fits are ticked for you; tick or untick any cell, then add. Each added CV becomes an application to that vacancy, scored with the full working on its Scores tab. Every CV gets a score for what it has; where a key requirement is not met it says so (point at it for which), and the hiring manager decides on the application page.</p>
+  <p class="sheet-b small muted">Each cell gives the score, how strong the match is (excellent 85+, strong 70+, possible 55+, weak below) and the CV's rank for that role.{% if columns|length > 1 %} “Fits this role best” appears only where a CV scores clearly higher (5+ points) for one of the chosen roles.{% endif %} Possible matches or better{% if filters.min is not None %} (here: {{ filters.min|floatformat:"-1" }}+){% endif %} in the ranked {% if rank_by == "any" %}role of each CV{% else %}role{% endif %} are ticked for you; tick or untick any cell, then add. Each added CV becomes an application to that vacancy, scored with the full working on its Scores tab. Every CV gets a score for what it has; where a key requirement is not met it says so (point at it for which), and the hiring manager decides on the application page.</p>
 </form>
+{% elif columns %}
+<div class="sheet">{% empty_state "No CVs in this range" "Widen the score range, show everyone, or untick “only those meeting every key requirement”." object_name="Lab beaker of polymer pellets" %}</div>
 {% elif vacancies %}
 {% empty_state "No CVs to match" "Upload CVs on the CV intake page (without choosing a vacancy), or pick the day they were added." object_name="Lab beaker of polymer pellets" %}
 {% endif %}

@@ -91,4 +91,5 @@ class HiringManagerDecidesTests(TestCase):
         self.assertGreater(cell["score"], 0)
         self.assertNotContains(grid, "Not eligible")
         self.assertContains(grid, "1 key requirement not met")
-        self.assertTrue(cell.get("best"))
+        self.assertEqual((cell["rank"], cell["of"]), (1, 1))
+        self.assertFalse(cell.get("strongest"))  # one role chosen: nothing to compare it with

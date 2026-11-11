@@ -642,8 +642,9 @@ MATCH_LIMIT = 400
 
 @hr_required
 def match_vacancies(request):
-    """Score a set of CVs against several vacancies at once and show which job each person fits best. Nothing is
-    saved: HR ticks the matches to keep and adds them as applications (match_add)."""
+    """Score a set of CVs against several vacancies at once, ranked for each vacancy, with filters (top 10/20/50, a
+    score range, only those meeting every key requirement). Nothing is saved: HR ticks the matches to keep and adds
+    them as applications (match_add)."""
     from datetime import date
 
     from django.utils import timezone
@@ -683,7 +684,14 @@ def match_vacancies(request):
     people = people.filter(needs_check=False)
     total = people.count()
     people = list(people.order_by("last_name", "first_name")[:MATCH_LIMIT])
-    rows, columns = [], []
+    from pipeline import ranking
+    from pipeline.matching import grade_for
+
+    filters = ranking.read_filters(request.GET)
+    rank_by = request.GET.get("rank", "")
+    if not (rank_by.isdigit() and int(rank_by) in chosen):
+        rank_by = str(vacancies[0].pk) if len(vacancies) == 1 else "any"
+    rows, columns, shown_total = [], [], 0
     if vacancies and people:
         aliases = db_aliases()
         applied = set(Application.objects.filter(candidate__in=people, requisition__in=vacancies)
@@ -694,28 +702,60 @@ def match_vacancies(request):
                 result = compute_match(vacancy, person, aliases)
                 cells.append({
                     "vacancy": vacancy, "score": result["score"], "grade": result["grade"],
+                    "label": grade_for(result["score"])[1] if not result.get("unscored") else "",
                     "eligible": result.get("eligible"), "unscored": result.get("unscored"),
                     "weighted": result["weighted_score"], "applied": (person.pk, vacancy.pk) in applied,
                     "can_add": vacancy.can_add,
                     "failed": [f"{s['label']}: {s['has']}" for s in result["screening"] if not s["passed"]],
                 })
-            fits = [c for c in cells if not c["unscored"]]
-            best = max(fits, key=lambda c: (c["score"], not c["failed"])) if fits else None
-            if best:
-                best["best"] = True
-            rows.append({"candidate": person, "cells": cells, "best": best})
-        rows.sort(key=lambda r: (-(r["best"]["score"] if r["best"] else -1), r["candidate"].full_name.lower()))
+            scored = sorted((c for c in cells if not c["unscored"]), key=lambda c: -c["score"])
+            # Only when the person is clearly better suited to one of the chosen roles is it called out.
+            if len(scored) >= 2 and scored[0]["score"] >= ranking.GOOD_ENOUGH \
+                    and scored[0]["score"] - scored[1]["score"] >= 5:
+                scored[0]["strongest"] = True
+            rows.append({"candidate": person, "cells": cells})
+        # Rank every CV within each vacancy.
         for i, vacancy in enumerate(vacancies):
-            column = [r["cells"][i] for r in rows]
-            columns.append({"vacancy": vacancy, "eligible": sum(1 for c in column if c["eligible"]),
-                            "best": sum(1 for c in column if c.get("best")),
-                            "unscored": any(c["unscored"] for c in column)})
+            column = sorted((r["cells"][i] for r in rows if not r["cells"][i]["unscored"]), key=lambda c: -c["score"])
+            for place, cell in enumerate(column, start=1):
+                cell["rank"], cell["of"] = place, len(column)
+            grades = {g: sum(1 for c in column if c["grade"] == g) for g in "ABCD"}
+            columns.append({"vacancy": vacancy, "scored": len(column), "grades": grades,
+                            "meets_all": sum(1 for c in column if not c["failed"]),
+                            "unscored": any(r["cells"][i]["unscored"] for r in rows)})
+        # The cell each row is ranked and filtered by: the chosen vacancy, or the person's strongest one.
+        for row in rows:
+            if rank_by == "any":
+                options = [c for c in row["cells"] if not c["unscored"]]
+                row["key"] = max(options, key=lambda c: c["score"]) if options else None
+            else:
+                row["key"] = next(c for c in row["cells"] if str(c["vacancy"].pk) == rank_by)
+                row["key"] = None if row["key"]["unscored"] else row["key"]
+        rows = [r for r in rows if r["key"] is None or (
+            ranking.in_range(r["key"]["score"], filters) and not (filters["keyreq"] and r["key"]["failed"]))]
+        if filters["keyreq"] or filters["min"] is not None or filters["max"] is not None:
+            rows = [r for r in rows if r["key"] is not None]
+        rows.sort(key=lambda r: (-(r["key"]["score"] if r["key"] else -1), r["candidate"].full_name.lower()))
+        shown_total = len(rows)
+        if filters["top"]:
+            rows = rows[:filters["top"]]
+        # Ready to add: the ranked cell of each row shown, when it is a possible match or better (or in the chosen
+        # score range).
+        floor = filters["min"] if filters["min"] is not None else ranking.GOOD_ENOUGH
+        for row in rows:
+            key = row["key"]
+            if key:
+                key["is_key"] = len(vacancies) > 1
+            if key and key["can_add"] and not key["applied"] and key["score"] >= floor:
+                key["tick"] = True
     return render(request, "candidates/match.html", {
         "vacancies_all": vacancies_all, "chosen": chosen, "vacancies": vacancies, "columns": columns, "rows": rows,
         "ids": ids, "added": added, "scope": scope, "total": total, "limit": MATCH_LIMIT,
         "addable": any(v.can_add for v in vacancies),
         "unchecked": len(unchecked), "check_url": _with_ids(reverse("candidates:check"), unchecked),
-        "query": request.GET.urlencode(),
+        "query": request.GET.urlencode(), "filters": filters, "filtered": ranking.active(filters),
+        "filter_text": ranking.describe(filters), "top_choices": ranking.TOP_CHOICES, "rank_by": rank_by,
+        "shown_total": shown_total,
     })
 
 

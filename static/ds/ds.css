@@ -1961,3 +1961,26 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .elig-chip { margin-left: 6px; height: 22px; font-size: 12px; }
 .ms-sub { font-size: 12.5px; font-weight: 500; color: var(--text-3); margin-left: 6px; }
 .mt-why { display: flex; align-items: center; gap: 4px; }
+
+/* Match grid: filters, grade spread per role, comments and rank per cell */
+.match-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-12) var(--s-20); padding: var(--s-16) var(--s-20); margin-bottom: var(--s-16); }
+.mf-field { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--text-3); }
+.mf-field > span:first-child { text-transform: uppercase; letter-spacing: .05em; }
+.mf-range { display: inline-flex; align-items: center; gap: 6px; }
+.mf-range .input { width: 76px; }
+.mf-check { align-self: center; margin-top: 18px; }
+.mf-actions { display: flex; gap: var(--s-8); }
+.mt-dist { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.mt-dist .mt-grade { padding: 0 6px; }
+.mt-cell.is-key { background: var(--tint); }
+.mt-label { display: inline-block; margin-top: 4px; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.mt-label.gA { color: var(--success-ink); }
+.mt-label.gB { color: var(--on-tint); }
+.mt-label.gC { color: var(--warning-ink); }
+.mt-label.gD { color: var(--text-3); }
+.mt-rank { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.rank-range { display: inline-flex; align-items: center; gap: 6px; }
+.rank-range .input { width: 70px; }
+.rank-note { margin: 0; padding-top: 0; }
+.mt-cell .mt-best { display: flex; width: fit-content; }
+.mt-cell .mt-add { display: flex; width: fit-content; }

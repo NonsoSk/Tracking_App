@@ -174,7 +174,23 @@ def requisition_detail(request, pk):
         listed = listed.filter(status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD])
     elif status_filter:
         listed = listed.filter(status=status_filter)
+    # Ranking filters: the top 10/20/50, a score range, only those meeting every key requirement.
+    from pipeline import ranking
+
+    filters = ranking.read_filters(request.GET)
+    if filters["min"] is not None:
+        listed = listed.filter(matched_at__isnull=False, match_score__gte=filters["min"])
+    if filters["max"] is not None:
+        listed = listed.filter(matched_at__isnull=False, match_score__lte=filters["max"])
     listed = listed.order_by("-match_score", "applied_at")
+    in_range = None
+    if filters["keyreq"] or filters["top"]:
+        listed = list(listed)
+        if filters["keyreq"]:
+            listed = [a for a in listed if a.matched_at and not a.unmet_requirements]
+        in_range = len(listed)
+        if filters["top"]:
+            listed = listed[:filters["top"]]
 
     stages = [s for s in Stage]
     board = {s.value: [] for s in stages}
@@ -198,6 +214,8 @@ def requisition_detail(request, pk):
         "match_url": reverse("candidates:match") + f"?r={requisition.pk}",
         "req": requisition, "applications": listed, "board": [(s, board[s.value]) for s in stages],
         "stage_filter": stage_filter, "status_filter": status_filter, "counts": counts, "grade_counts": grade_counts,
+        "filters": filters, "filtered": ranking.active(filters), "filter_text": ranking.describe(filters),
+        "top_choices": ranking.TOP_CHOICES, "in_range": in_range,
         "total_apps": applications.count(), "interviews": interviews,
         "records": records, "interview_total": interviews.count() + len(records), "notes": requisition.notes.select_related("author"),
         "activity": requisition.activities.select_related("actor", "application__candidate")[:40],

@@ -356,6 +356,9 @@ A vacancy that asks for nothing yet (a requisition loaded from the tracker arriv
 qualification or experience) is not scored: its applicants show *Not scored* until HR adds the requirements, and are
 then scored at once. Nobody gets 100 against an empty vacancy.
 
+A vacancy's **Ranked candidates** list has the same filters beside the stage and status: the top 5, 10, 20 or 50,
+a score range, and only those meeting every key requirement (highest score first).
+
 On an application's **Scores** tab, HR sees the full working: each key requirement (needed, the candidate's, met, not met or confirm)
 and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
 total. Others see the score and the key requirements. Changing a requisition's requirements re-scores all of its applicants
@@ -385,10 +388,15 @@ job:
    *⋯ → Match CVs to this vacancy* on a requisition; these start from the CVs added on the last upload day, and you
    can pick another day). Tick the vacancies and click **Match**.
 
-The grid scores every CV against every vacancy with the same rules as an application: each cell shows the score and grade, and how many key requirements are not met, if any (point at it for which). Each person's best fit is
-starred and ticked; tick or untick any cell, then **Add the ticked matches as applications**. Only then is anything
-saved: each pair becomes an application, scored with the full working on its Scores tab, and the vacancy's ranked
-list includes it. Vacancies still waiting for approval can be scored to see who fits, but take applications only once
+The grid scores every CV against every vacancy with the same rules as an application. Each cell gives the score,
+how strong the match is (excellent 85+, strong 70+, possible 55+, weak below), the CV's rank for that role ("#3 of
+40") and how many key requirements are not met, if any (point at it for which). With several roles chosen, "Fits
+this role best" marks only a CV that scores clearly higher (5+ points) for one of them. **Rank by** one role, or by
+each CV's strongest role; **Show** the top 5, 10, 20 or 50; set a **score** range; or keep **only those meeting every
+key requirement**. Possible matches or better (or those in the chosen score range) in the ranked role are ticked;
+tick or untick any cell, then **Add the ticked matches as applications**. Only then is anything saved: each pair
+becomes an application, scored with the full working on its Scores tab, and the vacancy's ranked list includes it.
+Vacancies still waiting for approval can be scored to see who fits, but take applications only once
 approved. HR only. Up to 400 CVs at a time.
 
 ### Hiring timeline
