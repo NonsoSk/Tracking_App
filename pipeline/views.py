@@ -100,7 +100,7 @@ def application_detail(request, pk):
         "documents": application.candidate.documents.all(),
         "activity": application.activities.select_related("actor")[:50],
         "breakdown": application.match_breakdown or {},
-        "weight_text": ", ".join(f"{COMPONENT_LABELS.get(k, k).lower()} {w}" for k, w in
+        "weight_text": ", ".join(f"{COMPONENT_LABELS.get(k, k)[:1].lower()}{COMPONENT_LABELS.get(k, k)[1:]} {w}" for k, w in
                                  (application.match_breakdown or {}).get("weights", {}).items()),
         "is_hr": request.user.is_hr, "hiring": hiring, "hiring_measure": hiring.measure(until), "until": until,
         "endpoints": timeline.ENDPOINTS,
@@ -123,6 +123,14 @@ def application_detail(request, pk):
         active_offer=context["active_offer"], my_interviews=my_interviews, medicals=list(context["medicals"]),
         onboarding=context["onboarding"])
     context["cv_fields"] = presentation.cv_fields(application.candidate)
+    # The JD's requirements one by one (pipeline/criteria.py), and whether Claude can read them against the CV.
+    jd = ((application.match_breakdown or {}).get("components") or {}).get("jd") or {}
+    order = {"experience": 0, "knowledge": 0, "duty": 1, "interview": 2, "confirm": 2}
+    context["jd_rows"] = sorted(jd.get("criteria") or [], key=lambda r: order.get(r.get("kind"), 3))
+    context["jd_ai"] = jd.get("ai", False)
+    context["ai_on"] = ai.ai_enabled()
+    saved = application.ai_assessment or {}
+    context["ai_read_at"] = saved.get("at") if saved.get("criteria") and jd.get("ai") else None
     context["cv_terms"] = presentation.cv_terms(application.candidate)
     context["term_groups"] = presentation.term_groups(application.candidate, application.match_breakdown)
     return render(request, "pipeline/application_detail.html", context)
@@ -229,6 +237,16 @@ def ai_summary(request, pk):
     application = _get_application(request, pk)
     if not ai.ai_enabled():
         messages.warning(request, "AI is not configured. Add ANTHROPIC_API_KEY to enable fit summaries.")
+        return _back(application, "match")
+    from .ai_assess import can_assess, run
+
+    if can_assess(application):
+        # Claude judges each of the JD's requirements against the CV; its verdicts are used in the score.
+        if run(application):
+            messages.success(request, "Claude has read the CV against the job description. Its verdict on each "
+                                      "requirement is now used in the score.")
+        else:
+            messages.error(request, "The AI service did not answer. The rules' verdicts are kept; try again later.")
         return _back(application, "match")
     c, req = application.candidate, application.requisition
     prompt = (

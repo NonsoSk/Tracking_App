@@ -1999,3 +1999,13 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .mt-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .mt-cv { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--link); text-transform: none; letter-spacing: 0; }
 .match-table td.cb, .match-table th.cb { width: 40px; vertical-align: top; }
+
+/* The job description's requirements, one by one (application → Scores) */
+.cap-banner { margin: var(--s-12) 0; }
+.jd-table td:first-child { min-width: 260px; max-width: 420px; }
+.jd-table td:nth-child(2) { white-space: nowrap; }
+.jd-table td:last-child { color: var(--text-2); min-width: 260px; }
+.jd-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.jd-tags .chip, .jd-tags .tag { font-size: 11px; padding: 1px 7px; }
+.jd-table tr.jd-duty td:first-child { color: var(--text-2); }
+.jd-table tr.jd-interview td, .jd-table tr.jd-confirm td { color: var(--text-3); }

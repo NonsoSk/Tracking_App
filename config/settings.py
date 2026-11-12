@@ -227,6 +227,9 @@ LIBREOFFICE_PATH = env("LIBREOFFICE_PATH", "")
 EXCEL_SYNC_MINUTES = env_int("EXCEL_SYNC_MINUTES", 5)
 # Years of experience are worked out from the job dates in a CV (candidates/experience.py). NYSC counts as work.
 EXPERIENCE_COUNTS_NYSC = env_bool("EXPERIENCE_COUNTS_NYSC", True)
+# With AI on, Claude also reads each open application's CV against the job description and judges every requirement
+# (pipeline/ai_assess.py). Set to false to keep AI for CV reading only.
+AI_MATCH_ASSESSMENT = env_bool("AI_MATCH_ASSESSMENT", True)
 # A watched CV folder (Excel link page) is checked this often; new files in it are read on their own.
 CV_FOLDER_SECONDS = env_int("CV_FOLDER_SECONDS", 60)
 # Where "Portal updates.xlsx" is written (a folder or a full file path). Empty: beside the linked workbook that holds

@@ -324,7 +324,7 @@
         <span class="spacer"></span>
         {% if can_manage %}
         <form method="post" action="{% url 'pipeline:rescore' app.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit" data-tip="Score again against the current requirements">{% icon "refresh-cw" "ico-16" %} Re-score</button></form>
-        <form method="post" action="{% url 'pipeline:ai_summary' app.pk %}">{% csrf_token %}<button class="btn btn-tint btn-sm" type="submit">{% icon "sparkles" "ico-16" %} AI fit summary</button></form>
+        <form method="post" action="{% url 'pipeline:ai_summary' app.pk %}">{% csrf_token %}<button class="btn btn-tint btn-sm" type="submit"{% if jd_rows %} data-tip="{% if ai_on %}Claude reads the CV against the job description and judges each requirement{% else %}Needs an API key (AI is off){% endif %}"{% endif %}>{% icon "sparkles" "ico-16" %} {% if jd_rows %}AI check against the JD{% else %}AI fit summary{% endif %}</button></form>
         {% endif %}
       </div>
       <div class="sheet-b stack">
@@ -338,6 +338,12 @@
           <div><b>{{ breakdown.grade_label }}</b>
             <p class="small muted">{{ breakdown.track_label }} · scored {{ app.matched_at|naturaltime }}.{% if breakdown.version < 4 and not breakdown.eligible %} This score was worked out when a missing must-have set it to 0; re-score to count everything the candidate has.{% endif %}</p></div>
         </div>
+        {% if breakdown.cap.applied %}
+        <div class="banner warning cap-banner"><span class="tile">{% icon "gauge" "ico-18" %}</span>
+          <div><b>Held at {{ breakdown.cap.limit }}: {{ breakdown.cap.reason }}</b>
+            <span class="small">Everything else adds up to {{ breakdown.cap.before|floatformat:"-1" }}, but general experience cannot make a {% if breakdown.cap.limit >= 69 %}strong{% else %}possible{% endif %} match for a job that asks for something specific. The hiring manager can still keep the candidate in the running.</span></div>
+        </div>
+        {% endif %}
         {% with gaps=app.unmet_requirements %}{% if gaps and breakdown.version >= 4 %}
         <div class="banner {% if app.eligibility == 'kept' %}success{% elif app.eligibility == 'not_eligible' %}danger{% else %}warning{% endif %} elig-banner" id="eligibility">
           <span class="tile">{% icon "scale" "ico-18" %}</span>
@@ -372,6 +378,17 @@
         </table></div>
         {% else %}<p class="small muted">This requisition sets no key requirements (minimum qualification, class of degree, courses, NYSC, minimum experience or required skills).</p>{% endif %}
 
+        {% if jd_rows %}
+        <h3 class="ms-h" id="jd">What the job description asks for <span class="ms-sub">{% if jd_ai %}judged by Claude{% if ai_read_at %} ({{ ai_read_at|slice:":10" }}){% endif %}{% else %}each requirement judged against the candidate's jobs, by meaning, not exact words{% endif %}</span></h3>
+        <div class="table-wrap ms-wrap"><table class="table ms-table jd-table">
+          <thead><tr><th>The JD asks for</th><th>Result</th><th>What the CV shows</th></tr></thead>
+          <tbody>{% for r in jd_rows %}<tr class="jd-{{ r.kind }}">
+            <td>{{ r.text }}{% if r.core or r.preferred or r.kind == "duty" or r.origin == "title" or r.source == "AI" %}<div class="jd-tags">{% if r.core %}<span class="chip brand no-dot" title="A key requirement: the hiring manager judges it, and the score is held below 70 when it is not fully met">Key</span>{% endif %}{% if r.origin == "title" %}<span class="tag">from the job title</span>{% endif %}{% if r.kind == "duty" %}<span class="tag">duty</span>{% endif %}{% if r.preferred %}<span class="tag">nice to have</span>{% endif %}{% if r.source == "AI" %}<span class="tag">Claude</span>{% endif %}</div>{% endif %}</td>
+            <td>{% if r.verdict == "met" %}<span class="chip success no-dot">{% icon "check" %} Met</span>{% elif r.verdict == "partly" %}<span class="chip warning no-dot">Partly</span>{% elif r.verdict == "not_met" %}<span class="chip danger no-dot">{% icon "x" %} Not met</span>{% elif r.verdict == "interview" %}<span class="chip neutral no-dot">At interview</span>{% else %}<span class="chip warning no-dot">Confirm</span>{% endif %}</td>
+            <td class="small">{{ r.evidence }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        {% endif %}
+
         {% if is_hr %}
         <h3 class="ms-h">2. How the score was worked out</h3>
         {% if breakdown.components %}
@@ -388,7 +405,7 @@
             <td class="num">{{ c.weight|floatformat:"-1" }}</td><td class="num">{{ c.percent }}%</td><td class="num"><b>{{ c.points|floatformat:"-1" }}</b></td></tr>{% endfor %}</tbody>
           <tfoot><tr><td colspan="3"><b>Total</b></td><td class="num">100</td><td></td><td class="num"><b>{{ breakdown.weighted_score|floatformat:"-1" }}</b></td></tr></tfoot>
         </table></div>
-        <p class="small muted">Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts when it is the same term or an approved synonym (MS Word = Microsoft Word), written inside what the candidate wrote, covered by a broader term (Microsoft 365 covers Excel), or said in other words in the CV (counted at 75%): point at a term to see how. Fit with the job compares the job title and description with the candidate's summary, past roles and CV. A related course counts at 60%; a detail the CV does not give is marked “Confirm” rather than failed. Nice-to-have skills count half. A key requirement that is not met is shown for the hiring manager to judge; it never sets the score to 0. Grades: A 85+, B 70+, C 55+, D below 55.</p>
+        <p class="small muted">What the JD asks for: every experience requirement and duty in the job description is judged against the jobs in the CV by meaning: the kind of work (sales, accounting, HR…) and the kind of business (industrial, chemicals, retail, banking…). Sales at a chemicals company meets industrial sales; sales in a supermarket only partly does. When the main experience the JD (or its job title) asks for is only partly shown, the score is held at 69 at most, and at 54 when it is not shown. Years count from the jobs that fit. Points = weight × share met. The {{ breakdown.track_label|lower }} weights ({{ weight_text }}) are spread over the criteria this requisition asks for, so they add up to 100. A term counts when it is the same term or an approved synonym (MS Word = Microsoft Word), written inside what the candidate wrote, covered by a broader term (Microsoft 365 covers Excel), or said in other words in the CV (counted at 75%): point at a term to see how. Fit with the job compares the job title and description with the candidate's summary, past roles and CV. A related course counts at 60%; a detail the CV does not give is marked “Confirm” rather than failed. Nice-to-have skills count half. A key requirement that is not met is shown for the hiring manager to judge; it never sets the score to 0. Grades: A 85+, B 70+, C 55+, D below 55.</p>
         {% else %}<p class="small muted">This requisition asks for nothing that can be scored yet: add skills, tools, courses, a qualification, experience or certifications to it.</p>{% endif %}
         {% endif %}
         {% elif app.matched_at %}

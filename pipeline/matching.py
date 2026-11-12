@@ -6,8 +6,12 @@ Candidate ↔ requisition matching, the way an ATS screens and ranks, without ru
    class of degree and NYSC. A detail the CV does not mention is "Not stated: confirm". Missing a key requirement
    never zeroes the score or rules anyone out: the score still counts everything the candidate has, and the hiring
    manager decides whether they stay in the running (Application.eligibility).
-2. Weighted score (0-100) from skills, tools, experience, fit with the job, qualification, course and certifications.
-   Weights depend on the hiring track and are spread over the criteria this requisition asks for (adding up to 100).
+2. Weighted score (0-100) from what the job description asks for (each requirement and duty judged against the
+   candidate's jobs by meaning: pipeline/criteria.py), skills, tools, experience, fit with the job, qualification,
+   course and certifications. Weights depend on the hiring track and are spread over the criteria this requisition
+   asks for (adding up to 100). For an experienced hire, the main experience the JD asks for is a key requirement and
+   holds the score at 69 when only partly shown (54 when not shown): general experience is never a strong match for a
+   job that asks for something specific.
 
 A term counts when the candidate has it in any of these ways:
 - the same term, or an approved synonym ("MS Word" = "Microsoft Word"; the knowledge base and HR's skill tags);
@@ -33,19 +37,19 @@ from django.utils import timezone
 from core.choices import DEGREE_CLASS_RANK, EDUCATION_RANK, DegreeClass, EducationLevel, NyscStatus, TRAINEE_TYPES
 from core.text import contains_phrase, db_aliases, normalize, tokens, variants
 
-VERSION = 4
+VERSION = 5
 WEIGHTS = {
-    "experienced": {"skills": 25, "tools": 10, "experience": 20, "relevance": 15, "education": 10, "course": 10,
-                    "certifications": 10},
-    "trainee": {"skills": 15, "tools": 10, "experience": 5, "relevance": 10, "education": 25, "course": 25,
+    "experienced": {"jd": 25, "skills": 20, "tools": 8, "experience": 15, "relevance": 10, "education": 7, "course": 8,
+                    "certifications": 7},
+    "trainee": {"jd": 10, "skills": 15, "tools": 8, "experience": 5, "relevance": 8, "education": 22, "course": 22,
                 "certifications": 10},
 }
 TRACK_LABELS = {"experienced": "Experienced hire", "trainee": "Graduate trainee"}
 COMPONENT_LABELS = {
-    "skills": "Skills", "tools": "Tools & software", "experience": "Experience", "relevance": "Fit with the job",
+    "jd": "What the JD asks for", "skills": "Skills", "tools": "Tools & software", "experience": "Experience", "relevance": "Fit with the job",
     "education": "Qualification", "course": "Course of study", "certifications": "Certifications",
 }
-ORDER = ["skills", "tools", "experience", "relevance", "education", "course", "certifications"]
+ORDER = ["jd", "skills", "tools", "experience", "relevance", "education", "course", "certifications"]
 GRADES = [(85, "A", "Excellent match"), (70, "B", "Strong match"), (55, "C", "Possible match"), (0, "D", "Weak match")]
 SIMILAR_CREDIT = 0.75          # a skill found only as similar wording in the CV
 RELATED_COURSE_CREDIT = 0.6    # a related course rather than an accepted one
@@ -420,13 +424,21 @@ def label_of(choices, value, empty="Not stated") -> str:
 # --------------------------------------------------------------------------- the match
 def has_requirements(requisition) -> bool:
     """Whether the vacancy asks for anything a candidate can be scored on (a requisition loaded from the tracker
-    has none until HR adds them)."""
+    has none until HR adds them or its job description)."""
+    from .criteria import jd_criteria
+
     return any([requisition.required_skills, requisition.preferred_skills, requisition.tools,
                 requisition.certifications, requisition.courses, requisition.education_level,
-                requisition.min_degree_class, requisition.requires_nysc, requisition.min_experience_years])
+                requisition.min_degree_class, requisition.requires_nysc, requisition.min_experience_years]) or any(
+        c.kind in {"experience", "knowledge", "duty"} and c.origin != "title" for c in jd_criteria(requisition))
 
 
-def compute_match(requisition, candidate, aliases=None) -> dict:
+def compute_match(requisition, candidate, aliases=None, assessment=None) -> dict:
+    """The match of one candidate to one requisition. ``assessment`` is Claude's reading of the JD against the CV
+    (pipeline/ai_assess.py), used in place of the rules' verdicts on the JD's requirements when given."""
+    from candidates.experience import length_text
+
+    from .criteria import assess
     track = "trainee" if requisition.employment_type in TRAINEE_TYPES else "experienced"
     if not has_requirements(requisition):  # nothing to score against: never a score of 100 for everyone
         return {"version": VERSION, "unscored": True, "score": 0.0, "weighted_score": 0.0, "eligible": None,
@@ -479,6 +491,21 @@ def compute_match(requisition, candidate, aliases=None) -> dict:
     if minimum:
         screen("experience", "Minimum experience", f"{minimum}+ years",
                "Not stated" if years is None else f"{years:g} years", years is not None and years >= minimum)
+    # The JD's own experience requirements, judged job by job (pipeline/criteria.py): the main ones are key
+    # requirements for an experienced hire.
+    jd = assess(requisition, candidate, ai=assessment) if evidence.has_story else None
+    for row in (jd or {}).get("criteria", []):
+        if not row["core"]:
+            continue
+        subject = row["subject"] or row["text"]
+        needed = (f"{row['years']:g}+ years in {subject}" if row["years"] else f"Experience in {subject}")
+        if row["origin"] == "title":
+            needed += " (from the job title)"
+        unknown = row["unknown"] or row["verdict"] == "unclear"
+        screen(f"jd_{row['id']}", f"Experience: {subject}", needed, row["evidence"],
+               row["verdict"] == "met" or unknown,
+               ("Judged by Claude" if row["source"] == "AI" else "") + (": confirm" if unknown else ""),
+               unknown=unknown)
     required = list(requisition.required_skills or [])
     req_found, req_missing = match_terms(required, skills_have, evidence, aliases)
     if required:
@@ -530,7 +557,21 @@ def compute_match(requisition, candidate, aliases=None) -> dict:
     fit = relevance(requisition, candidate, evidence) if evidence.has_story else None
     if fit:  # left out when there is no CV text or past role to judge it by (e.g. a profile loaded from Excel)
         components["relevance"] = fit
-    if minimum or track == "experienced":
+    if jd:
+        components["jd"] = {"share": jd["share"], "asked": jd["asked"], "found": jd["found"],
+                            "criteria": jd["criteria"], "ai": jd["ai"]}
+    relevant = (jd or {}).get("weighted_months")
+    if relevant is not None and (minimum or track == "experienced"):
+        # Years in jobs that fit what the JD asks for; similar work counts in part.
+        asked = max(minimum, int(jd.get("relevant_years_asked") or 0))
+        value = experience_score(relevant / 12, asked, requisition.max_experience_years)
+        found = ("Not stated" if years is None else f"{years:g} years in all") + (
+            f" · {length_text(relevant) if relevant else 'none'} counted towards {jd['relevant_subject']}"
+            if jd["relevant_subject"] else "")
+        if relevant and jd.get("relevant_months") is not None and jd["relevant_months"] < relevant:
+            found += " (similar work counted in part)"
+        components["experience"] = {"share": value, "asked": f"{asked}+ years" if asked else "Any", "found": found}
+    elif minimum or track == "experienced":
         value = experience_score(years or 0, minimum, requisition.max_experience_years)
         # Years count in full only when the background is relevant: the skills, the course or the work done fit.
         signals = [components[k]["share"] for k in ("skills", "course", "relevance") if k in components]
@@ -561,13 +602,21 @@ def compute_match(requisition, candidate, aliases=None) -> dict:
     weighted = round(sum(components[k]["points"] for k in keys), 1) if keys else 0.0
 
     failed = [s for s in screening if not s["passed"]]
-    score, (grade, label) = weighted, grade_for(weighted)  # never zeroed: the hiring manager judges the gaps
+    score = weighted  # never zeroed: the hiring manager judges the gaps
+    cap = (jd or {}).get("cap")
+    if cap and score > cap["limit"]:
+        # Generic experience cannot make a strong match for a job that asks for something specific.
+        cap = dict(cap, applied=True, before=score)
+        score = float(cap["limit"])
+        notes.append(f"Score capped at {cap['limit']}: {cap['reason']}")
+    grade, label = grade_for(score)
     flags = [f"{s['label']}: {s['has']} (needs {s['needed']})" for s in failed]
     flags += [f"{s['label']}: not stated in the CV, confirm with the candidate" for s in screening if s["unknown"]]
     flags += notes
     return {
         # "eligible": meets every key requirement (True), or misses one for the hiring manager to judge (False).
         "version": VERSION, "score": score, "weighted_score": weighted, "eligible": meets_all, "grade": grade,
+        "cap": cap or None,
         "unmet": [s["label"] for s in failed],
         "grade_label": label, "track": track, "track_label": TRACK_LABELS[track],
         "weights": {k: weights[k] for k in keys}, "screening": screening,
@@ -576,7 +625,9 @@ def compute_match(requisition, candidate, aliases=None) -> dict:
 
 
 def score_application(application, save: bool = True) -> dict:
-    result = compute_match(application.requisition, application.candidate)
+    from .ai_assess import current
+
+    result = compute_match(application.requisition, application.candidate, assessment=current(application))
     application.match_score = Decimal(str(result["score"]))
     application.match_grade = result["grade"]
     application.match_breakdown = result

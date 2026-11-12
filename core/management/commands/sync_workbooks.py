@@ -53,7 +53,7 @@ class Command(BaseCommand):
         folder_seconds = max(15, settings.CV_FOLDER_SECONDS)
         self.stdout.write(f"Keeping the portal in step with Excel (every {minutes} minute(s)) and the CV folder (every "
                           f"{folder_seconds} seconds). Keep this window open (it can stay minimised). Ctrl+C stops it.")
-        force, next_books, next_folders = options["now"], 0.0, 0.0
+        force, next_books, next_folders, next_assess = options["now"], 0.0, 0.0, 0.0
         try:
             while True:
                 now = time.monotonic()
@@ -66,6 +66,9 @@ class Command(BaseCommand):
                     next_folders, wrote = now + folder_seconds, True
                 if wrote or PortalUpdatesFile.objects.filter(write_requested=True).exists():
                     self.safely(self.write_updates)
+                if now >= next_assess:
+                    self.safely(self.assess_matches)
+                    next_assess = now + 60
                 time.sleep(10)
         except KeyboardInterrupt:
             self.stdout.write("Stopped watching.")
@@ -86,6 +89,16 @@ class Command(BaseCommand):
         self.safely(self.check_workbooks, force=force)
         self.safely(self.check_folders)
         self.safely(self.write_updates)
+        self.safely(self.assess_matches)
+
+    def assess_matches(self):
+        """With AI on: Claude reads a few open applications against their job description (pipeline/ai_assess.py)."""
+        from pipeline.ai_assess import assess_pending, enabled
+
+        if enabled():
+            done = assess_pending(limit=3)
+            if done:
+                self.log(f"Claude read {done} application(s) against the job description.")
 
     def check_workbooks(self, *, force=False):
         if not LinkedWorkbook.objects.exists():

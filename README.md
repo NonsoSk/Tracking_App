@@ -354,6 +354,12 @@ workbook's figure. `python manage.py recalculate_experience` lists what would ch
   standard role's defaults.
 * **Job description drafting** in a standard format from the requisition, ready for HR to review and publish, and an
   on-demand **AI fit summary** per candidate.
+* **Claude's reading of each CV against the job description** (see *What the job description asks for* under How
+  matching works): every requirement and duty judged met, partly met or not met, with the evidence from the CV.
+  The scheduled job (`sync_workbooks`) has Claude read a few open applications each minute, best scores first; on an
+  application, **AI check against the JD** does it at once. Claude's verdicts replace the rules' ones in the score
+  while the JD and the CV stay as they were (the rules apply again when either changes, until Claude reads it
+  afresh). `AI_MATCH_ASSESSMENT=false` keeps AI to CV reading only.
 
 The default model is `claude-opus-5-5` (change it with `ANTHROPIC_MODEL`). Requests use structured JSON output and the
 API's server-side refusal fallback (turn it off with `AI_SERVER_FALLBACK=false` if you call the API through a gateway
@@ -362,7 +368,8 @@ that doesn't support it). If the API is unreachable, the portal quietly falls ba
 Without AI, scanned CVs need **Tesseract OCR** (`apt install tesseract-ocr`; on Windows, install from
 UB-Mannheim and set `TESSERACT_CMD`). Old `.doc` files need LibreOffice. The Docker image includes both.
 
-Scoring itself is **not** AI. It is a transparent weighted formula (below), so every rank can be explained and audited.
+Scoring itself is a transparent weighted formula (below), so every rank can be explained and audited. With AI on,
+Claude only supplies the verdicts on the job description's requirements, each shown with its evidence.
 
 ## How matching works
 
@@ -372,13 +379,14 @@ vacancies, and profiles in the talent database without an application are not gr
 
 | Component | Experienced hire | Graduate trainee |
 |---|---|---|
-| Required + nice-to-have skills (nice-to-have count half) | 25 | 15 |
-| Tools / software / equipment | 10 | 10 |
-| Years of experience (weighted by relevance of background) | 20 | 5 |
-| Fit with the job (the JD's title and duties against the candidate's summary, past roles and CV) | 15 | 10 |
-| Qualification level (+ minimum class of degree) | 10 | 25 |
-| Course of study | 10 | 25 |
-| Certifications | 10 | 10 |
+| What the job description asks for (each experience requirement and duty, judged job by job: below) | 25 | 10 |
+| Required + nice-to-have skills (nice-to-have count half) | 20 | 15 |
+| Tools / software / equipment | 8 | 8 |
+| Years of experience (in jobs that fit what the JD asks for) | 15 | 5 |
+| Fit with the job (the JD's title and duties against the candidate's summary, past roles and CV) | 10 | 8 |
+| Qualification level (+ minimum class of degree) | 7 | 22 |
+| Course of study | 8 | 22 |
+| Certifications | 7 | 10 |
 
 Matching screens and ranks the way an ATS does, without ruling people out on wording:
 
@@ -409,6 +417,43 @@ A term counts when the candidate has it in any of these ways (point at a term on
 Terms are looked for on the profile, in past job titles and duties, and in the CV text. Ordinary words that are also
 product names count only as the product ("Proficient in Word, Excel" counts, "I excel at teamwork" does not).
 Grades: A 85+, B 70+, C 55+, D below 55.
+
+### What the job description asks for
+
+The job description saved on the requisition is read as a whole: its title, the duties and the requirements. Each
+requirement is then judged against the jobs in the candidate's CV, one job at a time (title, employer, dates and the
+duties under it), by meaning rather than by exact words (`pipeline/criteria.py`):
+
+* An experience requirement is split into the **kind of work** (sales, marketing, accounting, HR, procurement,
+  production, maintenance, HSE…) and the **kind of business** (industrial / B2B, manufacturing, chemicals, fertilizer,
+  oil and gas, FMCG, retail, banking…). "Experience in industrial sales" is **met** by sales at Notore Chemical
+  Industries, Dangote Cement or Indorama, by production sales, or by selling urea to blenders, without the CV ever
+  saying "industrial sales". Sales in a supermarket or a bank is only **partly** met (the right work, another kind of
+  business), as is marketing at a chemicals company (related work, the right business). An accountant at a chemicals
+  company has not done sales: **not met** ("posted the sales ledger" is accounting, not selling).
+* **Years** asked for ("5 years in industrial sales") count only from the jobs that meet the requirement; the
+  Experience component counts similar work in part (8 years of retail sales count as about 3 towards industrial sales).
+* **Duties** in the JD ("prepare monthly sales reports", "vendor reconciliations") are compared with what the
+  candidate did in each job, with words that mean the same thing grouped ("client" = "customer" = "key account",
+  "POs" = "purchase orders", "remitted WHT" = "withholding tax remittances").
+* "…preferably in a petrochemical company", "an added advantage" and the like are nice-to-haves. Soft skills
+  ("excellent communication") are marked **At interview** and personal conditions (driving licence, travel) **Confirm**:
+  a CV cannot show them reliably, so they never count for or against anyone. Qualifications, courses, certifications
+  and skills already set on the requisition are scored in their own components, not twice.
+* The job title counts too: an *Industrial Sales Officer* vacancy asks for industrial sales even if its requirements
+  only say "3 years' sales experience".
+
+For an experienced hire, the main experience the JD (or its title) asks for is a **key requirement** for the hiring
+manager, and it **holds the score down** when it is missing: at most **69** (a possible match at best, never strong
+or excellent) when it is only partly shown, and at most **54** when it is not shown at all. The Scores tab says so
+("Held at 69: the JD asks for experience in industrial sales, and the CV only partly shows it") and lists every
+requirement with its result and the job that shows it. The hiring manager can still keep the candidate. Graduate
+trainees are not held to experience.
+
+The words for each kind of work and business (employers included) are plain lists in `pipeline/concepts.py`. Rules
+read a CV well when it lists jobs with titles, employers and dates, and less well when it is vague; with AI on,
+Claude reads each CV against the JD and judges every requirement itself (see AI features), and the Scores tab then
+marks those verdicts *Claude*.
 
 A vacancy that asks for nothing yet (a requisition loaded from the tracker arrives without skills, courses,
 qualification or experience) is not scored: its applicants show *Not scored* until HR adds the requirements, and are
@@ -491,7 +536,7 @@ workbook was loaded. A date that does not fit the order of the steps is marked *
 |---|---|---|
 | `python manage.py send_retirement_alerts` | daily | Asks departments about staff retiring within `RETIREMENT_ALERT_MONTHS` (at most once every 90 days per person) |
 | `python manage.py send_reminders` | every 15–60 min | Interview reminders 24 hours ahead, chasers for overdue selection reports, expired-offer alerts |
-| `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes, reads new CVs from the CV folder, and rewrites Portal updates.xlsx when the portal's data changed (see Keeping in step with Excel). `--watch` keeps going (workbooks every `EXCEL_SYNC_MINUTES`, the folder every `CV_FOLDER_SECONDS`); `start-portal.bat` runs it on Windows |
+| `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes, reads new CVs from the CV folder, and rewrites Portal updates.xlsx when the portal's data changed (see Keeping in step with Excel). With AI on, it also has Claude read a few open applications against their job description. `--watch` keeps going (workbooks every `EXCEL_SYNC_MINUTES`, the folder every `CV_FOLDER_SECONDS`, Claude every minute); `start-portal.bat` runs it on Windows |
 | `python manage.py fetch_resumes` | after loading the applications dump | Saves the resumes from the website links as PDFs (`load-resumes.bat`). The Excel link window also saves up to 100 new ones each time it checks |
 | `python manage.py send_department_summaries` | every 15–60 min | Emails the candidate summary to departments for vacancies set to send it daily or weekly (once per day or week, from `SUMMARY_EMAIL_HOUR`) |
 | `python manage.py fetch_cv_emails` | every 15 min | Reads unread emails in the recruitment mailbox (IMAP) and adds their CV attachments. A requisition reference (e.g. `REQ-2026-0004`) or the vacancy title in the subject applies the CV to that vacancy |
@@ -534,8 +579,9 @@ In the admin you can change, without touching code:
 * Candidates must give consent under the Nigeria Data Protection Act 2023 before applying.
 * Department users only see their own department's requisitions and candidates. Interviewers only see candidates they
   interview.
-* With AI enabled, CV content is sent to the Claude API for extraction, and the requisition (including the
-  justification) for drafting the job description. Leave `ANTHROPIC_API_KEY` empty to keep all processing on your
+* With AI enabled, CV content is sent to the Claude API for extraction and, with the job description, for judging
+  each requirement (`AI_MATCH_ASSESSMENT`), and the requisition (including the justification) for drafting the job
+  description. Leave `ANTHROPIC_API_KEY` empty to keep all processing on your
   own servers.
 * Candidate summaries emailed to departments carry names, qualifications and scores, never email addresses or phone
   numbers.

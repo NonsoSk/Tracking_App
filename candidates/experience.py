@@ -242,3 +242,119 @@ def recalculable(queryset, *, include_checked: bool = False, include_excel: bool
     if not include_checked:
         queryset = queryset.filter(checked_at__isnull=True)
     return [c for c in queryset.iterator() if include_excel or not c.source_records]
+
+
+# --------------------------------------------------------------------------- the jobs themselves
+@dataclass
+class Job:
+    """One job in a CV: the lines that name it (title, employer), what the CV says under it, and how long it lasted
+    (None when the CV gives no dates for it). Used to judge a job description's requirements job by job."""
+    title: str
+    body: str
+    months: int | None
+    label: str = ""          # its dates as written, "Jan 2019 – now"
+    is_work: bool = True     # False for student industrial training (SIWES) and, if switched off, NYSC
+    source: str = "cv"       # "cv", "summary" or "profile"
+
+
+BULLET_RE = re.compile(r"^\s*[•*\-–▪●◦■□➢➤>·o]\s+")
+LINK_WORDS = {"of", "and", "&", "the", "in", "at", "for", "to", "|", "-", "–", "/"}
+
+
+def looks_like_job_header(line: str) -> bool:
+    """A short line naming a job or an employer ("Sales Executive", "NOTORE CHEMICAL INDUSTRIES PLC, Onne"), not a
+    duty written under the job before it ("Managed key accounts in the chemical industry")."""
+    stripped = line.strip()
+    if not stripped or BULLET_RE.match(line) or stripped.endswith((".", ";")) or len(stripped) > 90:
+        return False
+    words = re.findall(r"[A-Za-z][A-Za-z'.&-]*", stripped)
+    if not words or len(words) > 12:
+        return False
+    capitalised = sum(1 for w in words if w[0].isupper() or w.lower() in LINK_WORDS)
+    return capitalised / len(words) >= 0.6 or "|" in stripped
+
+
+def _dated_lines(lines: list[str]):
+    for index, line in enumerate(lines):
+        spans = [make_span(m.group(1), m.group(2), line) for m in RANGE_RE.finditer(line)]
+        spans += [make_span(m.group(1), "present", line) for m in SINCE_RE.finditer(line)]
+        spans = [s for s in spans if s]
+        if spans:
+            yield index, spans
+
+
+def jobs_in(text: str, *, in_experience_section: bool = True) -> list[Job]:
+    """Every dated job in the text, with the lines that name it and the duties written under it. A job runs from
+    the lines naming it (up to two short lines above its dates) to the line before the next job."""
+    lines = (text or "").splitlines()
+    dated = list(_dated_lines(lines))
+    starts = []
+    for n, (index, _) in enumerate(dated):
+        floor = dated[n - 1][0] + 1 if n else 0
+        start, j, taken = index, index - 1, 0
+        while j >= floor and taken < 2:
+            if not lines[j].strip():
+                if taken:
+                    break
+                j -= 1
+                continue
+            if not looks_like_job_header(lines[j]):
+                break
+            start, taken, j = j, taken + 1, j - 1
+        starts.append(start)
+    jobs = []
+    for n, (index, spans) in enumerate(dated):
+        stop = starts[n + 1] if n + 1 < len(dated) else len(lines)
+        header = [line.strip() for line in lines[starts[n]:index + 1] if line.strip()]
+        body = lines[index + 1:stop]
+        first = next((i for i, line in enumerate(body) if line.strip()), None)
+        if first is not None and looks_like_job_header(body[first]) and len(header) < 3:
+            header.append(body[first].strip())  # the title written under the dates
+            body = body[first + 1:]
+        periods = merge(spans)
+        context = "\n".join(h for h in header if h != lines[index].strip())
+        jobs.append(Job(
+            title="\n".join(header), body="\n".join(line for line in body if line.strip()),
+            months=sum(months_between(p[0], p[1]) for p in periods),
+            label=", ".join(f"{month_text(s, year_only=sy)} – {month_text(e, end=True, year_only=ey)}"
+                            for s, e, ey, sy in periods),
+            is_work=_is_work(lines[index], context, in_experience_section=in_experience_section)))
+    return jobs
+
+
+def blocks_in(text: str, size: int = 8) -> list[Job]:
+    """For a CV whose jobs carry no dates: its paragraphs (or runs of a few lines), each judged like a job."""
+    blocks, current = [], []
+    for line in (text or "").splitlines():
+        if line.strip():
+            current.append(line.strip())
+        elif current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    jobs = []
+    for block in blocks:
+        for i in range(0, len(block), size):
+            part = block[i:i + size]
+            title = part[0] if looks_like_job_header(part[0]) else ""
+            jobs.append(Job(title=title, body="\n".join(part[1:] if title else part), months=None))
+    return jobs
+
+
+def job_from_history(entry: dict) -> Job | None:
+    """A job as the AI reader returns it (job_title, company, start, end, description)."""
+    entry = entry or {}
+    title = ", ".join(p for p in [str(entry.get("job_title") or "").strip(), str(entry.get("company") or "").strip()]
+                      if p)
+    if not title and not entry.get("description"):
+        return None
+    start, end = str(entry.get("start") or "").strip(), str(entry.get("end") or "").strip()
+    span = make_span(start, end or "present", title) if start else None
+    is_work = not (TRAINING_LINE.search(title) or (not getattr(settings, "EXPERIENCE_COUNTS_NYSC", True)
+                                                   and NYSC_LINE.search(title)))
+    return Job(title=title, body=str(entry.get("description") or ""),
+               months=months_between(span.start, span.end) if span else None,
+               label=(f"{month_text(span.start, year_only=span.start_is_year)} – "
+                      f"{month_text(span.end, end=True, year_only=span.end_is_year)}") if span else "",
+               is_work=is_work)

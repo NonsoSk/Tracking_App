@@ -65,6 +65,9 @@ class Application(models.Model):
     match_breakdown = models.JSONField(default=dict, blank=True)
     matched_at = models.DateTimeField(null=True, blank=True)
     ai_summary = models.TextField(blank=True)
+    # Claude's verdict on each of the JD's requirements (pipeline/ai_assess.py), with a fingerprint of the JD and CV
+    # it read: used in the score while both are unchanged.
+    ai_assessment = models.JSONField(default=dict, blank=True)
 
     decision = models.CharField(max_length=10, choices=Decision.choices, blank=True)
     decision_notes = models.TextField(blank=True)
