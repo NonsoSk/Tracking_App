@@ -327,7 +327,25 @@ fertilizer/petrochemical plant cover the basics. The reader takes the name from 
 "OKAFOR, Chinedu", surname in capitals first), a personal-data table or "Surname / Other names" lines, and reads Word
 text boxes, tables, headers and footers; failing that, from the file name ("Chinedu Okafor CV.pdf") or the email
 address, with a note to check. It also reads phone numbers in any grouping, sex, date of birth, state of origin and
-LGA. Adding a Claude API key (`ANTHROPIC_API_KEY` in `.env`) enables:
+LGA.
+
+**Years of experience** come from the dates of the jobs in the experience section, not from a sentence such as "over
+10 years of experience" (used only when the CV gives no dates at all), and never from school dates:
+
+* Jobs that follow on or overlap are joined: 2023–2024 then 2024–2026 is 2023 to 2026, three years. A gap between jobs
+  is not counted: 2023–2024 then May 2026 – present (in November 2026) is one year and six months.
+* Months count when the CV gives them, the end month included (Jan–Mar is three months); a year alone runs from the
+  start of one year to the start of the next (2023–2024 is one year). "Present", "till date", "to date", "ongoing" and
+  "since March 2024" run to today; a date in the future counts up to today.
+* Dates on education lines and student industrial training (SIWES, IT, attachments) are left out. The NYSC year counts
+  as work; set `EXPERIENCE_COUNTS_NYSC=false` to leave it out.
+* With AI on, the same count is made from the jobs the AI reads.
+
+The check page shows the working under *Years of experience* ("Worked out: 1 yr 6 mos, from the job dates (2023 –
+2024, May 2026 – now); 2 yrs 4 mos between jobs not counted"). When the portal was updated, profiles read from a CV
+that HR had not checked were worked out again (and their applications re-scored); profiles loaded from Excel keep the
+workbook's figure. `python manage.py recalculate_experience` lists what would change for the others and saves it with
+`--apply` (`--include-checked` for profiles HR has checked). Adding a Claude API key (`ANTHROPIC_API_KEY` in `.env`) enables:
 
 * **Reading any CV, including scanned hard copies and phone photos**: the PDF or image goes straight to Claude, which
   returns structured data (name, contacts, qualification, course, class of degree, NYSC, years of experience, work

@@ -252,14 +252,6 @@ PHONE_RE = re.compile(r"(?:\+?234[\s-]?\(?0?\)?|\b0)[789][01]\d[\s-]?\d{3}[\s-]?
 PHONE_FALLBACK_RE = re.compile(r"\+?\d[\d\s()-]{8,16}\d")
 LINKEDIN_RE = re.compile(r"(?:https?://)?(?:[a-z]{2,3}\.)?linkedin\.com/in/[A-Za-z0-9_-]+/?", re.I)
 
-MONTHS = {m: i for i, m in enumerate(
-    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
-MONTH_PAT = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
-DATE_PAT = rf"(?:{MONTH_PAT}\s*,?\s*|\d{{1,2}}\s*[/.-]\s*)?(?:19|20)\d{{2}}"
-RANGE_RE = re.compile(
-    rf"({DATE_PAT})\s*(?:-|–|—|to|till|until)\s*(present|current|date|now|till date|to date|{DATE_PAT})", re.I
-)
-
 SECTION_HEADINGS = {
     "summary": r"(?:professional |career |personal )?(?:summary|profile|objectives?|statement)|about me",
     "experience": r"(?:work |professional |employment |career |relevant |industrial )?(?:experience|history)"
@@ -270,11 +262,14 @@ SECTION_HEADINGS = {
               r"(?: (?:and|&) (?:competencies|abilities|tools))?|tools|software",
     "certifications": r"(?:professional )?(?:certifications?|certificates?|trainings?|licen[cs]es?|courses attended)"
                       r"(?: (?:and|&) (?:trainings?|certifications?|memberships?))?|professional (?:qualifications|development|memberships?)",
+    "training": r"(?:students?\s+)?(?:industrial|siwes)\s+(?:training|attachment|work experience)(?:\s*\(siwes\))?"
+                r"|siwes(?:\s+experience)?|industrial attachment",
     "references": r"references?|referees?",
     "personal": r"personal (?:data|details|information)|bio ?data",
     "other": r"hobbies|interests|awards|achievements|languages|projects|publications|volunteer.*|extra.?curricular.*",
 }
 HEADING_RE = {k: re.compile(rf"^\s*(?:{v})\s*:?\s*$", re.I) for k, v in SECTION_HEADINGS.items()}
+HEADING_START_RE = {k: re.compile(rf"^\s*(?:{v})\b", re.I) for k, v in SECTION_HEADINGS.items()}
 
 EDUCATION_PATTERNS = [
     (EducationLevel.PHD, r"\bph\.?\s?d\b|doctor of philosophy"),
@@ -329,6 +324,18 @@ def _split_sections(lines: list[str]) -> dict[str, str]:
                 if pattern.match(stripped):
                     heading = name
                     break
+            if heading == "training" and not (stripped.isupper() or stripped.endswith(":")):
+                heading = None  # "Industrial Training (SIWES)" under work experience is an entry, not a section
+            # A short heading line that starts like one: "Work Experience & Achievements", "SKILLS AND TOOLS".
+            words = stripped.split()
+            looks_like_heading = (stripped.isupper() or stripped.endswith(":")
+                                  or all(w[:1].isupper() or not w[:1].isalpha() or w.lower() in {"and", "of", "&"}
+                                         for w in words))
+            if not heading and len(words) <= 6 and not stripped.endswith(".") and looks_like_heading:
+                for name, pattern in HEADING_START_RE.items():
+                    if pattern.match(stripped) and name != "training":
+                        heading = name
+                        break
         if heading:
             current = heading
             sections.setdefault(current, [])
@@ -337,55 +344,27 @@ def _split_sections(lines: list[str]) -> dict[str, str]:
     return {k: "\n".join(v) for k, v in sections.items()}
 
 
-def _parse_date_token(token: str):
-    token = token.strip().lower()
-    if token in {"present", "current", "date", "now", "till date", "to date"}:
-        today = timezone.localdate()
-        return today.year, today.month
-    year_match = re.search(r"(19|20)\d{2}", token)
-    if not year_match:
-        return None
-    year = int(year_match.group(0))
-    month = 1
-    name = re.match(r"([a-z]{3})", token)
-    if name and name.group(1) in MONTHS:
-        month = MONTHS[name.group(1)]
-    else:
-        num = re.match(r"(\d{1,2})\s*[/.-]", token)
-        if num and 1 <= int(num.group(1)) <= 12:
-            month = int(num.group(1))
-    return year, month
+def _experience_from_ranges(text: str, in_experience_section: bool = True):
+    """(Experience from the job dates, the jobs found) - see candidates/experience.py."""
+    from .experience import from_spans, spans_in
 
-
-def _experience_from_ranges(text: str) -> tuple[float, list[dict]]:
-    intervals = []
-    entries = []
+    spans = spans_in(text, in_experience_section=in_experience_section)
     lines = text.splitlines()
-    for idx, line in enumerate(lines):
-        for match in RANGE_RE.finditer(line):
-            start = _parse_date_token(match.group(1))
-            end = _parse_date_token(match.group(2))
-            if not start or not end:
-                continue
-            s = start[0] * 12 + start[1]
-            e = end[0] * 12 + end[1]
-            if e < s or e - s > 45 * 12:
-                continue
-            intervals.append((s, e))
-            rest = (line[: match.start()] + line[match.end():]).strip(" |,-–—:()\t")
-            context = rest or next((lines[j].strip() for j in range(idx - 1, max(idx - 3, -1), -1) if lines[j].strip()), "")
-            title, company = _split_title_company(context)
-            entries.append({"job_title": title, "company": company, "start": match.group(1).strip(),
-                            "end": match.group(2).strip().title(), "description": ""})
-    intervals.sort()
-    merged: list[list[int]] = []
-    for s, e in intervals:
-        if merged and s <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], e)
-        else:
-            merged.append([s, e])
-    months = sum(e - s for s, e in merged)
-    return round(months / 12, 1), entries
+    entries = []
+    for span in spans:
+        rest = span.line
+        for token in span.label.split(" – "):
+            rest = rest.replace(token, " ")
+        rest = re.sub(r"\s+(?:-|–|—|to|till|until)\s+", " ", rest).strip(" |,-–—:()\t")
+        if not rest or len(rest) < 3:
+            idx = next((i for i, l in enumerate(lines) if l.strip() == span.line), None)
+            rest = next((lines[j].strip() for j in range((idx or 0) - 1, max((idx or 0) - 3, -1), -1)
+                         if idx is not None and lines[j].strip()), "")
+        title, company = _split_title_company(rest)
+        start, _, end = span.label.partition(" – ")
+        entries.append({"job_title": title, "company": company, "start": start.strip(), "end": end.strip().title(),
+                        "description": ""})
+    return from_spans(spans), entries
 
 
 def _split_title_company(text: str) -> tuple[str, str]:
@@ -522,12 +501,26 @@ def heuristic_extract(text: str, filename: str = "") -> dict:
     else:
         data["nysc_status"] = ""
 
-    explicit = [int(n) for n in re.findall(
-        r"(\d{1,2})\+?\s*(?:years|yrs)\.?\s*(?:of\s+)?(?:[a-z-]+\s+){0,4}?experience", lower)]
-    experience_text = sections.get("experience") or "\n".join(
-        v for k, v in sections.items() if k not in {"education", "references"})
-    computed, work_history = _experience_from_ranges(experience_text)
-    data["years_experience"] = float(max(explicit)) if explicit and max(explicit) <= 45 else computed
+    # Years of experience from the job dates only (gaps between jobs left out); a stated "N years of experience"
+    # only when the CV gives no job dates. See candidates/experience.py.
+    from .experience import stated_years
+
+    if sections.get("experience", "").strip():
+        experience, work_history = _experience_from_ranges(sections["experience"], True)
+    else:
+        rest = "\n".join(v for k, v in sections.items()
+                         if k not in {"education", "references", "certifications", "skills", "summary", "training"})
+        experience, work_history = _experience_from_ranges(rest, False)
+    data["experience_from_dates"] = experience.years is not None
+    if experience.years is not None:
+        data["years_experience"], data["experience_note"] = experience.years, experience.note
+    else:
+        stated = stated_years(text)
+        data["years_experience"] = stated or 0.0
+        data["experience_note"] = (f"Experience: no job dates found, so the {stated:g} years the CV states were "
+                                   "used. Check it." if stated else "")
+    work_history.sort(key=lambda j: j.get("end", "").lower() in {"present", "current", "now", "date", "till date",
+                                                                  "to date", "ongoing"}, reverse=True)
     data["work_history"] = work_history[:10]
     if work_history:
         data["current_job_title"] = work_history[0]["job_title"]
@@ -697,6 +690,8 @@ def parse_cv(data: bytes, filename: str) -> dict:
     notes = list(extracted.notes)
     heuristic = heuristic_extract(extracted.text, filename)
     name_notes = heuristic.pop("notes", [])
+    experience_note = heuristic.pop("experience_note", "")
+    from_dates = heuristic.pop("experience_from_dates", False)
 
     ai_data = None
     if ai.ai_enabled():
@@ -706,6 +701,13 @@ def parse_cv(data: bytes, filename: str) -> dict:
 
     if ai_data:
         parsed = _normalize_ai(ai_data)
+        from .experience import from_history
+
+        experience = from_history(parsed.get("work_history"))
+        if experience.years is not None:  # the job dates the AI read, counted the same way
+            parsed["years_experience"], experience_note = experience.years, experience.note
+        elif from_dates:  # the AI listed no dated jobs, but the CV's text has them
+            parsed["years_experience"] = heuristic.get("years_experience")
         for key, value in heuristic.items():
             if key in LIST_FIELDS:
                 parsed[key] = merge_unique(list(parsed.get(key) or []), list(value or []))
@@ -729,6 +731,8 @@ def parse_cv(data: bytes, filename: str) -> dict:
 
     if not (ai_data and ai_data.get("first_name")):
         notes += name_notes
+    if experience_note:
+        notes.append(experience_note)
     parsed["text"] = text
     parsed["method"] = method
     parsed["notes"] = notes

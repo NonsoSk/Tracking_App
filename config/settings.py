@@ -225,6 +225,8 @@ LIBREOFFICE_PATH = env("LIBREOFFICE_PATH", "")
 
 # Minutes between checks of the linked Excel workbooks (python manage.py sync_workbooks --watch).
 EXCEL_SYNC_MINUTES = env_int("EXCEL_SYNC_MINUTES", 5)
+# Years of experience are worked out from the job dates in a CV (candidates/experience.py). NYSC counts as work.
+EXPERIENCE_COUNTS_NYSC = env_bool("EXPERIENCE_COUNTS_NYSC", True)
 # A watched CV folder (Excel link page) is checked this often; new files in it are read on their own.
 CV_FOLDER_SECONDS = env_int("CV_FOLDER_SECONDS", 60)
 # Where "Portal updates.xlsx" is written (a folder or a full file path). Empty: beside the linked workbook that holds

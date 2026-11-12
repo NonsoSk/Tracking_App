@@ -496,13 +496,17 @@ def check_profile(request, pk):
         return redirect(_with_ids(reverse("candidates:check"), ids))
     from pipeline import presentation
 
+    notes = [n for n in (candidate.parse_notes or "").splitlines() if n.strip()]
+    worked_out = next((n for n in notes if n.startswith("Experience:")), "")
+    if worked_out and not form.is_bound:
+        form.fields["years_experience"].help_text = worked_out.replace("Experience: ", "Worked out: ", 1)
     position = list(queue.values_list("pk", flat=True))
     resume = candidate.latest_cv
     return render(request, "candidates/check.html", {
         "c": candidate, "form": form, "resume": resume, "ids": ids, "left": len(position),
         "cv_terms": presentation.cv_terms(candidate),
         "place": position.index(candidate.pk) + 1 if candidate.pk in position else 1,
-        "notes": [n for n in (candidate.parse_notes or "").splitlines() if n.strip()],
+        "notes": [n for n in notes if not n.startswith("Experience:")],
         "query": request.GET.urlencode(),
     })
 
