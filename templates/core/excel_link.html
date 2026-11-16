@@ -51,7 +51,7 @@
   <div class="table-wrap"><table class="table">
     <thead><tr><th>Folder</th><th>State</th><th>CVs read</th><th>Latest</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>{% for f in folders %}<tr>
-      <td><b>{{ f.name }}</b><div class="small muted break">{{ f.path }}</div><div class="small muted">{{ f.source_label }}{% if f.requisition %} · applied to {{ f.requisition.title }} once checked{% endif %}</div></td>
+      <td><b>{{ f.name }}</b><div class="small muted break">{{ f.path }}</div><div class="small muted">{{ f.source_label }}{% if f.region_label %} · {{ f.region_label }}{% endif %}{% if f.requisition %} · applied to {{ f.requisition.title }}{% endif %}</div></td>
       <td data-label="State"><span class="chip {% if f.state == 'ok' %}success{% else %}danger{% endif %}">{{ f.get_state_display }}</span>{% if f.checked_at %}<div class="small muted">Checked {{ f.checked_at|ago }}</div>{% endif %}{% if f.message %}<div class="small muted">{{ f.message }}</div>{% endif %}</td>
       <td data-label="CVs read" class="num"><b>{{ f.stats.read }}</b>{% if f.stats.held %}<div class="small muted">{{ f.stats.held }} already in the portal</div>{% endif %}{% if f.stats.skipped %}<div class="small muted" title="{{ f.stats.examples|join:' · ' }}">{{ f.stats.skipped }} left out (not CVs)</div>{% endif %}{% if f.stats.unread %}<div class="small muted">{{ f.stats.unread }} could not be read</div>{% endif %}</td>
       <td data-label="Latest" class="small">{% for x in f.stats.recent %}<div>{% if x.candidate %}<a href="{{ x.candidate.get_absolute_url }}">{{ x.candidate.full_name }}</a>{% else %}{{ x.name }}{% endif %} <span class="muted">· {{ x.read_at|ago }}</span></div>{% empty %}<span class="muted">None yet</span>{% endfor %}</td>
@@ -71,6 +71,9 @@
       <div class="field span-2"><label class="label" for="cvf-req">Vacancy (optional)</label>
         <select class="select" id="cvf-req" name="requisition"><option value="">None: match them later</option>{% for v in vacancies %}<option value="{{ v.pk }}">{{ v.title }} ({{ v.reference }})</option>{% endfor %}</select>
         <span class="help">Each CV is applied to it and scored as soon as it is read.</span></div>
+      <div class="field span-4"><label class="label" for="cvf-region">Community category (optional)</label>
+        <select class="select" id="cvf-region" name="region"><option value="">Not set: taken from the state in each CV</option>{% for value, label in regions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        <span class="help">Put every CV read from this folder in one group, to pick them by it when matching.</span></div>
       <label class="check span-4"><input type="checkbox" name="read_existing" value="1" checked> Also read the CVs already in the folder (untick to read only files added from now on)</label>
     </div>
     <div class="row wrap"><span class="spacer"></span><button class="btn btn-primary" type="submit" name="action" value="folder_link">{% icon "folder-open" "ico-18" %} Watch this folder</button></div>

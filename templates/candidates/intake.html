@@ -19,6 +19,7 @@
         {% include "ds/components/dropzone.html" with f=form.files title="Drop CVs or a whole folder here, or" hint="PDF, Word, text, or photos of paper CVs. Pick as many as you like: each pick adds to the list." folder=True %}
         <div class="form-grid">
           {% dsfield form.source "span-2" %}{% dsfield form.requisition "span-2" %}
+          {% dsfield form.region "span-4" %}
           {% dsfield form.referred_by "span-4" %}
           {% dsfield form.note "span-4" %}
           <label class="check span-4" title="{{ form.every_file.help_text }}"><input type="checkbox" name="every_file" value="1"{% if form.every_file.value %} checked{% endif %}> {{ form.every_file.label }}</label>

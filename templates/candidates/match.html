@@ -14,9 +14,23 @@
 <form class="sheet match-pick" method="get" aria-label="Choose the CVs and vacancies">
   {% for c in ids %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}
   <div class="mp-cvs"><span class="mp-l">CVs</span>
-    {% if ids %}<span><b>{{ scope|capfirst }}</b> <a class="small" href="?{% for v in chosen %}r={{ v }}&amp;{% endfor %}">use the CVs added on a day instead</a></span>
-    {% else %}<label class="mp-date">Added on <input class="input input-sm" type="date" name="added" value="{{ added|date:'Y-m-d' }}"></label><span class="small muted">{{ total|intcomma }} CV{{ total|pluralize }} that day</span>{% endif %}
+    {% if ids %}<span><b>{{ scope|capfirst }}</b> <a class="small" href="{{ other_days_url }}">choose by the dates they were added instead</a></span>
+    {% else %}<span class="mp-dates"><label class="mp-date">Added from <input class="input input-sm" type="date" name="from" value="{{ cvs.date_from|date:'Y-m-d' }}" aria-label="Added from"></label>
+      <label class="mp-date">to <input class="input input-sm" type="date" name="to" value="{{ cvs.date_to|date:'Y-m-d' }}" aria-label="Added up to"></label></span>{% endif %}
+    <span class="small muted mp-count"><b>{{ total|intcomma }}</b> CV{{ total|pluralize }}{% if cvs.narrowed %} · {{ cvs.narrowed }}{% endif %}{% if total > limit %} · the {{ limit|intcomma }} added most recently are read{% endif %}{% if not ids %} · leave a date empty for no limit{% endif %}</span>
   </div>
+  <fieldset class="mp-vac mp-narrow"><legend class="mp-l">Community category <small>none ticked = all</small></legend>
+    <div class="mp-chips">
+    {% for g in cvs.group_options %}<label class="mp-chip mp-chip-sm{% if not g.n and not g.on %} is-empty{% endif %}"><input type="checkbox" name="g" value="{{ g.value }}" {% if g.on %}checked{% endif %}> <span>{{ g.label }}<small>{{ g.n|intcomma }}</small></span></label>{% endfor %}
+    </div>
+  </fieldset>
+  {% if cvs.source_options %}
+  <fieldset class="mp-vac mp-narrow"><legend class="mp-l">Source <small>none ticked = every CV that came through the portal</small></legend>
+    <div class="mp-chips">
+    {% for s in cvs.source_options %}<label class="mp-chip mp-chip-sm"><input type="checkbox" name="s" value="{{ s.value }}" {% if s.on %}checked{% endif %}> <span>{{ s.label }}<small>{{ s.n|intcomma }}</small></span></label>{% endfor %}
+    </div>
+  </fieldset>
+  {% endif %}
   <fieldset class="mp-vac"><legend class="mp-l">Vacancies to match against</legend>
     <div class="mp-chips">
     {% for v in vacancies_all %}<label class="mp-chip"><input type="checkbox" name="r" value="{{ v.pk }}" {% if v.pk in chosen %}checked{% endif %}> <span>{{ v.title }}<small>{{ v.reference|default:"" }} · {{ v.department.name }}{% if not v.can_add %} · {{ v.get_status_display }}{% endif %}</small></span></label>
@@ -28,7 +42,7 @@
 
 {% if columns %}
 <form class="sheet match-filter" method="get" aria-label="Filter the results">
-  {% for c in ids %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}{% for v in chosen %}<input type="hidden" name="r" value="{{ v }}">{% endfor %}{% if not ids %}<input type="hidden" name="added" value="{{ added|date:'Y-m-d' }}">{% endif %}
+  {% for name, value in carry %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}{% for v in chosen %}<input type="hidden" name="r" value="{{ v }}">{% endfor %}
   <label class="mf-field"><span>Rank by</span>
     <select name="rank" class="select select-sm" data-autosubmit>
       {% if columns|length > 1 %}<option value="any" {% if rank_by == "any" %}selected{% endif %}>Each CV's strongest role</option>{% endif %}
@@ -44,7 +58,7 @@
     <input class="input input-sm num" type="number" name="max" min="0" max="100" step="1" placeholder="100" value="{{ filters.max|default_if_none:''|floatformat:'-1' }}" aria-label="Highest score"></span></span>
   <label class="check small mf-check"><input type="checkbox" name="keyreq" value="1" {% if filters.keyreq %}checked{% endif %} data-autosubmit> Only those meeting every key requirement</label>
   <div class="mf-actions"><button class="btn btn-secondary btn-sm" type="submit">Apply</button>
-    {% if filtered %}<a class="btn btn-ghost btn-sm" href="?{% for c in ids %}c={{ c }}&amp;{% endfor %}{% for v in chosen %}r={{ v }}&amp;{% endfor %}{% if not ids %}added={{ added|date:'Y-m-d' }}&amp;{% endif %}rank={{ rank_by }}{% if show_all %}&amp;show=all{% endif %}">Clear filters</a>{% endif %}</div>
+    {% if filtered %}<a class="btn btn-ghost btn-sm" href="{{ clear_url }}">Clear filters</a>{% endif %}</div>
 </form>
 <section class="match-roles" aria-label="What each job needs">
   {% for col in columns %}{% if col.role.read %}
@@ -65,7 +79,7 @@
     <span class="small muted">{% if show_all %}All CVs, matched or not{% else %}Matches only{% endif %}{% if filtered %} · {{ filter_text }}{% if rows|length < shown_total %} · {{ shown_total }} in the score range{% endif %}{% endif %}{% if hidden %} · <a href="{{ all_url }}">{{ hidden }} other CV{{ hidden|pluralize }} did not match: show {{ hidden|pluralize:"it,them" }}</a>{% elif show_all %} · <a href="{{ matches_url }}">show matches only</a>{% endif %}</span>
     <span class="spacer"></span>
     {% if addable %}<button class="btn btn-primary btn-sm" type="submit">{% icon "plus" "ico-16" %} Add the ticked matches as applications</button>{% endif %}</div>
-  {% if total > limit %}<p class="sheet-b small muted">Showing the first {{ limit }} of {{ total|intcomma }} CVs.</p>{% endif %}
+  {% if total > limit %}<p class="sheet-b small muted">{{ total|intcomma }} CVs are in this selection: the {{ limit|intcomma }} added most recently were read. Narrow the dates, the community category or the source to read the rest.</p>{% endif %}
   {% include "candidates/_export_bar.html" with picked="pick" %}
   <div class="table-wrap match-wrap"><table class="table match-table">
     <thead><tr><th scope="col" class="cb"><input type="checkbox" class="form-check-input" data-select-all="pick" aria-label="Select everyone shown"></th><th scope="col">Candidate</th>
@@ -103,6 +117,6 @@
 {% elif columns %}
 <div class="sheet">{% empty_state "No CVs in this range" "Widen the score range, show everyone, or untick “only those meeting every key requirement”." object_name="Lab beaker of polymer pellets" %}</div>
 {% elif vacancies %}
-{% empty_state "No CVs to match" "Upload CVs on the CV intake page (without choosing a vacancy), or pick the day they were added." object_name="Lab beaker of polymer pellets" %}
+{% empty_state "No CVs in this selection" "Widen the dates, untick a community category or source, or upload CVs on the CV intake page (without choosing a vacancy)." object_name="Lab beaker of polymer pellets" %}
 {% endif %}
 {% endblock %}

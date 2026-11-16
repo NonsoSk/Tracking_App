@@ -97,12 +97,13 @@ def judge(parsed: dict, filename: str = "") -> Verdict:
     by_ai = parsed.get("method") == "ai"
     if by_ai and parsed.get("is_cv") is False:
         return Verdict(False, "another kind of document", "Not a CV: the reader found no candidate's CV in it.")
-    if not text.strip() or (words < 25 and not by_ai):
+    score, found = _evidence(parsed, text, filename) if text.strip() else (0, {})
+    # Nothing readable: no text at all, or a few stray words that show nothing of a CV (a short CV is still a CV).
+    if not text.strip() or (words < 25 and score < NEEDED and not by_ai):
         notes = " ".join(str(n) for n in parsed.get("notes") or [] if "OCR" in str(n) or "AI" in str(n)
                          or "Could not read" in str(n) or "Old Word" in str(n))
         what = "It is a scan or a photo" if parsed.get("scanned") else "No text could be read from it"
         return Verdict(False, UNREADABLE, f"Could not be read, so it was not added. {what}. {notes}".strip())
-    score, found = _evidence(parsed, text, filename)
     has_sections = found["experience"] or found["education"]
     personal = found["title"] or found["phone"] or found["jobs"] or "personal" in found["sections"]
     jd = _count(JOB_DESCRIPTION, text)

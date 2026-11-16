@@ -180,7 +180,9 @@ class MatchGridTests(TestCase):
 
         Candidate.objects.update(created_at=timezone.now() - timedelta(days=3))
         response = self.client.get(reverse("candidates:match"), {"r": self.payable.pk})
-        self.assertEqual(response.context["added"], timezone.localdate() - timedelta(days=3))
+        last_day = timezone.localdate() - timedelta(days=3)
+        self.assertEqual((response.context["cvs"]["date_from"], response.context["cvs"]["date_to"]),
+                         (last_day, last_day))
         self.assertEqual(response.context["total"], 2)
 
     def test_the_vacancy_page_links_to_the_grid(self):
@@ -208,3 +210,126 @@ class MatchGridTests(TestCase):
         grid = self.client.get(reverse("candidates:match"), {"r": self.payable.pk, "c": bayo.pk, "show": "all"})
         self.assertEqual([r["candidate"] for r in grid.context["rows"]], [bayo])
 
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class ChoosingTheCvsTests(TestCase):
+    """The CVs to match are chosen by when they were added (from, to), community category and source."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        self.client.force_login(User.objects.create_user("hr", password="x", role=User.Role.HR_ADMIN))
+        finance = Department.objects.create(name="Finance", code="FIN")
+        self.vacancy = Requisition.objects.create(
+            department=finance, title="Accounts Officer", status=Requisition.Status.OPEN, employment_type="experienced",
+            education_level="hnd", courses=["Accounting"], required_skills=["Accounts payable"])
+        self.today = timezone.localdate()
+        self.people = {}
+        for name, days_ago, region, source, detail in [
+                ("Ada", 0, "host", "email", ""), ("Bola", 0, "pipeline", "hard_copy", ""),
+                ("Chidi", 3, "jetty", "email", ""), ("Dayo", 10, "indirect", "referral", ""),
+                ("Efe", 10, "", "email", ""), ("Femi", 3, "host", "import", "Website")]:
+            person = Candidate.objects.create(
+                first_name=name, last_name="Test", highest_qualification="bsc", course="Accounting",
+                years_experience=4, skills=["Accounts payable"], source=source, source_detail=detail,
+                region=region, region_fixed=bool(region))
+            Candidate.objects.filter(pk=person.pk).update(created_at=timezone.now() - timedelta(days=days_ago))
+            self.people[name] = person
+
+    def names(self, **params):
+        query = [("r", self.vacancy.pk), ("show", "all")]
+        for key, value in params.items():
+            query += [(key.rstrip("_"), v) for v in (value if isinstance(value, list) else [value])]
+        self.response = self.client.get(reverse("candidates:match"), query)
+        return sorted(r["candidate"].first_name for r in self.response.context["rows"])
+
+    def day(self, ago):
+        from datetime import timedelta
+
+        return (self.today - timedelta(days=ago)).isoformat()
+
+    def test_a_range_of_dates(self):
+        self.assertEqual(self.names(), ["Ada", "Bola"])  # nothing chosen: the last day CVs were added
+        self.assertEqual(self.names(from_=self.day(5), to=self.day(0)), ["Ada", "Bola", "Chidi"])
+        self.assertEqual(self.names(from_=self.day(12), to=self.day(2)), ["Chidi", "Dayo", "Efe"])
+        self.assertEqual(self.names(from_=self.day(0), to=self.day(5)), ["Ada", "Bola", "Chidi"])  # the wrong way round
+        self.assertEqual(self.names(from_="", to=""), ["Ada", "Bola", "Chidi", "Dayo", "Efe"])  # no limit
+        self.assertEqual(self.names(from_="", to=self.day(5)), ["Dayo", "Efe"])
+        self.assertEqual(self.names(added=self.day(3)), ["Chidi"])  # a link to one day still works
+        self.assertContains(self.response, 'name="from"')
+        self.assertContains(self.response, 'name="to"')
+
+    def test_by_community_category(self):
+        everyone = dict(from_="", to="")
+        self.assertEqual(self.names(g="host", **everyone), ["Ada"])
+        self.assertEqual(self.names(g=["host", "pipeline", "jetty"], **everyone), ["Ada", "Bola", "Chidi"])
+        self.assertEqual(self.names(g="indirect", **everyone), ["Dayo"])
+        self.assertEqual(self.names(g="none", **everyone), ["Efe"])
+        options = {o["label"]: (o["n"], o["on"]) for o in self.response.context["cvs"]["group_options"]}
+        self.assertEqual(options["Host community"], (1, False))
+        self.assertEqual(options["Indirect community"], (1, False))
+        self.assertEqual(options["Not recorded"], (1, True))
+        self.assertContains(self.response, "Indirect community")
+        self.assertEqual(self.response.context["total"], 1)
+
+    def test_by_source(self):
+        everyone = dict(from_="", to="")
+        self.assertEqual(self.names(s="portal:hard_copy", **everyone), ["Bola"])
+        self.assertEqual(self.names(s=["portal:email", "portal:referral"], **everyone), ["Ada", "Chidi", "Dayo", "Efe"])
+        # A channel as the Excel records give it brings in the people loaded from the workbooks.
+        self.assertEqual(self.names(s="Website", **everyone), ["Femi"])
+        self.assertEqual(self.names(s=["Website", "portal:email"], g="host", **everyone), ["Ada", "Femi"])
+        labels = {o["label"]: o["n"] for o in self.response.context["cvs"]["source_options"]}
+        self.assertEqual((labels["CV sent by email"], labels["Website"]), (1, 1))  # among the host community
+
+    def test_the_choices_stay_while_filtering_and_ranking(self):
+        self.names(from_=self.day(12), to=self.day(0), g=["host", "jetty"], s="portal:email")
+        for field in ('name="from" value="%s"' % self.day(12), 'name="g" value="host"', 'name="g" value="jetty"',
+                      'name="s" value="portal:email"'):
+            self.assertContains(self.response, f'<input type="hidden" {field}>', html=True)
+        self.assertEqual(self.response.context["cvs"]["narrowed"], "Host community, Jetty community, CV sent by email")
+
+    def test_an_uploads_cvs_can_be_narrowed_too(self):
+        ids = [self.people[n].pk for n in ("Ada", "Bola", "Efe")]
+        self.assertEqual(self.names(c=ids), ["Ada", "Bola", "Efe"])
+        self.assertEqual(self.names(c=ids, g="pipeline"), ["Bola"])
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class CommunityCategoryAtIntakeTests(TestCase):
+    CV = ("ADA OBI\nada.obi@example.com | 0803 123 4567\nWORK EXPERIENCE\nAccountant, Notore   Jan 2019 - Present\n"
+          "- Processed supplier invoices and payments\nEDUCATION\nB.Sc Accounting, UNIPORT 2008 - 2012\nSKILLS\nExcel\n")
+
+    def test_indirect_is_a_group_of_its_own(self):
+        from .regions import classify, group_in
+
+        self.assertEqual(group_in("Community category", "Indirect host community"), "indirect")
+        self.assertEqual(group_in("Tag", "Indirect"), "indirect")
+        self.assertEqual(group_in("Community category", "Host Community"), "host")
+        records = [{"values": {"Category": "Indirect", "State": "Rivers"}}]
+        self.assertEqual(classify(source_records=records, state="Rivers")[0], "indirect")
+
+    def test_an_upload_can_put_its_cvs_in_a_category(self):
+        self.client.force_login(User.objects.create_user("hr", password="x", role=User.Role.HR_ADMIN))
+        upload = SimpleUploadedFile("Ada Obi CV.txt", self.CV.encode())
+        self.client.post(reverse("candidates:intake"), {"files": [upload], "source": "email", "region": "pipeline"})
+        ada = Candidate.objects.get()
+        self.assertEqual((ada.region, ada.region_fixed), ("pipeline", True))
+        # The same CV again in a host-community upload: already held, and HR's earlier choice is left alone.
+        upload.seek(0)
+        self.client.post(reverse("candidates:intake"), {"files": [upload], "source": "email", "region": "host"})
+        ada.refresh_from_db()
+        self.assertEqual(ada.region, "pipeline")
+
+    def test_a_cv_already_held_without_a_category_takes_the_uploads(self):
+        from .intake import ingest_cv
+
+        first = ingest_cv(self.CV.encode(), "ada.txt", source="email").candidate
+        self.assertFalse(first.region_fixed)
+        again = ingest_cv(self.CV.encode(), "ada again.txt", source="email", region="jetty")
+        self.assertTrue(again.duplicate)
+        first.refresh_from_db()
+        self.assertEqual((first.region, first.region_note), ("jetty", "Set for the upload it came in"))

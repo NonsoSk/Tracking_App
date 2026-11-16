@@ -110,6 +110,16 @@ class CvFolderTests(TestCase):
         self.assertEqual((application.candidate, application.requisition), (person, vacancy))
         self.assertIsNotNone(application.matched_at)
 
+    def test_a_folder_can_put_its_cvs_in_a_community_category(self):
+        self.put("Ada.docx", cv_bytes("Ada", "Obi", "ada@example.com"))
+        cv_folder.link(str(self.root), region="jetty")
+        person = cv_folder.check()[0]
+        self.assertEqual((person.region, person.region_fixed), ("jetty", True))
+        self.client.force_login(self.hr)
+        page = self.client.get(reverse("core:excel_link"))
+        self.assertContains(page, "Jetty community")
+        self.assertContains(page, 'name="region"')
+
     def test_a_missing_folder_is_reported(self):
         folder = cv_folder.link(str(self.root))
         shutil.rmtree(self.root)

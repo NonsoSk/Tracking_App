@@ -2062,3 +2062,13 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .mr-body p { margin: 0; }
 
 .sheet-b.role-read { padding: var(--s-16) var(--s-20); }
+
+/* Match page: choosing the CVs by date range, community category and source */
+.mp-dates { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-8) var(--s-12); }
+.mp-count b { color: var(--text); }
+.mp-narrow .mp-l small { font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); margin-left: 6px; }
+.mp-chip.mp-chip-sm { padding: 5px var(--s-12); }
+.mp-chip.mp-chip-sm span { display: inline-flex; align-items: baseline; gap: 6px; }
+.mp-chip.mp-chip-sm small { font-weight: 700; }
+.mp-chip.is-empty { opacity: .55; }
+.mp-date { white-space: nowrap; }

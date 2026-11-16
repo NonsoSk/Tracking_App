@@ -207,7 +207,9 @@ class WatchedFolder(models.Model):
     source = models.CharField("Channel", max_length=20, default="email",
                               help_text="How these CVs reached IEFCL (recorded on each profile).")
     requisition = models.ForeignKey("requisitions.Requisition", null=True, blank=True, on_delete=models.SET_NULL,
-                                    related_name="+", help_text="Optional: apply each CV to this vacancy once checked.")
+                                    related_name="+", help_text="Optional: apply each CV to this vacancy.")
+    region = models.CharField("Community category", max_length=20, blank=True,
+                              help_text="Optional: every CV read from this folder is put in this group.")
     state = models.CharField(max_length=10, choices=State.choices, default=State.OK)
     message = models.CharField(max_length=500, blank=True)
     files_read = models.PositiveIntegerField(default=0)

@@ -459,7 +459,7 @@ def _ingest_upload(uploaded, data, user):
         return ingest_cv(
             uploaded.read(), uploaded.name, source=data["source"], requisition=data.get("requisition"), user=user,
             referred_by=data.get("referred_by"), referral_note=data.get("note", ""), notify_team=False,
-            only_cvs=not data.get("every_file"),
+            only_cvs=not data.get("every_file"), region=data.get("region", ""),
         )
     except Exception:
         logger.exception("CV intake could not read %s", uploaded.name)
@@ -545,7 +545,8 @@ def intake(request):
         added = sum(1 for _, r in results if r.status in {"added", "updated"})
         messages.success(request, f"{added} CV{'s' if added != 1 else ''} added from {len(results)} "
                                   f"file{'s' if len(results) != 1 else ''}. What was left out, and why, is below.")
-        form = IntakeForm(initial={"source": data["source"], "requisition": data.get("requisition")})
+        form = IntakeForm(initial={"source": data["source"], "requisition": data.get("requisition"),
+                                   "region": data.get("region", "")})
         return _intake_page(request, form, results)
     run = request.GET.get("run", "")
     results = _results_of_run(request, run) if RUN_TOKEN.match(run) else None
@@ -644,18 +645,96 @@ def open_requisitions_for_folder():
     return open_requisitions().order_by("title")
 
 
-MATCH_LIMIT = 400
+MATCH_LIMIT = 1000
 
 
-@hr_required
-def match_vacancies(request):
-    """Score a set of CVs against several vacancies at once, ranked for each vacancy, with filters (top 10/20/50, a
-    score range, only those meeting every key requirement). Nothing is saved: HR ticks the matches to keep and adds
-    them as applications (match_add)."""
+def _match_scope(request) -> dict:
+    """Which CVs the match grid reads: the CVs of an upload (?c=), or the CVs added between two dates; either
+    narrowed to community categories (?g=host&g=pipeline…) and to sources (?s=portal:email, or a channel as the
+    records give it). With no date given, the last day CVs were added."""
     from datetime import date
 
     from django.utils import timezone
 
+    def day(name):
+        try:
+            return date.fromisoformat(request.GET.get(name, ""))
+        except ValueError:
+            return None
+
+    ids = [int(c) for c in request.GET.getlist("c") if c.isdigit()]
+    group_labels = dict(REGION_CHOICES) | {"none": "Not recorded"}
+    groups = [g for g in dict.fromkeys(request.GET.getlist("g")) if g in group_labels]
+    portal_labels = {f"portal:{value}": label for value, label in Candidate.Source.choices if value != "import"}
+    recorded = sorted(set(Candidate.objects.exclude(source_detail="").values_list("source_detail", flat=True)))
+    sources = [s for s in dict.fromkeys(request.GET.getlist("s")) if s in portal_labels or s in recorded]
+
+    def of_sources(queryset):
+        if not sources:  # the CVs that came through the portal (not the rows loaded from Excel, nor the staff list)
+            return queryset.exclude(source__in=["import", "internal"])
+        return queryset.filter(Q(source__in=[s.split(":", 1)[1] for s in sources if s in portal_labels])
+                               | Q(source_detail__in=[s for s in sources if s not in portal_labels]))
+
+    def of_groups(queryset):
+        if not groups:
+            return queryset
+        wanted = Q(region__in=[g for g in groups if g != "none"])
+        return queryset.filter(wanted | Q(region="") if "none" in groups else wanted)
+
+    start = end = None
+    if ids:
+        everyone = Candidate.objects.filter(pk__in=ids)
+        within = of_sources(everyone) if sources else everyone
+        text = f"the {len(ids)} CV{'s' if len(ids) != 1 else ''} you uploaded"
+    else:
+        start, end = day("from"), day("to")
+        if not any(k in request.GET for k in ("from", "to")):
+            start = end = day("added")  # an older link to one day
+            if start is None:
+                latest = of_sources(Candidate.objects.all()).order_by("-created_at") \
+                    .values_list("created_at", flat=True).first()
+                start = end = timezone.localdate(latest) if latest else timezone.localdate()
+        if start and end and start > end:
+            start, end = end, start
+        everyone = Candidate.objects.all()
+        if start:
+            everyone = everyone.filter(created_at__date__gte=start)
+        if end:
+            everyone = everyone.filter(created_at__date__lte=end)
+        within = of_sources(everyone)
+        if start and end:
+            text = f"CVs added on {start:%d %b %Y}" if start == end else f"CVs added {start:%d %b} to {end:%d %b %Y}"
+        else:
+            text = (f"CVs added since {start:%d %b %Y}" if start else f"CVs added up to {end:%d %b %Y}" if end
+                    else "every CV in the portal")
+    people = of_groups(within)
+    # How many CVs each choice holds, given the other choices.
+    by_group = dict(within.order_by().values_list("region").annotate(n=Count("id")))
+    by_source = list(of_groups(everyone).order_by().values_list("source", "source_detail").annotate(n=Count("id")))
+    group_options = [{"value": v, "label": label, "on": v in groups, "n": by_group.get("" if v == "none" else v, 0)}
+                     for v, label in group_labels.items()]
+    portal_options = [{"value": v, "label": label, "on": v in sources,
+                       "n": sum(n for source, _, n in by_source if f"portal:{source}" == v)}
+                      for v, label in portal_labels.items()]
+    recorded_options = [{"value": v, "label": v, "on": v in sources,
+                         "n": sum(n for _, detail, n in by_source if detail == v)} for v in recorded]
+    carry = [("c", i) for i in ids] + [("g", g) for g in groups] + [("s", s) for s in sources]
+    if not ids:
+        carry += [("from", start.isoformat() if start else ""), ("to", end.isoformat() if end else "")]
+    return {"ids": ids, "people": people, "scope": text, "date_from": start, "date_to": end, "carry": carry,
+            "groups": groups, "sources": sources, "group_options": group_options,
+            "source_options": [o for o in portal_options if o["n"] or o["on"]]
+            + [o for o in recorded_options if o["n"] or o["on"]],
+            "narrowed": ", ".join([group_labels[g] for g in groups]
+                                  + [portal_labels.get(s, s) for s in sources])}
+
+
+@hr_required
+def match_vacancies(request):
+    """Read a set of CVs against several vacancies at once: the CVs of an upload, or those added between two dates,
+    by community category and source (_match_scope). Only the matches are shown unless all are asked for, ranked
+    for each vacancy, with filters (top 10/20/50, a score range, only those meeting every key requirement). Nothing
+    is saved: HR ticks the matches to keep and adds them as applications (match_add)."""
     from core.text import db_aliases
     from pipeline.matching import compute_match
     from pipeline.models import Application
@@ -674,21 +753,10 @@ def match_vacancies(request):
         v.can_add = v.status in can_add
     chosen = {int(v) for v in request.GET.getlist("r") if v.isdigit()}
     vacancies = [v for v in vacancies_all if v.pk in chosen]
-    ids = [int(c) for c in request.GET.getlist("c") if c.isdigit()]
-    uploaded = Candidate.objects.exclude(source__in=["import", "internal"])
-    try:
-        added = date.fromisoformat(request.GET.get("added", ""))
-    except ValueError:
-        latest = uploaded.order_by("-created_at").values_list("created_at", flat=True).first()
-        added = timezone.localdate(latest) if latest else timezone.localdate()
-    if ids:
-        people = Candidate.objects.filter(pk__in=ids)
-        scope = f"the {len(ids)} CV{'s' if len(ids) != 1 else ''} you uploaded"
-    else:
-        people = uploaded.filter(created_at__date=added)
-        scope = f"CVs added on {added:%d %b %Y}"
+    chosen_cvs = _match_scope(request)
+    ids, people, scope = chosen_cvs["ids"], chosen_cvs["people"], chosen_cvs["scope"]
     total = people.count()
-    people = list(people.order_by("last_name", "first_name")[:MATCH_LIMIT])
+    people = list(people.order_by("-created_at", "-pk")[:MATCH_LIMIT])  # over the limit: the most recent
     from pipeline import ranking
     from pipeline.matching import grade_for
 
@@ -728,7 +796,9 @@ def match_vacancies(request):
             rows.append({"candidate": person, "cells": cells})
         # Rank every CV within each vacancy.
         for i, vacancy in enumerate(vacancies):
-            column = sorted((r["cells"][i] for r in rows if not r["cells"][i]["unscored"]), key=lambda c: -c["score"])
+            column = [c for _, c in sorted(
+                ((r["candidate"].full_name.lower(), r["cells"][i]) for r in rows if not r["cells"][i]["unscored"]),
+                key=lambda pair: (-pair[1]["score"], pair[0]))]  # equal scores: by name, as the rows are listed
             for place, cell in enumerate(column, start=1):
                 cell["rank"], cell["of"] = place, len(column)
             grades = {g: sum(1 for c in column if c["grade"] == g) for g in "ABCD"}
@@ -773,12 +843,16 @@ def match_vacancies(request):
     from urllib.parse import urlencode
 
     base = [(k, v) for k in request.GET for v in request.GET.getlist(k) if k != "show"]
+    kept = chosen_cvs["carry"] + [("r", v) for v in chosen] + [("rank", rank_by)] + ([("show", "all")] if show_all
+                                                                                  else [])
     return render(request, "candidates/match.html", {
+        "cvs": chosen_cvs, "carry": chosen_cvs["carry"], "clear_url": "?" + urlencode(kept),
+        "other_days_url": "?" + urlencode([("r", v) for v in chosen]),
         "show_all": show_all, "hidden": hidden, "all_url": "?" + urlencode(base + [("show", "all")]),
         "match_threshold": settings.RECRUITMENT.get("MATCH_MIN_SCORE", 70),
         "matches_url": "?" + urlencode(base),
         "vacancies_all": vacancies_all, "chosen": chosen, "vacancies": vacancies, "columns": columns, "rows": rows,
-        "ids": ids, "added": added, "scope": scope, "total": total, "limit": MATCH_LIMIT,
+        "ids": ids, "scope": scope, "total": total, "limit": MATCH_LIMIT,
         "addable": any(v.can_add for v in vacancies),
         "query": request.GET.urlencode(), "filters": filters, "filtered": ranking.active(filters),
         "filter_text": ranking.describe(filters), "top_choices": ranking.TOP_CHOICES, "rank_by": rank_by,

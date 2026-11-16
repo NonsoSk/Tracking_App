@@ -180,14 +180,16 @@ def find_duplicate(content: bytes) -> CandidateDocument | None:
 @transaction.atomic
 def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, user=None, referred_by=None,
               referral_note: str = "", fallback_email: str = "", notify_team: bool = True,
-              only_cvs: bool = False) -> IntakeResult:
+              only_cvs: bool = False, region: str = "") -> IntakeResult:
     """Read a CV file, create or update the candidate, file the CV in their folder
     and (when a requisition is given) create and score the application.
 
     A CV the portal already holds is not added again (``duplicate``). With ``only_cvs`` (CV intake, the CV folder,
-    the mailbox), a file that is not a CV is set aside and nothing is saved from it (``set_aside``)."""
+    the mailbox), a file that is not a CV is set aside and nothing is saved from it (``set_aside``). ``region`` is
+    the community category HR chose for the whole upload or folder (host, pipeline, jetty, indirect…)."""
     from pipeline.services import create_application, log
 
+    from . import regions
     from .cv_filter import judge, same_cv, text_key
 
     ext = os.path.splitext(filename)[1].lower()
@@ -200,6 +202,8 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
         if referred_by and not candidate.referred_by_id:
             candidate.referred_by, candidate.referral_note = referred_by, referral_note
             candidate.save(update_fields=["referred_by", "referral_note"])
+        if regions.tag(candidate, region, "Set for the upload it came in"):
+            candidate.save(update_fields=["region", "region_note", "region_fixed"])
         if requisition is not None:
             application, _ = create_application(candidate, requisition, source=source, actor=user,
                                                 notify_team=notify_team)
@@ -240,6 +244,7 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
         from .cv_details import name_from_filename
 
         candidate.first_name, candidate.last_name = (part[:80] for part in name_from_filename(filename))
+    regions.tag(candidate, region, "Set for the upload it came in")
     candidate.save()
     document = save_document(candidate, content=content, filename=filename, user=user)
     document.is_parsed = True

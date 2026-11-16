@@ -34,7 +34,8 @@ class FolderError(Exception):
     pass
 
 
-def link(path: str, *, source: str = "email", requisition=None, user=None, read_existing: bool = True) -> WatchedFolder:
+def link(path: str, *, source: str = "email", requisition=None, user=None, read_existing: bool = True,
+         region: str = "") -> WatchedFolder:
     """Watch this folder. With ``read_existing`` False, the files already in it are marked as seen and only files
     added from now on are read."""
     folder_path = Path(str(path).strip().strip('"')).expanduser()
@@ -42,7 +43,8 @@ def link(path: str, *, source: str = "email", requisition=None, user=None, read_
         raise FolderError(f"Folder not found: {folder_path}. Copy its full path from the File Explorer address bar.")
     folder_path = folder_path.resolve()
     folder, created = WatchedFolder.objects.update_or_create(path=str(folder_path), defaults={
-        "source": source, "requisition": requisition, "linked_by": user, "state": WatchedFolder.State.OK,
+        "source": source, "requisition": requisition, "region": region, "linked_by": user,
+        "state": WatchedFolder.State.OK,
         "message": "", "check_requested": True})
     if not read_existing:
         for name, full in _files(folder_path):
@@ -131,7 +133,7 @@ def check(*, log=logger.info, limit: int = PER_CHECK) -> list:
             budget -= 1
             try:
                 result = ingest_cv(content, os.path.basename(name), source=folder.source, requisition=vacancy,
-                                   notify_team=False, only_cvs=True)
+                                   notify_team=False, only_cvs=True, region=folder.region)
             except Exception as exc:  # noqa: BLE001 - one bad file never stops the folder
                 logger.exception("Could not read %s", full)
                 record.digest, record.skipped = digest, f"Could not be read: {exc}"[:255]

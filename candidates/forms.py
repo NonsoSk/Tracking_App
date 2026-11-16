@@ -7,6 +7,7 @@ from core.forms import (DOCUMENT_EXTENSIONS, BootstrapMixin, DateInput, Multiple
 from requisitions.models import Requisition
 
 from .cv_parser import SUPPORTED_EXTENSIONS
+from .regions import REGION_CHOICES
 from .models import Candidate, CandidateDocument
 
 
@@ -66,6 +67,9 @@ class IntakeForm(BootstrapMixin, forms.Form):
     referred_by = forms.ModelChoiceField(queryset=User.objects.filter(is_active=True), required=False,
                                          label="Referred by (employee)")
     note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    region = forms.ChoiceField(
+        required=False, label="Community category", choices=[("", "Not set: taken from the state in each CV")] + REGION_CHOICES,
+        help_text="Optional: put every CV of this upload in one group (host, pipeline, jetty, indirect…).")
     every_file = forms.BooleanField(
         required=False, label="Add every file, even one that does not read as a CV",
         help_text="Only for a CV the portal set aside by mistake: add it again on its own with this ticked.")

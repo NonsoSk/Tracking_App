@@ -141,13 +141,19 @@ talent database can be filtered by *Resume on file* / *No resume yet*.
 
 ### Where candidates are from
 
-Every candidate is put in a group: **Host community, Pipeline community, Jetty community, Niger Delta, Other states**
-or **Outside Nigeria**. The group comes from the recruitment records when a column says it: any column whose heading
-mentions community, tag, region, zone, catchment or category and holds a value such as "Host", "Pipeline community",
-"Jetty" or "Niger Delta" (and the interview records' *Community Query*, where "Community" means a host community).
-Otherwise the state decides: one of the nine Niger Delta states (Abia, Akwa Ibom, Bayelsa, Cross River, Delta, Edo,
-Imo, Ondo, Rivers), another Nigerian state, or outside Nigeria. HR can set the group by hand on the profile; the
-workbook loads then leave it alone (clear it to go back to what the records say).
+Every candidate is put in a group (community category): **Host community, Pipeline community, Jetty community,
+Indirect community, Niger Delta, Other states** or **Outside Nigeria**. The group comes from the recruitment records
+when a column says it: any column whose heading mentions community, tag, region, zone, catchment or category and holds
+a value such as "Host", "Pipeline community", "Jetty", "Indirect" or "Niger Delta" (and the interview records'
+*Community Query*, where "Community" means a host community). Otherwise the state decides: one of the nine Niger Delta
+states (Abia, Akwa Ibom, Bayelsa, Cross River, Delta, Edo, Imo, Ondo, Rivers), another Nigerian state, or outside
+Nigeria. HR can set the group by hand on the profile; the workbook loads then leave it alone (clear it to go back to
+what the records say).
+
+A CV says the state a person is from, not whether their community is a host, pipeline, jetty or indirect one. So for
+CVs that are uploaded or read from a folder, choose the **Community category** for the whole batch: on **CV intake**
+when adding them, or on the **CV folder** when linking it (every CV read from that folder then gets it). A category
+already set on a profile by HR is left alone.
 
 The talent database shows how many candidates are in each group, for the whole database or for any search, and can be
 filtered by group, state, zone (North Central … South West) and country.
@@ -560,8 +566,14 @@ job:
    left out and why. Nothing waits for a manual check; a wrong detail can be corrected on the profile (**Edit
    profile**) at any time.
 3. Click **Match N CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, or *⋯ → Match CVs to this
-   vacancy* on a requisition; these start from the CVs added on the last upload day, and you can pick another day).
-   Tick the vacancies and click **Match**.
+   vacancy* on a requisition). Choose the CVs, tick the vacancies and click **Match**:
+   * **Added from … to …**: the dates the CVs came into the portal. It starts on the last day CVs were added; leave a
+     date empty for no limit on that side.
+   * **Community category**: host, pipeline, jetty, indirect, Niger Delta, other states, outside Nigeria or not
+     recorded; tick as many as you like (none ticked = all). Each shows how many CVs it holds in the dates chosen.
+   * **Source**: how the CVs arrived (by email, hard copy, referral, careers page, agency…), and the channels the
+     Excel records give (ticking one of those brings in the people loaded from the workbooks). None ticked = every
+     CV that came through the portal.
 
 The grid reads every CV against every vacancy with the same rules as an application, and **shows only the CVs that
 are a match** (*A match, or not, and why* above). Above the table, each vacancy has a line on what the job entails
@@ -573,7 +585,8 @@ points) for one of them. **Rank by** one role; **Show** the top 5, 10, 20 or 50;
 those meeting every key requirement. Matches are ticked; tick or untick any cell, then **Add the ticked matches as
 applications**. Only then is anything saved: each pair becomes an application, with the full working on its Scores
 tab, and the vacancy's ranked list includes it. Vacancies still waiting for approval can be scored to see who fits,
-but take applications only once approved. HR only. Up to 400 CVs at a time.
+but take applications only once approved. HR only. Up to 1,000 CVs at a time (over that, the most recently added
+are read: narrow the dates, the category or the source for the rest).
 
 ### Hiring timeline
 

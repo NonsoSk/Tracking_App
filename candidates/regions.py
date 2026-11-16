@@ -1,10 +1,11 @@
-"""Where a candidate is from, in IEFCL's groups: host, pipeline and jetty communities, the Niger Delta and the rest.
+"""Where a candidate is from, in IEFCL's groups: host, pipeline, jetty and indirect communities, the Niger Delta and
+the rest.
 
 The group comes from the recruitment records when a column says it: any column whose heading mentions community,
-tag, region, zone, catchment or category, holding a value such as "Host community", "Pipeline", "Jetty" or "Niger
-Delta" (and the interview records' Community Query, where "Community" means a host community). Otherwise the
-state decides: one of the Niger Delta states, another Nigerian state, or outside Nigeria. HR can set it by hand on
-the profile, and the imports then leave it alone.
+tag, region, zone, catchment or category, holding a value such as "Host community", "Pipeline", "Jetty", "Indirect"
+or "Niger Delta" (and the interview records' Community Query, where "Community" means a host community). Otherwise
+the state decides: one of the Niger Delta states, another Nigerian state, or outside Nigeria. HR can set it by hand:
+on the profile, or for every CV of an upload or a watched folder (the imports then leave it alone).
 """
 
 from __future__ import annotations
@@ -12,10 +13,11 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-HOST, PIPELINE, JETTY, NIGER_DELTA, OTHER_STATES, OUTSIDE = (
-    "host", "pipeline", "jetty", "niger_delta", "other_states", "outside")
+HOST, PIPELINE, JETTY, INDIRECT, NIGER_DELTA, OTHER_STATES, OUTSIDE = (
+    "host", "pipeline", "jetty", "indirect", "niger_delta", "other_states", "outside")
 REGION_CHOICES = [
     (HOST, "Host community"), (PIPELINE, "Pipeline community"), (JETTY, "Jetty community"),
+    (INDIRECT, "Indirect community"),
     (NIGER_DELTA, "Niger Delta"), (OTHER_STATES, "Other states"), (OUTSIDE, "Outside Nigeria"),
 ]
 
@@ -37,8 +39,17 @@ _STATE_KEYS = {re.sub(r"[^a-z]", "", s.lower()): s for s in STATE_ZONE}
 
 # Headings of the columns that can say which group someone belongs to.
 GROUP_HEADINGS = ("community", "tag", "region", "zone", "catchment", "category", "group")
-GROUP_WORDS = [(JETTY, ("jetty",)), (PIPELINE, ("pipeline",)), (HOST, ("host",)),
+GROUP_WORDS = [(JETTY, ("jetty",)), (PIPELINE, ("pipeline",)), (INDIRECT, ("indirect",)), (HOST, ("host",)),
                (NIGER_DELTA, ("niger delta", "nigerdelta"))]
+
+
+def tag(candidate, group: str, note: str) -> bool:
+    """Put a candidate in a group chosen by HR for a whole upload or folder. A group HR already set on the profile
+    is left alone. True if it changed."""
+    if group not in dict(REGION_CHOICES) or (candidate.region_fixed and candidate.region):
+        return False
+    candidate.region, candidate.region_note, candidate.region_fixed = group, note[:120], True
+    return True
 
 
 def canonical_state(text: str) -> str:

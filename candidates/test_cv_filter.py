@@ -103,6 +103,12 @@ class IsItACvTests(TestCase):
                            ("letter then cv", "Dear Sir,\nI wish to apply for the post.\nYours faithfully\n\n" + FULL_CV)]:
             self.assertTrue(read(text).is_cv, name)
 
+    def test_a_short_cv_is_still_a_cv(self):
+        short = ("ADA OBI\nada.obi@example.com | 0803 123 4567\nWORK EXPERIENCE\nAccountant, Notore   Jan 2019 - Present\n"
+                 "EDUCATION\nB.Sc Accounting, UNIPORT 2008 - 2012\n")
+        self.assertTrue(read(short).is_cv)  # under 25 words, but everything a CV has
+        self.assertEqual(read("scan 0001 page").kind, "unreadable")
+
     def test_what_comes_with_cvs_is_not_a_cv(self):
         for text, kind in [(COVER_LETTER, "a cover letter"), (NYSC, "a certificate, result or ID"),
                            (JOB_DESCRIPTION, "a job description"), (INVOICE, "an invoice or receipt")]:

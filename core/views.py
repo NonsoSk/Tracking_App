@@ -562,12 +562,15 @@ def excel_link(request):
     from .models import PortalUpdatesFile
 
     from candidates.models import Candidate
+    from candidates.regions import REGION_CHOICES
 
     folders = list(WatchedFolder.objects.select_related("requisition"))
     for folder in folders:
         folder.stats = cv_folder.summary(folder)
         folder.source_label = dict(Candidate.Source.choices).get(folder.source, folder.source)
+        folder.region_label = dict(REGION_CHOICES).get(folder.region, "")
     return render(request, "core/excel_link.html", {
+        "regions": REGION_CHOICES,
         "workbooks": LinkedWorkbook.objects.all(), "watching": link.watcher_running(),
         "minutes": settings.EXCEL_SYNC_MINUTES, "folder_seconds": settings.CV_FOLDER_SECONDS,
         "folders": folders, "sources": IntakeForm.base_fields["source"].choices,
@@ -588,11 +591,15 @@ def _link_cv_folder(request):
     vacancy = None
     if request.POST.get("requisition", "").isdigit():
         vacancy = Requisition.objects.filter(pk=request.POST["requisition"]).first()
+    from candidates.regions import REGION_CHOICES
+
+    region = request.POST.get("region", "")
     try:
         folder = cv_folder.link(request.POST.get("path", ""), source=source, requisition=vacancy, user=request.user,
-                                read_existing=request.POST.get("read_existing") == "1")
+                                read_existing=request.POST.get("read_existing") == "1",
+                                region=region if region in dict(REGION_CHOICES) else "")
     except cv_folder.FolderError as exc:
         messages.error(request, str(exc))
         return
-    messages.success(request, f"Watching {folder.path}. New CVs in it are read within a minute and wait for you under "
-                              "Talent → Check new profiles.")
+    messages.success(request, f"Watching {folder.path}. New CVs in it are read within a minute and added to the "
+                              "talent database, ready to match.")

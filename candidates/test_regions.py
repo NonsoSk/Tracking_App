@@ -76,7 +76,7 @@ class CandidateGroupTests(TestCase):
 
         page = self.client.get(reverse("candidates:list"))
         counts = {g["value"]: g["n"] for g in page.context["groups"]}
-        self.assertEqual(counts, {"host": 1, "pipeline": 1, "jetty": 0, "niger_delta": 1, "other_states": 1,
+        self.assertEqual(counts, {"host": 1, "pipeline": 1, "jetty": 0, "indirect": 0, "niger_delta": 1, "other_states": 1,
                                   "outside": 1, "none": 1})
 
         def names(query):
