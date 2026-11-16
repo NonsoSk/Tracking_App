@@ -32,7 +32,7 @@ def cv_bytes(first, last, email, phone=""):
 
 @override_settings(MEDIA_ROOT=MEDIA)
 class CvFolderTests(TestCase):
-    """CVs saved into a watched folder are read on their own, once each, and wait for HR's check."""
+    """CVs saved into a watched folder are read on their own, once each; what is not a CV is left out."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="cv-folder-"))
@@ -47,7 +47,7 @@ class CvFolderTests(TestCase):
         os.utime(path, (stamp, stamp))
         return path
 
-    def test_new_files_are_read_once_and_wait_for_the_check(self):
+    def test_new_files_are_read_once(self):
         self.put("Ada Obi CV.docx", cv_bytes("Ada", "Obi", "ada@example.com"))
         self.put("May/Bola Ade.docx", cv_bytes("Bola", "Ade", "bola@example.com"))
         self.put("Applicants list.xlsx", b"PK not a cv")
@@ -56,7 +56,7 @@ class CvFolderTests(TestCase):
         folder = cv_folder.link(str(self.root), user=self.hr)
         read = cv_folder.check()
         self.assertEqual(sorted(p.email for p in read), ["ada@example.com", "bola@example.com"])
-        self.assertTrue(all(p.needs_check and p.source == "email" for p in read))
+        self.assertTrue(all(p.source == "email" for p in read))
         folder.refresh_from_db()
         self.assertEqual((folder.files_read, folder.state), (2, "ok"))
         skipped = FolderFile.objects.get(name="Applicants list.xlsx")
@@ -75,7 +75,7 @@ class CvFolderTests(TestCase):
         self.put("Ada (copy).docx", (self.root / "Ada.docx").read_bytes())
         self.assertEqual(cv_folder.check(), [])
         self.assertIn("copy", FolderFile.objects.get(name="Ada (copy).docx").skipped)
-        # A new CV is read; one saved again with changes is read again (and updates the same person).
+        # A new CV is read; one saved again with changes is that person's newer CV (and updates the same profile).
         self.put("Chidi.docx", cv_bytes("Chidi", "Eze", "chidi@example.com"))
         self.put("Ada.docx", cv_bytes("Ada", "Obi", "ada@example.com", phone="0803 111 2222"), age=60)
         read = cv_folder.check()
@@ -98,15 +98,17 @@ class CvFolderTests(TestCase):
         self.put("New.docx", cv_bytes("New", "Person", "new@example.com"))
         self.assertEqual([p.email for p in cv_folder.check()], ["new@example.com"])
 
-    def test_a_vacancy_is_applied_to_once_checked(self):
+    def test_a_vacancy_is_applied_to_at_once(self):
         dept = Department.objects.create(name="Finance", code="FIN")
         vacancy = Requisition.objects.create(department=dept, title="Accounts Officer", status="open",
                                              courses=["Accounting"])
         self.put("Ada.docx", cv_bytes("Ada", "Obi", "ada@example.com"))
         cv_folder.link(str(self.root), requisition=vacancy, source="hard_copy")
         person = cv_folder.check()[0]
-        self.assertEqual((person.pending_requisition, person.source), (vacancy, "hard_copy"))
-        self.assertFalse(Application.objects.exists())
+        self.assertEqual(person.source, "hard_copy")
+        application = Application.objects.get()
+        self.assertEqual((application.candidate, application.requisition), (person, vacancy))
+        self.assertIsNotNone(application.matched_at)
 
     def test_a_missing_folder_is_reported(self):
         folder = cv_folder.link(str(self.root))

@@ -337,7 +337,14 @@
           <div class="ms-score{% if app.eligibility == 'not_eligible' %} is-out{% endif %}"><b>{{ breakdown.score|floatformat:"-1" }}</b><span>/ 100</span></div>
           <div><b>{{ breakdown.grade_label }}</b>
             <p class="small muted">{{ breakdown.track_label }} · scored {{ app.matched_at|naturaltime }}.{% if breakdown.version < 4 and not breakdown.eligible %} This score was worked out when a missing must-have set it to 0; re-score to count everything the candidate has.{% endif %}</p></div>
+          {% if breakdown.match %}<span class="chip {% if breakdown.match.is_match %}success{% else %}neutral{% endif %} no-dot ms-verdict">{% if breakdown.match.is_match %}{% icon "check" %} {% endif %}{{ breakdown.match.label }}</span>{% endif %}
         </div>
+        {% if breakdown.why %}
+        <section class="why-box{% if breakdown.match.is_match %} is-match{% endif %}" id="why" aria-labelledby="why-box-h">
+          <h3 class="ms-h" id="why-box-h">Why this result <span class="ms-sub">{{ breakdown.why.headline }}</span></h3>
+          {% include "pipeline/_why.html" with why=breakdown.why stages=breakdown.match.stages %}
+        </section>
+        {% endif %}
         {% if breakdown.cap.applied %}
         <div class="banner warning cap-banner"><span class="tile">{% icon "gauge" "ico-18" %}</span>
           <div><b>Held at {{ breakdown.cap.limit }}: {{ breakdown.cap.reason }}</b>

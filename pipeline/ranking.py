@@ -19,7 +19,7 @@ def read_filters(params) -> dict:
     if low is not None and high is not None and low > high:
         low, high = high, low
     return {"top": int(top) if top.isdigit() and int(top) > 0 else None, "min": low, "max": high,
-            "keyreq": params.get("keyreq") == "1"}
+            "keyreq": params.get("keyreq") == "1", "matches": params.get("matches") == "1"}
 
 
 def in_range(score: float, filters: dict) -> bool:
@@ -39,8 +39,11 @@ def describe(filters: dict) -> str:
         parts.append(f"scoring up to {filters['max']:g}")
     if filters["keyreq"]:
         parts.append("meeting every key requirement")
+    if filters.get("matches"):
+        parts.append("matches only")
     return ", ".join(parts)
 
 
 def active(filters: dict) -> bool:
-    return bool(filters["top"] or filters["min"] is not None or filters["max"] is not None or filters["keyreq"])
+    return bool(filters["top"] or filters["min"] is not None or filters["max"] is not None or filters["keyreq"]
+                or filters.get("matches"))

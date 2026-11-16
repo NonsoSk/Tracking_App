@@ -2009,3 +2009,56 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .jd-tags .chip, .jd-tags .tag { font-size: 11px; padding: 1px 7px; }
 .jd-table tr.jd-duty td:first-child { color: var(--text-2); }
 .jd-table tr.jd-interview td, .jd-table tr.jd-confirm td { color: var(--text-3); }
+
+/* CV intake results: what was added, what was already there, what was left out */
+.intake-tally { display: flex; flex-wrap: wrap; gap: var(--s-8); padding-bottom: 0; }
+.tally { padding: 6px 12px; border-radius: 999px; background: var(--sunken); font-size: 13px; color: var(--text-2); }
+.tally b { color: var(--text); font-weight: 800; margin-right: 2px; }
+.tally.ok { background: var(--success-bg); color: var(--success-ink); }
+.tally.ok b { color: var(--success-ink); }
+.tally.warn { background: var(--warning-bg); color: var(--warning-ink); }
+.tally.warn b { color: var(--warning-ink); }
+.tally.bad { background: var(--danger-bg); color: var(--danger-ink); }
+.tally.bad b { color: var(--danger-ink); }
+.intake-left { display: flex; gap: var(--s-12); align-items: flex-start; padding: var(--s-12) var(--s-16); border: 1px dashed var(--line-strong); border-radius: 12px; }
+.intake-left > div { display: grid; gap: 2px; min-width: 0; }
+.intake-left b { font-size: 14px; overflow-wrap: anywhere; }
+.intake-left .small { color: var(--text-2); }
+.intake-left.held { border-style: solid; border-color: var(--line); background: var(--sunken); }
+
+/* Why a candidate got this result (match grid, ranked candidates, application → Scores) */
+.why { display: grid; gap: var(--s-8); font-size: 13px; font-weight: 500; color: var(--text-2); text-align: left; }
+.why-line { margin: 0; }
+.why-line b, .why-list > b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-bottom: 2px; }
+.why-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.why-stages li { display: flex; gap: 6px; align-items: flex-start; }
+.why-stages li svg { flex: none; margin-top: 2px; }
+.why-stages li.ok svg { color: var(--success); }
+.why-stages li.no svg { color: var(--danger); }
+.why-stages li.na svg { color: var(--text-3); }
+.why-stages li b { color: var(--text); font-weight: 700; }
+.why-list ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.why-list.fits li::marker { color: var(--success); }
+.why-list.gaps li::marker { color: var(--danger); }
+.why-list.confirm li::marker { color: var(--warning); }
+.why-box { margin: var(--s-12) 0; padding: var(--s-16); border: 1px solid var(--line); border-radius: 14px; background: var(--sunken); }
+.why-box.is-match { border-color: var(--success-line); }
+.why-box .ms-h { margin: 0 0 var(--s-12); }
+.ms-verdict { margin-left: auto; align-self: center; }
+.mt-verdict { margin-left: 6px; }
+.mt-whybox { margin-top: 6px; max-width: 460px; }
+.mt-whybox > summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--link); list-style-position: inside; }
+.mt-whybox[open] > summary { margin-bottom: 8px; }
+.mt-whybox:not([open]) > summary { color: var(--text-2); font-weight: 600; }
+.rank-why { margin-top: 6px; min-width: 260px; }
+.rank-why > summary .chip { margin-right: 4px; }
+.match-roles { display: grid; gap: var(--s-8); margin: var(--s-12) 0; }
+.match-role > summary { display: flex; gap: var(--s-12); align-items: center; padding: var(--s-12) var(--s-16); cursor: pointer; list-style: none; }
+.match-role > summary::-webkit-details-marker { display: none; }
+.match-role > summary > span:nth-child(2) { display: grid; flex: 1; }
+.match-role > summary small { color: var(--text-3); font-weight: 600; }
+.match-role[open] > summary > svg:last-child { transform: rotate(180deg); }
+.mr-body { padding: 0 var(--s-16) var(--s-16) calc(var(--s-16) + 44px); display: grid; gap: 6px; }
+.mr-body p { margin: 0; }
+
+.sheet-b.role-read { padding: var(--s-16) var(--s-20); }

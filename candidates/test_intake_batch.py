@@ -50,8 +50,8 @@ class ManyCvsTests(TestCase):
         errors = {name: r.error for name, r in response.context["results"]}
         self.assertIn("not a file type the portal reads (.xlsx)", errors["applicants.xlsx"])
         self.assertIn("larger than 1 MB", errors["huge.txt"])
-        self.assertEqual((response.context["read_count"], response.context["problem_count"]), (1, 2))
-        self.assertContains(response, "2 not read")
+        self.assertEqual((response.context["read_count"], response.context["set_aside_count"]), (1, 2))
+        self.assertEqual(response.context["counts"]["not_cv"], 1)
 
     def test_a_file_that_breaks_the_reader_does_not_stop_the_others(self):
         from . import views
@@ -86,10 +86,11 @@ class ManyCvsTests(TestCase):
         page = self.client.get(self.url, {"run": token, "lost": ["Dayo.pdf"]})
         names = [name for name, _ in page.context["results"]]
         self.assertEqual(names, ["Ada.docx", "Bola.docx", "Chidi.docx", "notes.zip"])
-        self.assertEqual((page.context["read_count"], page.context["problem_count"]), (3, 1))
-        self.assertContains(page, "Check the 3 new profiles")
+        self.assertEqual((page.context["read_count"], page.context["set_aside_count"]), (3, 1))
+        # Nothing waits for a manual check: the CVs can be matched straight away.
         ids = sorted(Candidate.objects.values_list("pk", flat=True))
-        self.assertEqual(page.context["check_url"], reverse("candidates:check") + "?" + "&".join(f"c={i}" for i in ids))
+        self.assertEqual(page.context["match_url"], reverse("candidates:match") + "?" + "&".join(f"c={i}" for i in ids))
+        self.assertContains(page, "Match 3 CVs to vacancies")
         self.assertContains(page, "1 file could not be sent")
         self.assertContains(page, "Dayo.pdf")
 

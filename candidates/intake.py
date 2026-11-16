@@ -1,6 +1,14 @@
 """
 One entry point for every way a CV reaches HR: the careers page, employee
-referrals, bulk uploads of emailed / scanned CVs, and the email inbox reader.
+referrals, bulk uploads of emailed / scanned CVs, the CV folder and the email inbox reader.
+
+Nobody checks these by hand, so the portal filters them itself:
+- a file that is not a CV (a cover letter, a certificate, a job description, a scan that cannot be read) is set
+  aside with the reason and nothing is saved from it (candidates/cv_filter.py);
+- a CV the portal already holds is not added again: the same file, or the same CV saved under another name or in
+  another format. Uploading the same folder twice adds nothing the second time;
+- a different CV from someone already in the portal (same email or phone) is filed under their existing profile,
+  which is brought up to date.
 """
 
 from __future__ import annotations
@@ -53,21 +61,28 @@ def find_existing(email: str = "", phone: str = "") -> Candidate | None:
     return None
 
 
-def apply_parsed(candidate: Candidate, parsed: dict, *, overwrite: bool = False) -> list[str]:
+# What a newer CV from the same person brings up to date (their name, contacts and qualification stay as they are).
+REFRESH_FIELDS = {"current_employer", "current_job_title", "summary"}
+
+
+def apply_parsed(candidate: Candidate, parsed: dict, *, overwrite: bool = False, refresh: bool = False) -> list[str]:
     """Copy parsed CV data onto the candidate. By default only empty fields are filled,
-    so details the candidate typed into the application form are never replaced."""
+    so details the candidate typed into the application form are never replaced. With ``refresh`` (a newer CV
+    from the same person), the current job, summary, work history and years of experience follow the new CV."""
+    from .cv_filter import text_key
+
     changed = []
     for name in SCALAR_FIELDS:
         value = parsed.get(name)
         if value in (None, "", 0):
             continue
-        if overwrite or not getattr(candidate, name):
+        if overwrite or (refresh and name in REFRESH_FIELDS) or not getattr(candidate, name):
             if name in {"first_name", "last_name", "course", "institution", "current_employer", "current_job_title"}:
                 value = str(value)[:150]
             setattr(candidate, name, value)
             changed.append(name)
     years = parsed.get("years_experience")
-    if years and (overwrite or not candidate.years_experience):
+    if years and (overwrite or refresh or not candidate.years_experience):
         candidate.years_experience = Decimal(str(round(float(years), 1)))
         changed.append("years_experience")
     for name in LIST_FIELDS:
@@ -76,11 +91,12 @@ def apply_parsed(candidate: Candidate, parsed: dict, *, overwrite: bool = False)
             setattr(candidate, name, merged)
             changed.append(name)
     for name in HISTORY_FIELDS:
-        if parsed.get(name) and (overwrite or not getattr(candidate, name)):
+        if parsed.get(name) and (overwrite or (refresh and name == "work_history") or not getattr(candidate, name)):
             setattr(candidate, name, parsed[name])
             changed.append(name)
     if parsed.get("text"):
         candidate.cv_text = parsed["text"]
+        candidate.cv_digest = text_key(parsed["text"])
     candidate.parse_method = parsed.get("method") or candidate.parse_method
     candidate.parse_notes = "\n".join(parsed.get("notes") or [])
     candidate.parsed_at = timezone.now()
@@ -139,27 +155,75 @@ class IntakeResult:
     document: CandidateDocument | None = None
     parsed: dict = field(default_factory=dict)
     error: str = ""
+    duplicate: bool = False   # a CV the portal already holds: nothing was added
+    set_aside: str = ""       # what the file is when it is not a CV ("a cover letter", "unreadable"…)
+
+    @property
+    def status(self) -> str:
+        """added, updated, duplicate, not_cv, unreadable or error."""
+        if self.set_aside:
+            return "unreadable" if self.set_aside == "unreadable" else "not_cv"
+        if self.error:
+            return "error"
+        if self.duplicate:
+            return "duplicate"
+        return "added" if self.created else "updated"
+
+
+def find_duplicate(content: bytes) -> CandidateDocument | None:
+    """The CV already on file with exactly this content, whatever it was called."""
+    digest = hashlib.sha256(content).hexdigest()
+    return (CandidateDocument.objects.filter(sha256=digest, doc_type=CandidateDocument.DocType.CV)
+            .select_related("candidate").order_by("pk").first())
 
 
 @transaction.atomic
 def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, user=None, referred_by=None,
               referral_note: str = "", fallback_email: str = "", notify_team: bool = True,
-              needs_check: bool = False) -> IntakeResult:
+              only_cvs: bool = False) -> IntakeResult:
     """Read a CV file, create or update the candidate, file the CV in their folder
     and (when a requisition is given) create and score the application.
 
-    With ``needs_check`` (CV intake, the mailbox), a new profile waits for HR to check it against the CV; the vacancy,
-    if one was chosen, is applied to once it is checked."""
+    A CV the portal already holds is not added again (``duplicate``). With ``only_cvs`` (CV intake, the CV folder,
+    the mailbox), a file that is not a CV is set aside and nothing is saved from it (``set_aside``)."""
     from pipeline.services import create_application, log
+
+    from .cv_filter import judge, same_cv, text_key
 
     ext = os.path.splitext(filename)[1].lower()
     if ext not in SUPPORTED_EXTENSIONS:
         return IntakeResult(error=f"{filename}: unsupported file type")
 
+    def already_held(candidate, document=None):
+        """The CV is on file: add nothing, but still apply to the vacancy if one was chosen."""
+        application = None
+        if referred_by and not candidate.referred_by_id:
+            candidate.referred_by, candidate.referral_note = referred_by, referral_note
+            candidate.save(update_fields=["referred_by", "referral_note"])
+        if requisition is not None:
+            application, _ = create_application(candidate, requisition, source=source, actor=user,
+                                                notify_team=notify_team)
+        return IntakeResult(candidate=candidate, duplicate=True, application=application,
+                            document=document or candidate.latest_cv)
+
+    held = find_duplicate(content)
+    if held:  # the very same file, whatever it is called now
+        return already_held(held.candidate, held)
+
     parsed = parse_cv(content, filename)
+    if only_cvs:
+        verdict = judge(parsed, filename)
+        if not verdict.is_cv:
+            return IntakeResult(error=verdict.reason, set_aside=verdict.kind, parsed=parsed)
+    key = text_key(parsed.get("text", ""))
+    twin = Candidate.objects.filter(cv_digest=key).first() if key else None
+    if twin:  # the same CV saved under another name or in another format
+        return already_held(twin)
     email = parsed.get("email") or fallback_email
     candidate = find_existing(email, parsed.get("phone", ""))
     created = candidate is None
+    if not created and candidate.cv_text and same_cv(candidate.cv_text, parsed.get("text", "")):
+        return already_held(candidate)  # their CV again, read slightly differently (saved as Word and as PDF)
     if created:
         candidate = Candidate(source=source, created_by=user if getattr(user, "is_authenticated", False) else None,
                               referred_by=referred_by, referral_note=referral_note)
@@ -168,16 +232,14 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
     elif referred_by and not candidate.referred_by_id:
         candidate.referred_by = referred_by
         candidate.referral_note = referral_note
-    apply_parsed(candidate, parsed)
+    # A different CV from someone already here brings their profile up to date, unless HR corrected it by hand
+    # or it came from the Excel workbooks.
+    newer = not created and bool(candidate.cv_text) and not candidate.checked_at and not candidate.source_records
+    apply_parsed(candidate, parsed, refresh=newer)
     if not candidate.first_name and not candidate.last_name:
         from .cv_details import name_from_filename
 
         candidate.first_name, candidate.last_name = (part[:80] for part in name_from_filename(filename))
-    if needs_check and (created or candidate.needs_check):
-        candidate.needs_check = True
-        if requisition is not None:
-            candidate.pending_requisition = requisition
-            requisition = None  # applied once the profile is checked
     candidate.save()
     document = save_document(candidate, content=content, filename=filename, user=user)
     document.is_parsed = True
@@ -193,4 +255,8 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
         application, _ = create_application(candidate, requisition, source=source, actor=user, notify_team=notify_team)
         document.application = application
         document.save(update_fields=["application"])
+    if not created:
+        from pipeline.matching import rescore_candidate
+
+        rescore_candidate(candidate)  # their other applications follow the newer CV
     return IntakeResult(candidate=candidate, created=created, application=application, document=document, parsed=parsed)

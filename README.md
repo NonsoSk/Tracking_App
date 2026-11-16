@@ -205,18 +205,20 @@ whether to read the CVs already in it, then **Watch this folder**.
 
 The same Excel link window (or the server's scheduler) then looks in the folder every `CV_FOLDER_SECONDS` (60):
 
-* Each new file, subfolders included, is read like an upload on the CV intake page and becomes a profile marked
-  *To check*; HR gets a notification and checks it under **Talent → Check new profiles**. If the folder has a
-  vacancy, the CV is applied to it (and scored) once its profile is checked.
+* Each new file, subfolders included, is read like an upload on the CV intake page. **Only a CV becomes a profile**
+  (see *Only CVs, and each CV once* below); HR gets a notification. If the folder has a vacancy, the CV is applied to
+  it and scored at once.
 * Each file is read once. A file saved again with changes is read again (and updates the same person, found by email
-  or phone); a copy of a CV already read, under another name, is not. A file still being copied waits for the next
-  check, and at most 50 files are read per check, so a big folder is worked through in turns.
-* Files that are not CVs (spreadsheets, Word lock files, Thumbs.db) are skipped. **Files in the folder are never moved,
-  renamed or deleted.**
+  or phone); a copy of a CV already in the portal, under another name or in another format, is not added again. A
+  file still being copied waits for the next check, and at most 50 files are read per check, so a big folder is worked
+  through in turns.
+* Files that are not CVs (cover letters, certificates, spreadsheets, Word lock files, Thumbs.db) are left out, with
+  the reason noted against the file. **Files in the folder are never moved, renamed or deleted.**
 
-The page shows each folder, when it was last checked, how many CVs were read and the latest ones, with **Check now**
-and **Stop watching** (the profiles already read stay). On a server, the folder must be one the server can reach (a
-shared folder IT links).
+The page shows each folder, when it was last checked, how many CVs were read, how many were already in the portal,
+left out as not CVs or could not be read, and the latest ones, with **Check now**, **Try the unread again** (for scans
+and photos, once OCR or AI is set up) and **Stop watching** (the profiles already read stay). On a server, the folder
+must be one the server can reach (a shared folder IT links).
 
 ### Portal updates.xlsx: the portal's latest data, in Excel
 
@@ -227,7 +229,7 @@ something changes in the portal:
 | Sheet | What it holds |
 |---|---|
 | Applicants | Every application: candidate, contacts, vacancy, channel, date applied, score and grade, key requirements not met, the hiring manager's call, stage, status and reason, last and next interview, the department's review |
-| CVs received | Every profile that came in through the portal (careers page, CV intake, the CV folder, the mailbox, referrals): checked or to check, qualification, course, experience, the vacancies it went to, the CV file |
+| CVs received | Every profile that came in through the portal (careers page, CV intake, the CV folder, the mailbox, referrals): as read from the CV or corrected by HR, qualification, course, experience, the vacancies it went to, the CV file |
 | Vacancies | Every requisition: status, positions, dates, and how many candidates are at each stage, on hold, rejected or withdrawn |
 | Interviews | Every interview scheduled in the portal, with the panel, status and the candidate's response |
 
@@ -341,15 +343,46 @@ LGA.
   as work; set `EXPERIENCE_COUNTS_NYSC=false` to leave it out.
 * With AI on, the same count is made from the jobs the AI reads.
 
-The check page shows the working under *Years of experience* ("Worked out: 1 yr 6 mos, from the job dates (2023 –
-2024, May 2026 – now); 2 yrs 4 mos between jobs not counted"). When the portal was updated, profiles read from a CV
-that HR had not checked were worked out again (and their applications re-scored); profiles loaded from Excel keep the
-workbook's figure. `python manage.py recalculate_experience` lists what would change for the others and saves it with
-`--apply` (`--include-checked` for profiles HR has checked). Adding a Claude API key (`ANTHROPIC_API_KEY` in `.env`) enables:
+A profile's **Edit profile** page shows the working under *Years of experience* ("Worked out: 1 yr 6 mos, from the
+job dates (2023 – 2024, May 2026 – now); 2 yrs 4 mos between jobs not counted"). A profile HR edits is marked as
+corrected by hand: a newer CV or a recalculation then leaves its figures alone. Profiles loaded from Excel keep the
+workbook's figure. `python manage.py recalculate_experience` lists what would change and saves it with `--apply`
+(`--include-checked` for profiles HR has corrected).
+
+### Only CVs, and each CV once
+
+Nobody has to check uploads by hand. Whether CVs come through **CV intake**, the **CV folder** or the recruitment
+mailbox, the portal filters them itself (`candidates/cv_filter.py`, `candidates/intake.py`):
+
+* **Only CVs become profiles.** A CV shows who the person is and what they have done: contact details, education,
+  jobs with dates, the usual headings or a "Curriculum Vitae" title. A cover letter on its own ("Dear Sir… Yours
+  faithfully"), a certificate or result ("This is to certify", NYSC, WAEC), an ID, a job description or an invoice is
+  **left out**, and nothing is saved from it. A cover letter with the CV after it in the same file is a CV.
+* **A scan or photo that cannot be read is left out too**, with what would read it (Tesseract OCR or AI: see below),
+  since it cannot be told apart from any other picture. The CV folder can try those again later.
+* **No CV is added twice.** The same file again, under any name, adds nothing; nor does the same CV saved in another
+  format (Word and PDF). So the same folder can be uploaded as often as you like: the second time everything shows
+  as *already in the portal*. If a vacancy was chosen, a CV already held is still put forward for it.
+* **A different CV from someone already here** (same email or phone) goes under their existing profile, and their
+  current job, work history, summary and years of experience follow the newer CV (unless HR corrected the profile by
+  hand, or it came from the Excel workbooks).
+
+The results say what happened to every file: *new CVs added*, *profiles brought up to date*, *already in the portal*,
+*not CVs: left out* (each with the reason) and *could not be read*. If the portal leaves out a real CV by mistake,
+add that file again with **Add every file, even one that does not read as a CV** ticked.
+
+For duplicates left by uploads made before this, `python manage.py tidy_duplicate_cvs` lists extra copies of the same
+file on one profile and profiles made from the same CV; `--apply` removes the extra copies and the later of two such
+profiles (never one that has applications).
+
+### With a Claude API key
+
+Adding a Claude API key (`ANTHROPIC_API_KEY` in `.env`) enables:
 
 * **Reading any CV, including scanned hard copies and phone photos**: the PDF or image goes straight to Claude, which
-  returns structured data (name, contacts, qualification, course, class of degree, NYSC, years of experience, work
-  history, skills, tools, certifications). The rule-based reader still runs and fills any gaps.
+  says whether it is a CV at all and returns structured data (name, contacts, qualification, course, class of
+  degree, NYSC, years of experience, work history, skills, tools, certifications). The rule-based reader still runs
+  and fills any gaps.
 * **Skill and tool suggestions** when a department raises a requisition, merged with the knowledge base and the
   standard role's defaults.
 * **Job description drafting** in a standard format from the requisition, ready for HR to review and publish, and an
@@ -387,6 +420,34 @@ vacancies, and profiles in the talent database without an application are not gr
 | Qualification level (+ minimum class of degree) | 7 | 22 |
 | Course of study | 8 | 22 |
 | Certifications | 7 | 10 |
+
+### A match, or not, and why
+
+Every scored candidate also gets a plain verdict, **Match** or **Not a match**, reached in the order a recruiter
+works (`judge_match` in `pipeline/matching.py`):
+
+1. **Requirements.** Everything the vacancy sets: minimum qualification, class of degree, accepted course, NYSC,
+   years of experience, required skills. One not met, and the candidate is not a match (a detail the CV does not
+   give is "to confirm" and does not count against them).
+2. **The role.** What the job description is really for: the experience it asks for must be shown by an actual job
+   (see *What the job description asks for*), at least some of its listed duties must be shown, and at least half of
+   what the JD asks for overall.
+3. **Overall.** A score of `MATCH_MIN_SCORE` (70) or more out of 100. Set it to 85 to keep only excellent matches.
+
+Only a candidate who passes all three is a match. With every result comes a note, **Why this result**: what the job
+entails (its purpose, the kind of experience and the must-haves, as the portal reads the JD), what the CV shows of
+the candidate's working life ("12 yrs 8 mos in sales; in fertilizer and chemicals; latest job: Sales Executive,
+Notore"), the three checks, **where the CV matches the job** (each line naming the job in the CV that shows it),
+**what is missing** and what to confirm with the candidate. It is on the match grid (open *Why* in a cell), in a
+vacancy's ranked list and at the top of an application's Scores tab. A vacancy's **Requirements** tab shows *How the
+portal reads this job*, so HR can see what candidates are being matched against and correct the vacancy if it is
+not what was meant.
+
+The role is read from the JD as a whole. For sales, marketing, procurement, logistics and plant roles the kind of
+business is part of the job, so it is taken from the JD's purpose and duties as well as its title: a *Sales Officer*
+whose purpose is "to drive sales of urea to industrial customers" is an industrial sales job, and a supermarket
+seller is not a match for it. An accountant's, HR officer's or administrator's work carries from one business to
+another, so there the business counts only when a requirement asks for it ("in a manufacturing company").
 
 Matching screens and ranks the way an ATS does, without ruling people out on wording:
 
@@ -477,8 +538,9 @@ everyone shown (after any top-N or score filter), then:
 
 Exports hold personal data: send them only to the hiring team.
 
-A vacancy's **Ranked candidates** list has the same filters beside the stage and status: the top 5, 10, 20 or 50,
-a score range, and only those meeting every key requirement (highest score first).
+A vacancy's **Ranked candidates** list has the same filters beside the stage and status: **matches only**, the top 5,
+10, 20 or 50, a score range, and only those meeting every key requirement (highest score first). Each row says
+*Match* or *Not a match* with the reason; open it for the full note.
 
 On an application's **Scores** tab, HR sees the full working: each key requirement (needed, the candidate's, met, not met or confirm)
 and each component (asked for, found, every matched term and where it was found, weight, share met, points), with the
@@ -492,33 +554,26 @@ job:
 
 1. Create each vacancy (Roles → New requisition, **Read it** from its job description), and approve it.
 2. **CV intake**: leave *Vacancy* empty, click **Choose a whole folder** (or drop the folder on the box, or pick files;
-   each pick adds to the list), then **Read & add CVs**. Files that are not CVs (a spreadsheet, a zip, Word's `~$`
-   lock files) or are over `MAX_UPLOAD_MB` are set aside with the reason, and any file can be taken off the list.
-   Any number of files can go: more than five are sent five at a time with a progress bar (keep the page open), and
-   all the results show at the end. A file that cannot be read is listed in red and never stops the others. New
-   people are added to the talent database; someone already there (same email or phone) is updated instead.
-3. **Check each new profile** (compulsory): click **Check the N new profiles** on the results. Each one opens beside
-   its CV: the name, contacts, sex, date of birth, state and LGA, qualification, course, NYSC, experience and skills
-   the portal read, with notes on what to look at ("Name taken from the file name: check it") and what it could not
-   find. Correct anything, then **Confirm and next** (or *Skip for now*, or *Not a CV: delete*). A name and an email or
-   phone are needed, and an email already on another profile is flagged. Until it is checked, a profile is marked
-   *To check* everywhere, is left out of matching and cannot be put forward for a vacancy; a vacancy chosen at upload is
-   applied to (and scored) when the profile is confirmed. CVs from the recruitment mailbox are checked the same way;
-   *Talent* shows a **Check N new profiles** button while any wait.
-4. When the last one is confirmed, click **Match these CVs to vacancies** (or *Talent → Match CVs to vacancies*, or
-   *⋯ → Match CVs to this vacancy* on a requisition; these start from the CVs added on the last upload day, and you
-   can pick another day). Tick the vacancies and click **Match**.
+   each pick adds to the list), then **Read & add CVs**. Any number of files can go: more than five are sent five at
+   a time with a progress bar (keep the page open), and all the results show at the end. Only the CVs are added, each
+   once (see *Only CVs, and each CV once*): the results list the new CVs, those already in the portal, and what was
+   left out and why. Nothing waits for a manual check; a wrong detail can be corrected on the profile (**Edit
+   profile**) at any time.
+3. Click **Match N CVs to vacancies** on the results (or *Talent → Match CVs to vacancies*, or *⋯ → Match CVs to this
+   vacancy* on a requisition; these start from the CVs added on the last upload day, and you can pick another day).
+   Tick the vacancies and click **Match**.
 
-The grid scores every CV against every vacancy with the same rules as an application. Each cell gives the score,
-how strong the match is (excellent 85+, strong 70+, possible 55+, weak below), the CV's rank for that role ("#3 of
-40") and how many key requirements are not met, if any (point at it for which). With several roles chosen, "Fits
-this role best" marks only a CV that scores clearly higher (5+ points) for one of them. **Rank by** one role, or by
-each CV's strongest role; **Show** the top 5, 10, 20 or 50; set a **score** range; or keep **only those meeting every
-key requirement**. Possible matches or better (or those in the chosen score range) in the ranked role are ticked;
-tick or untick any cell, then **Add the ticked matches as applications**. Only then is anything saved: each pair
-becomes an application, scored with the full working on its Scores tab, and the vacancy's ranked list includes it.
-Vacancies still waiting for approval can be scored to see who fits, but take applications only once
-approved. HR only. Up to 400 CVs at a time.
+The grid reads every CV against every vacancy with the same rules as an application, and **shows only the CVs that
+are a match** (*A match, or not, and why* above). Above the table, each vacancy has a line on what the job entails
+and how many of the CVs match it. Each cell gives the score and grade, the CV's rank for that role ("#3 of 40") and
+**Why it matches**: what the job needs, where the CV shows it and what is missing. *N other CVs did not match: show
+them* (or **CVs → All CVs, matched or not**) lists everyone, each with *Why not* and the reason. With several roles
+chosen, a CV is listed under the role it matches, and "Fits this role best" marks one that scores clearly higher (5+
+points) for one of them. **Rank by** one role; **Show** the top 5, 10, 20 or 50; set a **score** range; or keep only
+those meeting every key requirement. Matches are ticked; tick or untick any cell, then **Add the ticked matches as
+applications**. Only then is anything saved: each pair becomes an application, with the full working on its Scores
+tab, and the vacancy's ranked list includes it. Vacancies still waiting for approval can be scored to see who fits,
+but take applications only once approved. HR only. Up to 400 CVs at a time.
 
 ### Hiring timeline
 

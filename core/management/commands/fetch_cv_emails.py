@@ -80,14 +80,16 @@ class Command(BaseCommand):
                 if options["dry_run"]:
                     continue
                 result = ingest_cv(content, filename, source=Candidate.Source.EMAIL, requisition=requisition,
-                                   fallback_email=sender, notify_team=False, needs_check=True)
-                if not result.error:
+                                   fallback_email=sender, notify_team=False, only_cvs=True)
+                if result.error:  # a cover letter, a certificate…: only CVs are added
+                    self.stdout.write(f"  left out: {result.error}")
+                elif not result.duplicate:
                     imported += 1
             if options["dry_run"]:
                 client.store(num, "-FLAGS", "\\Seen")
         client.logout()
         if imported:
             notify(hr_team(), f"{imported} CV(s) imported from the recruitment mailbox",
-                   "They have been read and filed. Check each new profile against its CV; it is then matched and "
-                   "scored.", url="/candidates/check/", email=False)
+                   "They have been read, filed and (where the email named a vacancy) scored.",
+                   url="/candidates/", email=False)
         self.stdout.write(self.style.SUCCESS(f"Imported {imported} CV(s)."))

@@ -1,0 +1,11 @@
+{# Why a candidate got this result: what the job entails, what the CV shows, the three checks, where it matches and what is missing. #}
+{% load ds %}
+<div class="why">
+  {% if why.role %}<p class="why-line"><b>The job</b> {{ why.role }}</p>{% endif %}
+  {% if why.cv %}<p class="why-line"><b>The CV</b> {{ why.cv|capfirst }}</p>{% endif %}
+  {% if stages %}<ol class="why-stages">{% for s in stages %}
+    <li class="{% if s.passed %}ok{% elif s.passed is False %}no{% else %}na{% endif %}">{% if s.passed %}{% icon "check" "ico-14" %}{% elif s.passed is False %}{% icon "x" "ico-14" %}{% else %}{% icon "minus" "ico-14" %}{% endif %}<span><b>{{ forloop.counter }}. {{ s.name }}</b> {{ s.detail }}</span></li>{% endfor %}</ol>{% endif %}
+  {% if why.fits %}<div class="why-list fits"><b>Where the CV matches the job</b><ul>{% for x in why.fits %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if why.gaps %}<div class="why-list gaps"><b>What is missing</b><ul>{% for x in why.gaps %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if why.confirm %}<div class="why-list confirm"><b>To confirm with the candidate</b><ul>{% for x in why.confirm %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+</div>

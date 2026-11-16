@@ -512,9 +512,15 @@ def excel_link(request):
             messages.info(request, f"The portal no longer follows {workbook.name}. Records already loaded stay.")
         elif action == "folder_link":
             _link_cv_folder(request)
-        elif action in {"folder_check", "folder_unlink"} and request.POST.get("folder", "").isdigit():
+        elif action in {"folder_check", "folder_unlink", "folder_retry"} and request.POST.get("folder", "").isdigit():
             folder = get_object_or_404(WatchedFolder, pk=request.POST["folder"])
-            if action == "folder_check":
+            if action == "folder_retry":
+                from . import cv_folder
+
+                count = cv_folder.retry_unread(folder)
+                messages.success(request, f"{count} file{'s' if count != 1 else ''} that could not be read will be "
+                                          "tried again at the next check.")
+            elif action == "folder_check":
                 folder.check_requested = True
                 folder.save(update_fields=["check_requested"])
                 messages.success(request, "The folder is checked within a minute." if link.watcher_running() else

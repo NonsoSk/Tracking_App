@@ -37,7 +37,8 @@ from django.utils import timezone
 from core.choices import DEGREE_CLASS_RANK, EDUCATION_RANK, DegreeClass, EducationLevel, NyscStatus, TRAINEE_TYPES
 from core.text import contains_phrase, db_aliases, normalize, tokens, variants
 
-VERSION = 5
+VERSION = 6
+ROLE_SHARE = 0.5  # the share of what the JD asks for (experience and duties) a match must show
 WEIGHTS = {
     "experienced": {"jd": 25, "skills": 20, "tools": 8, "experience": 15, "relevance": 10, "education": 7, "course": 8,
                     "certifications": 7},
@@ -613,6 +614,7 @@ def compute_match(requisition, candidate, aliases=None, assessment=None) -> dict
     flags = [f"{s['label']}: {s['has']} (needs {s['needed']})" for s in failed]
     flags += [f"{s['label']}: not stated in the CV, confirm with the candidate" for s in screening if s["unknown"]]
     flags += notes
+    match = judge_match(screening, jd, score, has_cv=evidence.has_story)
     return {
         # "eligible": meets every key requirement (True), or misses one for the hiring manager to judge (False).
         "version": VERSION, "score": score, "weighted_score": weighted, "eligible": meets_all, "grade": grade,
@@ -621,7 +623,123 @@ def compute_match(requisition, candidate, aliases=None, assessment=None) -> dict
         "grade_label": label, "track": track, "track_label": TRACK_LABELS[track],
         "weights": {k: weights[k] for k in keys}, "screening": screening,
         "components": {k: components[k] for k in keys}, "flags": flags,
+        # The verdict (a match or not, stage by stage) and the note on why: what the job entails, where the CV
+        # matches it and what is missing.
+        "match": match, "why": explain(requisition, candidate, screening, components, jd, match),
     }
+
+
+def match_threshold() -> float:
+    return float(settings.RECRUITMENT.get("MATCH_MIN_SCORE", 70))
+
+
+def judge_match(screening: list, jd: dict | None, score: float, *, has_cv: bool = True) -> dict:
+    """Whether the candidate is a match, judged in the order a recruiter works: first the requirements the vacancy
+    states (qualification, course, years, required skills…), then the role itself (the experience the JD asks for
+    and what the job involves), then the score as a whole. Only a candidate who passes all three is a match."""
+    def short(text, limit=110):
+        text = " ".join(str(text).split())
+        return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+    requirements = [s for s in screening if not s["key"].startswith("jd_")]
+    role = [s for s in screening if s["key"].startswith("jd_")]
+    missed = [s for s in requirements if not s["passed"]]
+    to_confirm = sum(1 for s in requirements if s["unknown"])
+    stages = [{
+        "name": "Requirements", "passed": not missed,
+        "detail": ("Not met: " + "; ".join(f"{s['label'].lower()} ({short(s['has'], 50)})" for s in missed)) if missed
+        else (f"All {len(requirements)} met" + (f", {to_confirm} to confirm" if to_confirm else "")) if requirements
+        else "The vacancy sets none",
+    }]
+    share = jd["share"] if jd else None
+    not_shown = [r for r in (jd or {}).get("criteria", []) if r["core"] and r["verdict"] not in {"met", "unclear"}]
+    if jd is None:
+        stages.append({"name": "The role", "passed": None,
+                       "detail": "Not judged: the CV's text could not be read" if not has_cv
+                       else "Not judged: the vacancy has no job description"})
+    elif not_shown or any(not s["passed"] for s in role):
+        row = not_shown[0] if not_shown else None
+        closest = short(row["evidence"].split(" · ")[0], 130) if row else ""
+        stages.append({"name": "The role", "passed": False,
+                       "detail": (f"The job asks for {row['subject'] or row['text']}; "
+                                  + ("nothing in the CV shows it" if row["verdict"] == "not_met" and "Nothing" in closest
+                                     else f"the closest in the CV is {closest}")) if row
+                       else "The experience the job asks for is not shown"})
+    elif jd.get("duties_total", 0) >= 3 and jd.get("duties_shown", 0) < 1:
+        stages.append({"name": "The role", "passed": False,
+                       "detail": "The CV shows the right kind of experience, but none of the duties the job "
+                                 "description lists"})
+    elif share < ROLE_SHARE:
+        stages.append({"name": "The role", "passed": False,
+                       "detail": f"Only {round(share * 100)}% of what the job description asks for is shown in the CV"})
+    else:
+        stages.append({"name": "The role", "passed": True,
+                       "detail": f"The CV shows {round(share * 100)}% of what the job description asks for"})
+    threshold = match_threshold()
+    stages.append({"name": "Overall", "passed": score >= threshold,
+                   "detail": f"{score:g} out of 100" + ("" if score >= threshold else f": a match needs {threshold:g}")})
+    failed = next((s for s in stages if s["passed"] is False), None)
+    is_match = failed is None
+    return {"is_match": is_match, "label": "Match" if is_match else "Not a match", "stages": stages,
+            "threshold": threshold,
+            "reason": "meets the requirements, has done the work and scores well" if is_match
+            else failed["detail"][:1].lower() + failed["detail"][1:]}
+
+
+def explain(requisition, candidate, screening: list, components: dict, jd: dict | None, match: dict) -> dict:
+    """The note on why a candidate got this result: what the job entails, what the CV shows of the candidate's
+    working life, where the two match and what is missing or still to confirm."""
+    from .criteria import career, role_profile
+
+    def short(text, limit=150):
+        text = " ".join(str(text).split())
+        return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+    fits, gaps, confirm = [], [], []
+    for s in screening:
+        if s["key"].startswith("jd_"):
+            continue  # said below, with the job that shows it
+        if s["unknown"]:
+            confirm.append(f"{s['label']}: not stated in the CV")
+        elif s["passed"]:
+            fits.append(f"{s['label']}: {short(s['note'] or s['has'], 90)}" if s["key"] == "course"
+                        else f"{s['label']}: {short(s['has'], 90)}")
+        else:
+            gaps.append(f"{s['label']}: {short(s['has'], 80)} (needs {short(s['needed'], 60)})")
+    rows = (jd or {}).get("criteria", [])
+    done, missing = [], []
+    for row in rows:
+        # The main requirements are named by what they ask for ("industrial sales"); the others as the JD words them.
+        what = (row["subject"] or row["text"]) if row["core"] else short(row["text"].rstrip("."), 70)
+        if row["preferred"]:
+            what = "Nice to have: " + what
+        if row["kind"] in {"experience", "knowledge"}:
+            if row["verdict"] == "met":
+                fits.insert(0 if row["core"] else len(fits),
+                            f"{what[:1].upper()}{what[1:]}: {short(row['evidence'], 240 if row['core'] else 150)}")
+            elif row["verdict"] == "unclear":
+                confirm.append(f"{what[:1].upper()}{what[1:]}: {short(row['evidence'], 100)}")
+            elif not row["preferred"]:
+                line = f"{what[:1].upper()}{what[1:]}: {short(row['evidence'], 240 if row['core'] else 150)}"
+                gaps.insert(0, line) if row["core"] else gaps.append(line)
+        elif row["kind"] == "duty":
+            (done if row["verdict"] == "met" else missing).append(short(row["text"].rstrip("."), 70))
+        elif row["kind"] == "confirm":
+            confirm.append(short(row["text"], 80))
+    if done:
+        fits.append(f"Has done {len(done)} of the {len(done) + len(missing)} duties: " + "; ".join(done[:3])
+                    + ("…" if len(done) > 3 else ""))
+    if missing:
+        gaps.append(f"{len(missing)} of the {len(done) + len(missing)} duties not shown: " + "; ".join(missing[:3])
+                    + ("…" if len(missing) > 3 else ""))
+    for key, label in (("skills", "Skills"), ("tools", "Tools"), ("certifications", "Certifications")):
+        lacking = (components.get(key) or {}).get("missing") or []
+        if lacking:
+            gaps.append(f"{label} not found: " + ", ".join(lacking[:5]) + ("…" if len(lacking) > 5 else ""))
+    role = role_profile(requisition)
+    return {"headline": f"{match['label']}: {match['reason']}", "role": role["note"],
+            "cv": career(candidate)["headline"] if rows or screening else "",
+            "fits": fits[:8], "gaps": gaps[:8], "confirm": confirm[:5]}
 
 
 def score_application(application, save: bool = True) -> dict:

@@ -6,7 +6,7 @@ something changes in the portal (new CVs, stages, scores, decisions, interviews,
 - Applicants: every application, with its score, key requirements not met, the hiring manager's call, stage, status
   and interview dates;
 - CVs received: every profile that came in through the portal (careers page, CV intake, the CV folder, the mailbox,
-  referrals), checked or still to check, and the vacancies it went to;
+  referrals), and the vacancies it went to;
 - Vacancies: every requisition with how many are at each stage;
 - Interviews: every interview scheduled in the portal.
 
@@ -113,7 +113,7 @@ def applicants_rows():
 def cvs_rows():
     from candidates.models import Candidate
 
-    header = ["Candidate", "Email", "Phone", "Channel", "Received", "Profile", "Checked by", "Qualification",
+    header = ["Candidate", "Email", "Phone", "Channel", "Received", "Profile", "Corrected by", "Qualification",
               "Course", "Years of experience", "Current role", "Current employer", "State", "Vacancies applied to",
               "CV file"]
     rows = []
@@ -125,7 +125,7 @@ def cvs_rows():
                    if d.doc_type == "cv"), None)
         rows.append([
             c.full_name, c.email, c.phone, c.source_short, _local(c.created_at),
-            "To check" if c.needs_check else "Checked",
+            "Corrected by HR" if c.checked_at else "As read from the CV",
             getattr(c.checked_by, "display_name", "") if c.checked_by else "",
             c.get_highest_qualification_display() if c.highest_qualification else "", c.course,
             float(c.years_experience) if c.years_experience is not None else None, c.current_job_title,
@@ -238,7 +238,7 @@ def build(path: Path) -> dict:
         ["Applicants", "Every application: score, key requirements not met, the hiring manager's call, stage, "
                        "status and interviews."],
         ["CVs received", "Every profile that came in through the portal (careers page, CV intake, the CV folder, "
-                         "the mailbox, referrals), whether it has been checked, and the vacancies it went to."],
+                         "the mailbox, referrals), and the vacancies it went to."],
         ["Vacancies", "Every requisition with how many candidates are at each stage."],
         ["Interviews", "Every interview scheduled in the portal."],
     ]:

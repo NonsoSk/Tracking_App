@@ -86,10 +86,11 @@ class HiringManagerDecidesTests(TestCase):
 
     def test_the_match_grid_scores_everyone(self):
         self.client.force_login(self.hr)
-        grid = self.client.get(reverse("candidates:match"), {"r": self.req.pk, "c": self.person.pk})
+        grid = self.client.get(reverse("candidates:match"), {"r": self.req.pk, "c": self.person.pk, "show": "all"})
         cell = grid.context["rows"][0]["cells"][0]
         self.assertGreater(cell["score"], 0)
         self.assertNotContains(grid, "Not eligible")
-        self.assertContains(grid, "1 key requirement not met")
+        self.assertFalse(cell["match"])  # a key requirement is not met: scored, but not a match
+        self.assertContains(grid, "Why not:")
         self.assertEqual((cell["rank"], cell["of"]), (1, 1))
         self.assertFalse(cell.get("strongest"))  # one role chosen: nothing to compare it with

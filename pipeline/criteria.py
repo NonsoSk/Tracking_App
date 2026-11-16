@@ -36,11 +36,15 @@ from core.text import contains_phrase, normalize
 from .concepts import (CONCEPT_GROUPS, FUNCTIONS, SETTINGS, concepts_of, function_credit, functions_in_job, functions_in_requirement,
                        overlap, setting_credit, settings_in, settings_named)
 
-CRITERIA_VERSION = 1
+CRITERIA_VERSION = 2
 MET, PARTLY = 0.85, 0.35          # the credit a requirement needs to count as met, or partly met
 CAP_PARTLY, CAP_NOT_MET = 69, 54  # the highest score when a key experience requirement is partly met / not met
 MAX_DUTIES, MAX_REQUIREMENTS = 12, 10
 WEIGHT = {"core": 3.0, "experience": 2.0, "knowledge": 1.0, "duties": 3.0}
+# Kinds of work where the kind of business is part of the job itself (what is sold, bought, run or kept safe), so
+# it is read from the JD's purpose and duties as well as from its title. An accountant's or HR officer's work
+# carries from one business to another; there the business only counts when a requirement asks for it.
+SETTING_BOUND = {"sales", "marketing", "procurement", "supply_chain", "production", "maintenance", "hse", "quality"}
 
 BULLET = re.compile(r"^\s*(?:[•*\-–▪●◦■□➢➤>·o]|\(?\d{1,2}[.)]|\(?[a-hivx]{1,4}[.)])\s+", re.I)
 FIELD_LINE = re.compile(r"^\s*(?:job title|position|role|department|division|unit|location|reports? to|reporting to|"
@@ -278,17 +282,77 @@ def _parse(title: str, description: str, other: str, track: str, covered: tuple)
         if len([c for c in wanted if not c.startswith("setting:")]) >= 2:
             criteria.append(Criterion(_id(item), item, "duty", section or "duties", keywords=wanted))
             duties += 1
-    # The job title says what kind of experience the job needs ("Industrial Sales Officer": industrial sales), when
-    # no requirement already asks for exactly that.
-    functions = tuple(functions_in_requirement(title_subject)) if title_subject else ()
-    settings = wanted_settings(title_subject) if title_subject else frozenset()
+    # The role itself says what kind of experience the job needs, when no requirement already asks for exactly
+    # that: its title ("Industrial Sales Officer": industrial sales) and, read as a whole, its purpose and duties
+    # (a "Sales Officer" whose purpose is to sell urea to industrial customers is an industrial sales job).
+    functions, settings, inferred = _role(title_subject, criteria)
     if track == "experienced" and (functions or settings):
         duplicate = any(c.kind == "experience" and c.core and set(functions) <= set(c.functions)
                         and _implies(c.settings, settings) for c in criteria)
         if not duplicate:
-            criteria.insert(0, Criterion(_id("title:" + title), f"Experience as {title}", "experience", "title",
-                                         title_subject, functions, settings, frozenset(), None, False, True))
+            subject = title_subject
+            if inferred:
+                subject = f"{_function_words(functions)} ({_setting_words(settings)})"
+            criteria.insert(0, Criterion(_id("title:" + title), f"Experience as {title}", "experience",
+                                         "role" if inferred else "title", subject, functions, settings, frozenset(),
+                                         None, False, True))
     return tuple(criteria)
+
+
+def _role(title_subject: str, criteria) -> tuple[tuple, frozenset, bool]:
+    """(kinds of work, kinds of business, whether the business was read from the purpose and duties) for the role
+    as a whole."""
+    from collections import Counter
+
+    duties = [c.text for c in criteria if c.kind == "duty"]
+    functions = tuple(functions_in_requirement(title_subject)) if title_subject else ()
+    if not functions and duties:  # a title that does not say ("Officer II"): what most of the duties are
+        found = functions_in_job("", "\n".join(duties))
+        functions = tuple(k for k, (score, _) in found.items() if score >= 1.0)[:1]
+    settings = wanted_settings(title_subject) if title_subject else frozenset()
+    if settings or not (set(functions) & SETTING_BOUND):
+        return functions, settings, False
+    purpose = " ".join(c.text for c in criteria if c.kind == "duty" and c.origin == "summary")
+    named = Counter(key for text in duties for key in settings_named(text))
+    read = settings_named(purpose) | {key for key, count in named.items() if count >= 2}
+    return functions, frozenset(read), bool(read)
+
+
+def role_profile(requisition) -> dict:
+    """What the job entails, in a few lines, as the portal reads the job description: the kind of work and
+    business, its purpose, the main duties, what a candidate must have and what is nice to have."""
+    criteria = jd_criteria(requisition)
+    role = next((c for c in criteria if c.kind == "experience" and c.core), None)
+    duties = [c.text for c in criteria if c.kind == "duty"]
+    purpose = next((c.text for c in criteria if c.kind == "duty" and c.origin == "summary"), "")
+    must = []
+    if requisition.education_level:
+        courses = ", ".join(list(requisition.courses or [])[:3])
+        must.append(requisition.get_education_level_display().split(" (")[0] + (f" in {courses}" if courses else ""))
+    for c in criteria:
+        if c.kind == "experience" and c.core:
+            must.append((f"{c.years:g}+ years in " if c.years else "experience in ") + (c.subject or c.text))
+    if requisition.min_experience_years and not any(c.years for c in criteria if c.kind == "experience" and c.core):
+        must.append(f"{requisition.min_experience_years}+ years of experience")
+    skills = list(requisition.required_skills or [])
+    if skills:
+        must.append(", ".join(skills[:5]) + (f" and {len(skills) - 5} more skills" if len(skills) > 5 else ""))
+    certifications = list(requisition.certifications or [])
+    if certifications:
+        must.append(", ".join(certifications[:3]))
+    nice = [c.text for c in criteria if c.preferred][:3] + list(requisition.preferred_skills or [])[:3]
+    kind = ""
+    if role and (role.functions or role.settings):
+        kind = _function_words(role.functions) or "work"
+        if role.settings:
+            kind += f" in {_a_setting(role.settings)}"
+    summary = purpose or ((f"{kind[:1].upper()}{kind[1:]}. " if kind else "")
+                          + ("Mainly: " + "; ".join(d.rstrip(".") for d in duties[:3]) + "." if duties else ""))
+    note = f"{requisition.title}: {summary.strip()}" if summary.strip() else (requisition.title or "")
+    if must:
+        note = note.rstrip(".") + ". Must have: " + "; ".join(must) + "."
+    return {"kind": kind, "purpose": purpose, "duties": duties[:6], "duty_count": len(duties), "must": must,
+            "nice": nice, "note": note, "read": bool(criteria)}
 
 
 def jd_criteria(requisition) -> list[Criterion]:
@@ -315,7 +379,7 @@ class CvJob:
     functions: dict
     settings: frozenset
     concepts: frozenset
-    weight: float = 1.0      # 0.9 for what the summary claims (no dated job shows it)
+    weight: float = 1.0      # 0.9 for what the summary claims (no dated job shows it); 0.7 for other sections
 
 
 def _job_name(job: Job) -> str:
@@ -334,8 +398,8 @@ def _job_name(job: Job) -> str:
 
 def _cv_job(job: Job, weight: float = 1.0) -> CvJob:
     text = f"{job.title}\n{job.body}"
-    return CvJob(job, _job_name(job) if job.source != "summary" else "Profile summary",
-                 functions_in_job(job.title, job.body), settings_in(text), concepts_of(text), weight)
+    name = {"summary": "Profile summary", "other": "Skills and other sections"}.get(job.source) or _job_name(job)
+    return CvJob(job, name, functions_in_job(job.title, job.body), settings_in(text), concepts_of(text), weight)
 
 
 def cv_jobs(candidate) -> list[CvJob]:
@@ -373,8 +437,44 @@ def cv_jobs(candidate) -> list[CvJob]:
     summary = "\n".join(filter(None, [candidate.summary or "", sections.get("summary", "")]))
     if summary.strip():
         found.append(_cv_job(Job(title="", body=summary, months=None, source="summary"), weight=0.9))
+    # What the rest of the CV says (skills, achievements, projects): weaker than a job that shows it.
+    rest = "\n".join(filter(None, [sections.get("skills", ""), sections.get("other", ""),
+                                   ", ".join(list(candidate.skills or []) + list(candidate.tools or []))]))
+    if rest.strip() and found:
+        found.append(_cv_job(Job(title="", body=rest, months=None, source="other"), weight=0.7))
     candidate._cv_jobs = (key, found)
     return found
+
+
+def career(candidate) -> dict:
+    """The candidate's working life in a line: the kind of work they have mostly done, in what kinds of business,
+    and their latest job."""
+    from collections import Counter
+
+    jobs = [j for j in cv_jobs(candidate) if j.job.source in {"cv", "profile"}]
+    by_function, by_setting = Counter(), Counter()
+    for job in jobs:
+        months = job.job.months or 0
+        for key, (score, _) in job.functions.items():
+            if score >= 1.0:
+                by_function[key] += max(months, 1)
+        for key in job.settings:
+            if not any(child in job.settings for child in SETTINGS[key].children):
+                by_setting[key] += max(months, 1)
+    main = [key for key, _ in by_function.most_common(2)]
+    parts = []
+    if main:
+        months = by_function[main[0]]
+        parts.append((f"{length_text(months)} in " if months >= 2 else "") + FUNCTIONS[main[0]].label
+                     + (f", also {FUNCTIONS[main[1]].label}" if len(main) > 1 else ""))
+    settings = [SETTINGS[key].label.split(" (")[0] for key, _ in by_setting.most_common(2)]
+    if settings:
+        parts.append("in " + " and ".join(settings))
+    latest = next((j for j in jobs if j.name), None)
+    if latest:
+        parts.append(f"latest job: {latest.name}")
+    return {"functions": main, "settings": [key for key, _ in by_setting.most_common(2)],
+            "months": sum(j.job.months or 0 for j in jobs), "jobs": len(jobs), "headline": "; ".join(parts)}
 
 
 # --------------------------------------------------------------------------- judging
@@ -384,6 +484,12 @@ def _function_words(keys) -> str:
 
 def _setting_words(keys) -> str:
     return " or ".join(SETTINGS[k].label.split(" (")[0] for k in sorted(keys))
+
+
+def _a_setting(keys) -> str:
+    """'an industrial setting', 'a fertilizer or industrial setting'."""
+    words = _setting_words(keys)
+    return f"{'an' if words[:1].lower() in 'aeiou' else 'a'} {words} setting"
 
 
 def _job_settings_text(job: CvJob) -> str:
@@ -410,8 +516,8 @@ def _judge_job(criterion: Criterion, job: CvJob) -> tuple[float, str]:
             why = (f"{FUNCTIONS[fkey].label} in {SETTINGS[skey].label.split(' (')[0]}, close to {wanted_s} "
                    f"but not the same")
         elif fc >= 1:
-            why = f"{FUNCTIONS[fkey].label}, but not in {wanted_s}" + (f": this job reads as {where}" if where
-                                                                     else ": nothing shows the kind of business")
+            why = f"{FUNCTIONS[fkey].label}, but not in {_a_setting(criterion.settings)}" + (
+                f": this job reads as {where}" if where else ": nothing shows the kind of business")
         elif fc > 0 and fhow == "related":
             why = f"{FUNCTIONS[fkey].label}, related to {wanted_f}" + (
                 f", in {SETTINGS[skey].label.split(' (')[0]}" if sc else "")
@@ -446,6 +552,8 @@ def _place(job: CvJob) -> str:
 def judge_experience(criterion: Criterion, jobs: list[CvJob]) -> dict:
     scored = []
     for job in jobs:
+        if job.job.source == "other":
+            continue  # experience is shown by a job (or claimed in the summary), not by a list of skills
         credit, why = _judge_job(criterion, job)
         scored.append((credit * job.weight, why, job))
     scored.sort(key=lambda s: -s[0])
@@ -635,4 +743,7 @@ def assess(requisition, candidate, ai: dict | None = None) -> dict | None:
         "relevant_years_asked": (main["years"] or None) if main else None,
         "relevant_subject": (main["subject"] or "") if main else "",
         "ai": bool(ai_verdicts),
+        # Duties shown (a duty partly shown counts half), of those the JD lists.
+        "duties_shown": done + sum(1 for r in duties if r["verdict"] in {"partly", "unclear"}) / 2,
+        "duties_total": len(duties),
     }

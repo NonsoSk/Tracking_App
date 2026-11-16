@@ -50,9 +50,10 @@ class MatchGridTests(TestCase):
             years_experience=3, skills=["Recruitment", "Payroll"], certifications=["CIPM"])
         self.client.force_login(self.hr)
 
-    def grid(self, *vacancies, people=None):
+    def grid(self, *vacancies, people=None, show="all"):
+        """The grid for these CVs: every CV by default here (the page itself shows matches only)."""
         people = people or [self.ada, self.tunde]
-        query = [("r", v.pk) for v in vacancies] + [("c", p.pk) for p in people]
+        query = [("r", v.pk) for v in vacancies] + [("c", p.pk) for p in people] + ([("show", show)] if show else [])
         return self.client.get(reverse("candidates:match"), query)
 
     def test_each_cv_is_scored_and_ranked_for_each_vacancy(self):
@@ -107,7 +108,7 @@ class MatchGridTests(TestCase):
 
     def test_filters_top_n_score_range_and_key_requirements(self):
         people = self.make_people(12)
-        query = [("r", self.payable.pk)] + [("c", p.pk) for p in people]
+        query = [("r", self.payable.pk), ("show", "all")] + [("c", p.pk) for p in people]
         top = self.client.get(reverse("candidates:match"), query + [("top", "5")])
         self.assertEqual(len(top.context["rows"]), 5)
         self.assertContains(top, "Top 5")
@@ -194,23 +195,16 @@ class MatchGridTests(TestCase):
         self.client.post(reverse("candidates:match_add"), {"pair": [f"{self.ada.pk}:{self.payable.pk}"]})
         self.assertFalse(Application.objects.exists())
 
-    def test_cv_intake_leads_to_the_check_then_the_grid(self):
+    def test_cv_intake_leads_straight_to_the_grid(self):
         cv = SimpleUploadedFile("bayo.docx", simple_docx(cv_lines(dict(
             first="Bayo", last="Ade", email="bayo@example.com", phone="0802 000 1111", summary="Accountant",
             jobs=[], degree="HND", course="Accounting", school="Rivers State Polytechnic", year=2012))))
         response = self.client.post(reverse("candidates:intake"), {"files": [cv], "source": "email"})
         self.assertEqual(response.status_code, 200)
         bayo = Candidate.objects.get(email="bayo@example.com")
-        self.assertTrue(bayo.needs_check)
-        self.assertEqual(response.context["check_url"], reverse("candidates:check") + f"?c={bayo.pk}")
-        self.assertContains(response, "Check the 1 new profile")
-        # Not in the grid until checked.
-        grid = self.client.get(reverse("candidates:match"), {"r": self.payable.pk, "c": bayo.pk})
-        self.assertEqual(grid.context["rows"], [])
-        self.assertEqual(grid.context["unchecked"], 1)
-        self.client.post(reverse("candidates:check_profile", args=[bayo.pk]) + f"?c={bayo.pk}", {
-            "first_name": "Bayo", "last_name": "Ade", "email": "bayo@example.com", "highest_qualification": "hnd",
-            "course": "Accounting", "years_experience": "3", "confirm": "1"})
-        done = self.client.get(reverse("candidates:check"), {"c": bayo.pk})
-        self.assertContains(done, "Match these CVs to vacancies")
-        self.assertContains(done, reverse("candidates:match") + f"?c={bayo.pk}")
+        self.assertEqual(response.context["match_url"], reverse("candidates:match") + f"?c={bayo.pk}")
+        self.assertContains(response, "Match 1 CV to vacancies")
+        # No manual check stands in the way: the CV is in the grid at once.
+        grid = self.client.get(reverse("candidates:match"), {"r": self.payable.pk, "c": bayo.pk, "show": "all"})
+        self.assertEqual([r["candidate"] for r in grid.context["rows"]], [bayo])
+

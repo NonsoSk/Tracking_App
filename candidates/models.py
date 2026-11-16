@@ -99,15 +99,13 @@ class Candidate(models.Model):
     resume_checked_at = models.DateTimeField(null=True, blank=True)
 
     consent_given = models.BooleanField(default=False, help_text="Candidate agreed to data processing (NDPA 2023).")
-    # A profile read from an uploaded CV is checked by HR (against the CV) before it can be matched or put forward.
-    needs_check = models.BooleanField("To check", default=False, db_index=True,
-                                      help_text="Read from a CV and not checked by HR yet.")
+    # When HR corrected the profile by hand: a newer CV or a recalculation then leaves their figures alone.
     checked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name="+")
     checked_at = models.DateTimeField(null=True, blank=True)
-    pending_requisition = models.ForeignKey(
-        "requisitions.Requisition", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
-        help_text="The vacancy chosen when the CV was uploaded: the application is made once the profile is checked.")
+    # A fingerprint of the CV's words (candidates/cv_filter.py): the same CV is not added twice, whatever the file
+    # is called or saved as.
+    cv_digest = models.CharField(max_length=40, blank=True, db_index=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

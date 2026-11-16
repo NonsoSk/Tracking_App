@@ -134,17 +134,16 @@ class RecalculateTests(TestCase):
         self.assertEqual(checked.years_experience, Decimal("1.5"))
 
 
-class CheckPageShowsTheWorkingTests(TestCase):
+class EditPageShowsTheWorkingTests(TestCase):
     def test_the_years_field_says_how_it_was_worked_out(self):
         from django.urls import reverse
 
         from accounts.models import User
 
         person = Candidate.objects.create(
-            first_name="Ada", last_name="Obi", email="ada@example.com", needs_check=True, years_experience=1.5,
+            first_name="Ada", last_name="Obi", email="ada@example.com", years_experience=1.5,
             parse_notes="Experience: 1 yr 6 mos, from the job dates (2023 – 2024, May 2026 – now); 2 yrs 4 mos "
                         "between jobs not counted.")
         self.client.force_login(User.objects.create_user("hr", password="x", role=User.Role.HR_ADMIN))
-        page = self.client.get(reverse("candidates:check_profile", args=[person.pk]))
+        page = self.client.get(reverse("candidates:edit", args=[person.pk]))
         self.assertContains(page, "Worked out: 1 yr 6 mos, from the job dates (2023 – 2024, May 2026 – now)")
-        self.assertNotContains(page, "<b>Check these</b>")

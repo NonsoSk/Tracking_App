@@ -95,6 +95,7 @@
           <input class="input input-sm num" type="number" name="min" min="0" max="100" placeholder="0" value="{{ filters.min|default_if_none:''|floatformat:'-1' }}" aria-label="Lowest score">
           <span class="small muted">to</span>
           <input class="input input-sm num" type="number" name="max" min="0" max="100" placeholder="100" value="{{ filters.max|default_if_none:''|floatformat:'-1' }}" aria-label="Highest score"></span>
+        <label class="check small"><input type="checkbox" name="matches" value="1" {% if filters.matches %}checked{% endif %} data-autosubmit> Matches only</label>
         <label class="check small"><input type="checkbox" name="keyreq" value="1" {% if filters.keyreq %}checked{% endif %} data-autosubmit> Meeting every key requirement</label>
         <button class="btn btn-secondary btn-sm" type="submit">Apply</button>
         {% if filtered %}<a class="btn btn-ghost btn-sm" href="?stage={{ stage_filter }}&amp;status={{ status_filter }}#candidates">Clear</a>{% endif %}
@@ -123,7 +124,8 @@
           {% if u.is_hr %}<td class="cb"><input type="checkbox" class="form-check-input" name="selected" value="{{ a.pk }}" aria-label="Select {{ c.full_name }}"></td>{% endif %}
           <td class="num muted hide-sm">{{ forloop.counter }}</td>
           <td><div class="who">{% avatar c "sm" %}<div><b><a href="{{ a.get_absolute_url }}">{{ c.full_name }}</a>{% if u.is_hr and c.pk in with_cv %} <a class="mt-cv" href="{% url 'candidates:cv' c.pk %}" title="Download {{ c.full_name }}'s CV" aria-label="Download {{ c.full_name }}'s CV">{% icon "download" "ico-14" %} CV</a>{% endif %}</b><span>{{ c.current_job_title|default:c.email|truncatechars:38 }}</span></div></div></td>
-          <td data-label="Match"><div class="row">{% if not a.matched_at %}<span class="small muted" title="{% if a.match_breakdown.unscored %}The vacancy has no requirements yet: add them to score{% else %}Loaded from the interview records; not scored against requirements{% endif %}">Not scored</span>{% elif a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">{{ a.grade_text }}{% if a.needs_eligibility_call %}<a class="chip warning no-dot elig-chip" href="{{ a.get_absolute_url }}#eligibility" title="Not met: {{ a.unmet_requirements|join:', ' }}">Decide: {{ a.unmet_requirements|length }} key requirement{{ a.unmet_requirements|length|pluralize }} not met</a>{% elif a.eligibility == "kept" and a.unmet_requirements %}<span class="chip success no-dot elig-chip" title="Not met: {{ a.unmet_requirements|join:', ' }}">Kept in</span>{% endif %}{% if a.match_breakdown.flags %}<span class="flag" title="{{ a.match_breakdown.flags|join:'; ' }}">{% icon "flag" "ico-14" %} {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</span>{% endif %}</span></div></td>
+          <td data-label="Match"><div class="row">{% if not a.matched_at %}<span class="small muted" title="{% if a.match_breakdown.unscored %}The vacancy has no requirements yet: add them to score{% else %}Loaded from the interview records; not scored against requirements{% endif %}">Not scored</span>{% elif a.match_grade == "A" %}{% score_ring a.match_score 36 True "" False %}{% else %}{% score_ring a.match_score 36 False "" False %}{% endif %}<span class="small muted">{{ a.grade_text }}{% if a.needs_eligibility_call %}<a class="chip warning no-dot elig-chip" href="{{ a.get_absolute_url }}#eligibility" title="Not met: {{ a.unmet_requirements|join:', ' }}">Decide: {{ a.unmet_requirements|length }} key requirement{{ a.unmet_requirements|length|pluralize }} not met</a>{% elif a.eligibility == "kept" and a.unmet_requirements %}<span class="chip success no-dot elig-chip" title="Not met: {{ a.unmet_requirements|join:', ' }}">Kept in</span>{% endif %}{% if a.match_breakdown.flags %}<span class="flag" title="{{ a.match_breakdown.flags|join:'; ' }}">{% icon "flag" "ico-14" %} {{ a.match_breakdown.flags|length }} flag{{ a.match_breakdown.flags|length|pluralize }}</span>{% endif %}</span></div>
+            {% if a.matched_at and a.match_breakdown.why %}<details class="mt-whybox rank-why"><summary>{% if a.is_match %}<span class="chip success no-dot">{% icon "check" %} Match</span> Why{% else %}<span class="chip neutral no-dot">Not a match</span> {{ a.match_verdict.reason|truncatechars:70 }}{% endif %}</summary>{% include "pipeline/_why.html" with why=a.match_breakdown.why stages=a.match_verdict.stages %}</details>{% endif %}</td>
           <td data-label="Background">{{ c.qualification_short }}{% if c.degree_class_short %} · {{ c.degree_class_short }}{% endif %} · {{ c.experience_label }}<div class="small muted">{{ c.course|truncatechars:30 }}</div></td>
           <td class="small" data-label="Skills matched">{% with sk=comps.skills %}{% if sk %}{{ sk.detail|default:sk.found }}{% else %}<span class="muted">—</span>{% endif %}{% endwith %}</td>
           <td data-label="Stage">{% status_chip a %}{% with review=a.current_department_review %}{% if review %} <span class="chip {% if review == 'approved' %}success-outline{% else %}danger{% endif %} no-dot" title="{{ a.department_reviewed_by.display_name|default:req.department }}{% if a.department_review_note %}: {{ a.department_review_note }}{% endif %}">{% if review == 'approved' %}Dept approved{% else %}Dept: not approved{% endif %}</span>{% endif %}{% endwith %}<div class="small muted src">{% icon c.source|source_icon "ico-14" %} {{ c.source_short }}</div></td>
@@ -179,6 +181,18 @@
 
 {# ======================= Requirements ======================= #}
 <div role="tabpanel" id="requirements" aria-labelledby="t-requirements" class="tab-body stack-24" hidden>
+  {% if role.read %}
+  <section class="sheet" aria-labelledby="role-h">
+    <div class="sheet-h"><span class="tile sm">{% icon "text-search" "ico-16" %}</span><h2 class="title" id="role-h">How the portal reads this job</h2><span class="spacer"></span><span class="small muted">A candidate is a match only when their CV shows this</span></div>
+    <div class="sheet-b mr-body role-read">
+      <p>{{ role.note }}</p>
+      {% if role.kind %}<p class="small"><b>Kind of experience:</b> {{ role.kind }}.</p>{% endif %}
+      {% if role.duties %}<p class="small"><b>The work:</b> {{ role.duties|join:"; " }}{% if role.duty_count > role.duties|length %} and more{% endif %}.</p>{% endif %}
+      {% if role.nice %}<p class="small muted"><b>Nice to have:</b> {{ role.nice|join:"; " }}.</p>{% endif %}
+      <p class="small muted">Not what you meant? Edit the vacancy: the title, the job description and the requirements are what candidates are matched against.</p>
+    </div>
+  </section>
+  {% endif %}
   <div class="split">
     <section class="sheet" aria-labelledby="rq-h">
       <div class="sheet-h"><h2 class="title" id="rq-h">What we are looking for</h2><span class="spacer"></span><span class="small muted">{% icon "info" "ico-14" %} Every applicant is scored against these</span></div>

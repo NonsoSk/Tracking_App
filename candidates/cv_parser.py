@@ -621,9 +621,11 @@ CV_SCHEMA = {
             },
         },
         "summary": {"type": "string"},
+        "is_cv": {"type": "boolean", "description": "false when the document is not a person's CV or résumé (a "
+                                                    "cover letter alone, a certificate, an ID, a job description…)"},
     },
     "required": [
-        "first_name", "last_name", "email", "phone", "gender", "date_of_birth", "location", "linkedin_url",
+        "is_cv", "first_name", "last_name", "email", "phone", "gender", "date_of_birth", "location", "linkedin_url",
         "highest_qualification", "course", "institution", "graduation_year", "degree_class", "nysc_status",
         "years_experience", "current_employer", "current_job_title", "skills", "tools", "certifications",
         "education_history", "work_history", "summary",
@@ -633,7 +635,9 @@ CV_SCHEMA = {
 
 CV_SYSTEM = (
     "You extract structured data from CVs/résumés submitted to a Nigerian manufacturing company. The document "
-    "may be a scanned hard copy or a photo; read it carefully. Report only what the CV states — use an empty "
+    "may be a scanned hard copy or a photo; read it carefully. First decide whether it is a CV at all (is_cv): a "
+    "cover letter on its own, a certificate, an ID card, a result slip or a job description is not, and its "
+    "other fields are then left empty. Report only what the CV states — use an empty "
     "string, 0 or an empty list when something is not present. Qualification codes: ssce (WAEC/NECO), ond (OND/ND), "
     "nce, hnd, bsc (any bachelor's incl. BEng/BTech/LLB/MBBS), pgd, msc (any master's incl. MBA/MEng), phd. "
     "years_experience is total post-qualification work experience in years (count NYSC, exclude school "

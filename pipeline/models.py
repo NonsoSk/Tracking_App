@@ -181,6 +181,15 @@ class Application(models.Model):
         return [s["label"] for s in breakdown.get("screening", []) if not s.get("passed")]
 
     @property
+    def match_verdict(self) -> dict:
+        """Whether the candidate is a match (requirements, then the role, then the score) and why."""
+        return (self.match_breakdown or {}).get("match") or {}
+
+    @property
+    def is_match(self) -> bool:
+        return bool(self.matched_at and self.match_verdict.get("is_match"))
+
+    @property
     def needs_eligibility_call(self) -> bool:
         """Misses a key requirement and nobody has decided yet whether they stay in the running."""
         return bool(self.matched_at and self.unmet_requirements and not self.eligibility and self.is_open)

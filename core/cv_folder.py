@@ -2,9 +2,9 @@
 
 Link the folder once on the Excel link page. From then on the watcher that keeps the portal in step with Excel
 (start-portal.bat on this PC, the scheduler on the server) looks in it every CV_FOLDER_SECONDS: each new file, or a
-file whose content changed, is read like an upload on the CV intake page. The profile then waits for HR's check
-(and, if the folder has a vacancy, is applied to it once checked). Files are never moved, renamed or deleted, and
-each is read once: a copy of a file already read (same content under another name) is not read again.
+file whose content changed, is read like an upload on the CV intake page: only a CV becomes a profile (and, if the
+folder has a vacancy, is applied to it and scored at once). A file that is not a CV, and a CV the portal already
+holds, are left out and noted against the file. Files are never moved, renamed or deleted, and each is read once.
 """
 
 from __future__ import annotations
@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 SETTLE_SECONDS = 20  # a file changed more recently than this may still be being copied or saved
 PER_CHECK = 50       # at most this many files are read per check, so a big folder is worked through in turns
 IGNORED_NAMES = {"thumbs.db", "desktop.ini", ".ds_store"}
+HELD = "Already in the portal"      # how a file is noted when its CV is already held
+UNREAD = "Could not be read"        # …and when it could not be read (a scan without OCR or AI)
 PARTIAL_SUFFIXES = (".tmp", ".crdownload", ".part", ".partial", ".download")
 
 
@@ -129,7 +131,7 @@ def check(*, log=logger.info, limit: int = PER_CHECK) -> list:
             budget -= 1
             try:
                 result = ingest_cv(content, os.path.basename(name), source=folder.source, requisition=vacancy,
-                                   notify_team=False, needs_check=True)
+                                   notify_team=False, only_cvs=True)
             except Exception as exc:  # noqa: BLE001 - one bad file never stops the folder
                 logger.exception("Could not read %s", full)
                 record.digest, record.skipped = digest, f"Could not be read: {exc}"[:255]
@@ -137,13 +139,18 @@ def check(*, log=logger.info, limit: int = PER_CHECK) -> list:
                 continue
             record.digest, record.read_at = digest, timezone.now()
             record.candidate = result.candidate
-            record.skipped = result.error[:255] if result.error else ""
+            if result.duplicate:
+                record.skipped = f"{HELD}: {result.candidate.full_name}"[:255]
+            else:
+                record.skipped = result.error[:255] if result.error else ""
             record.save()
             digests.add(digest)
-            if result.candidate:
+            if result.candidate and not result.duplicate:
                 read.append(result.candidate)
                 new_here += 1
                 log(f"CV folder {folder.name}: read {name} → {result.candidate.full_name}")
+            elif result.error:
+                log(f"CV folder {folder.name}: left out {name} ({result.error})")
         folder.state = WatchedFolder.State.OK
         folder.message = (f"{waiting} file{'s' if waiting != 1 else ''} waiting for the next check."
                           if waiting else "")
@@ -161,12 +168,26 @@ def _tell_hr(people):
 
     count = len({p.pk for p in people})
     notify(hr_team(), f"{count} new CV{'s' if count != 1 else ''} read from the CV folder",
-           "Check each new profile against its CV; it can then be matched and put forward.",
-           url="/candidates/check/", email=False)
+           "They are in the talent database, ready to match to vacancies.", url="/candidates/match/", email=False)
 
 
 def summary(folder: WatchedFolder) -> dict:
     files = folder.files.all()
+    left_out = (files.exclude(skipped="").exclude(skipped__startswith="Already in the folder")
+                .exclude(skipped__startswith=HELD).exclude(skipped__startswith="A copy of a CV"))
+    not_cvs = left_out.exclude(skipped__startswith=UNREAD)
     return {"read": files.filter(read_at__isnull=False, skipped="").count(),
-            "skipped": files.exclude(skipped="").exclude(skipped__startswith="Already in the folder").count(),
-            "recent": list(files.filter(read_at__isnull=False).select_related("candidate")[:5])}
+            "held": files.filter(skipped__startswith=HELD).count() + files.filter(
+                skipped__startswith="A copy of a CV").count(),
+            "skipped": not_cvs.count(), "unread": left_out.filter(skipped__startswith=UNREAD).count(),
+            "examples": [f"{f.name}: {f.skipped}" for f in not_cvs[:6]],
+            "recent": list(files.filter(read_at__isnull=False, skipped="").select_related("candidate")[:5])}
+
+
+def retry_unread(folder: WatchedFolder) -> int:
+    """Forget the files that could not be read, so the next check tries them again (after OCR or AI is set up)."""
+    count, _ = folder.files.filter(skipped__startswith=UNREAD).delete()
+    if count:
+        folder.check_requested = True
+        folder.save(update_fields=["check_requested"])
+    return count

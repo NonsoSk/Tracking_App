@@ -251,6 +251,9 @@ RECRUITMENT = {
     # Matching: the share of the required skills below which "Required skills" shows as a key requirement not met
     # (for the hiring manager to judge; it never sets the score to 0).
     "MATCH_MIN_REQUIRED_SKILLS_PERCENT": env_int("MATCH_MIN_REQUIRED_SKILLS_PERCENT", 50),
+    # A candidate is called a match only when every requirement is met, the CV shows the work the job description
+    # asks for, and the score is at least this (70 = a strong match; 85 keeps only excellent ones).
+    "MATCH_MIN_SCORE": env_int("MATCH_MIN_SCORE", 70),
     # Treat HND as equal to a Bachelor's degree when matching.
     "HND_EQUIVALENT_TO_BSC": env_bool("HND_EQUIVALENT_TO_BSC", False),
     # Trainees go straight from document review to onboarding unless enabled.

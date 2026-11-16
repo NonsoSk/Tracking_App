@@ -113,7 +113,8 @@ class ExportTests(TestCase):
         self.assertEqual([r[0] for r in rows[1:]], ["Joy Umezurike"])
 
     def test_the_match_grid_offers_it(self):
-        grid = self.client.get(reverse("candidates:match"), {"r": self.vacancy.pk, "c": [self.samuel.pk, self.joy.pk]})
+        grid = self.client.get(reverse("candidates:match"), {"r": self.vacancy.pk, "c": [self.samuel.pk, self.joy.pk],
+                                                             "show": "all"})
         self.assertContains(grid, 'name="pick"')
         self.assertContains(grid, "Share the list (Excel)")
         self.assertContains(grid, reverse("candidates:cv", args=[self.samuel.pk]))

@@ -15,8 +15,10 @@ remove an item from this list once it is done.
 
 1. **AI not tested live.** Claude features were only tested with mocked responses. When they get an API key, guide them
    through adding `ANTHROPIC_API_KEY` to `.env` and testing a typed CV, a scanned PDF and a phone photo, and drafting a
-   job description (Review and publish on an approved requisition). Without a key, scanned CVs need Tesseract OCR
-   installed (`TESSERACT_CMD` on Windows), and job descriptions are built from the requisition without AI.
+   job description (Review and publish on an approved requisition), and the **AI check against the JD** on an
+   application's Scores tab. Without a key, scanned CVs need Tesseract OCR installed (`TESSERACT_CMD` on Windows):
+   until then a scan or photo is left out at intake as "could not be read" (nobody checks uploads by hand any more),
+   and job descriptions are built from the requisition without AI.
 2. **Data-protection sign-off for AI.** With AI on, CV content is sent to Anthropic. They need approval from IEFCL's
    data-protection/IT/legal owner before enabling it. With no key, everything stays in-house.
 3. **Retirement rule.** Retirement dates follow the staff list's own *Age* + *Years to Retirement*. Only for staff

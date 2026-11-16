@@ -186,10 +186,12 @@ def requisition_detail(request, pk):
         listed = listed.filter(matched_at__isnull=False, match_score__lte=filters["max"])
     listed = listed.order_by("-match_score", "applied_at")
     in_range = None
-    if filters["keyreq"] or filters["top"]:
+    if filters["keyreq"] or filters["top"] or filters["matches"]:
         listed = list(listed)
         if filters["keyreq"]:
             listed = [a for a in listed if a.matched_at and not a.unmet_requirements]
+        if filters["matches"]:  # only those who pass the requirements, the role and the score
+            listed = [a for a in listed if a.is_match]
         in_range = len(listed)
         if filters["top"]:
             listed = listed[:filters["top"]]
@@ -212,8 +214,10 @@ def requisition_detail(request, pk):
     records = list(requisition.interview_records.select_related("candidate", "application"))
     from django.urls import reverse
 
+    from pipeline.criteria import role_profile
+
     return render(request, "requisitions/detail.html", {
-        "match_url": reverse("candidates:match") + f"?r={requisition.pk}",
+        "match_url": reverse("candidates:match") + f"?r={requisition.pk}", "role": role_profile(requisition),
         "req": requisition, "applications": listed, "board": [(s, board[s.value]) for s in stages],
         "stage_filter": stage_filter, "status_filter": status_filter, "counts": counts, "grade_counts": grade_counts,
         "with_cv": set(CandidateDocument.objects.filter(

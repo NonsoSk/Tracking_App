@@ -38,7 +38,7 @@ class PortalUpdatesTests(TestCase):
                                                   required_skills=["Accounts payable"])
         self.ada = Candidate.objects.create(first_name="Ada", last_name="Obi", email="ada@example.com",
                                             source="email", highest_qualification="hnd", course="Accounting",
-                                            skills=["Accounts payable"], needs_check=False)
+                                            skills=["Accounts payable"])
         self.imported = Candidate.objects.create(first_name="Old", last_name="Row", source="import")
         self.app, _ = create_application(self.ada, self.vacancy, notify_team=False)
 
