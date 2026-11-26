@@ -22,6 +22,7 @@ MODEL_TOPICS = {
     "candidates.Candidate": "people", "candidates.CandidateDocument": "people", "candidates.CBTResult": "people",
     "pipeline.Application": "hiring", "pipeline.Interview": "hiring", "pipeline.InterviewRecord": "hiring",
     "pipeline.Offer": "hiring", "pipeline.Evaluation": "hiring", "pipeline.Activity": "hiring",
+    "pipeline.MatchReview": "hiring",
     "requisitions.Requisition": "hiring",
     "intake.Receipt": "intake", "intake.Connector": "intake", "core.WatchedFolder": "intake",
     "core.LinkedWorkbook": "intake",

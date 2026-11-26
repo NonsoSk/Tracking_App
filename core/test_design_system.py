@@ -221,8 +221,8 @@ class TagTests(TestCase):
         employee = User(username="e", role=User.Role.EMPLOYEE)
         hr_labels = [i.get("label") for i in ds._nav(hr)]
         emp_labels = [i.get("label") for i in ds._nav(employee)]
-        self.assertIn("Talent", hr_labels)
-        self.assertNotIn("Talent", emp_labels)
+        self.assertEqual(hr_labels[:3], ["Home", "Vacancies", "Candidates"])
+        self.assertNotIn("Candidates", emp_labels)
         self.assertNotIn("Pipeline", emp_labels)
         self.assertIn("Interviews", emp_labels)
 

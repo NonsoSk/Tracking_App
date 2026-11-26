@@ -331,3 +331,36 @@ class ExcelLinkPageTests(TestCase):
         self.assertTrue(LinkedWorkbook.objects.get().refresh_requested)
         self.client.post(reverse("core:excel_link"), {"action": "unlink", "workbook": workbook.pk})
         self.assertFalse(LinkedWorkbook.objects.exists())
+
+
+class WeeklyWorkbookTests(ExcelLinkTests):
+    """A new dated workbook each week: the newest file that fits the pattern is followed."""
+
+    def test_the_newest_weekly_file_is_followed_and_others_are_ignored(self):
+        weekly = Path(self.dir) / "weekly"
+        weekly.mkdir()
+        first = weekly / "Recruitment Master Weekly Report 2026-11-16.xlsx"
+        shutil.copy(self.master, first)
+        self.settle(str(first))
+        workbook = excel_link.link_pattern(str(weekly), "Recruitment Master Weekly Report*.xlsx")
+        excel_link.check(log=lambda *a: None)
+        workbook.refresh_from_db()
+        self.assertEqual((workbook.state, Path(workbook.current_file).name), ("ok", first.name))
+        # Next week's file, a lock file, the portal's own updates file: only next week's is read.
+        self.reqs[1][COORDINATOR] = "Next Week Coordinator"
+        self.save_master()
+        second = weekly / "Recruitment Master Weekly Report 2026-11-23.xlsx"
+        shutil.copy(self.master, second)
+        (weekly / "~$Recruitment Master Weekly Report 2026-11-23.xlsx").write_bytes(b"lock")
+        (weekly / "Portal updates.xlsx").write_bytes(b"not read")
+        excel_link.check(log=lambda *a: None)
+        workbook.refresh_from_db()
+        self.assertEqual(Path(workbook.current_file).name, second.name)
+        self.assertEqual(Requisition.objects.get(reference="Req_901").coordinator_name, "Next Week Coordinator")
+        # A newer file without the sheets the others had is not loaded; the data stays.
+        third = weekly / "Recruitment Master Weekly Report 2026-11-30.xlsx"
+        write(str(third), [("Manpower_Requisition_Summary", REQ_HEADERS, self.reqs)])
+        excel_link.check(log=lambda *a: None)
+        workbook.refresh_from_db()
+        self.assertEqual(workbook.state, "invalid")
+        self.assertEqual(Requisition.objects.get(reference="Req_901").coordinator_name, "Next Week Coordinator")

@@ -2087,3 +2087,12 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .folder-actions { gap: var(--s-8); align-items: start; }
 .sheet-note { padding: 0 var(--s-16); }
 .danger-ink { color: var(--danger-ink); }
+
+/* Home: today's arrivals, what needs a person, problems */
+.today-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-12); margin: var(--s-12) 0; }
+.today-card { display: grid; gap: 4px; padding: var(--s-12) var(--s-16); border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface); color: var(--text); text-decoration: none; }
+.today-card b { font-size: 28px; line-height: 1.1; }
+.today-card small { color: var(--text-2); }
+.today-card.warn { border-color: var(--warning-line); background: var(--warning-bg); }
+.today-card.bad { border-color: var(--danger-line); background: var(--danger-bg); }

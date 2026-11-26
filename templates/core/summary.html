@@ -18,6 +18,13 @@
     {% if excel_admin %}</a>{% else %}</div>{% endif %}
     {% endif %}
   </header>
+  {% if day %}
+  <section class="today-strip" aria-label="Today">
+    <a class="today-card" href="{% url 'candidates:intake' %}#recent"><span class="eyebrow">New today</span><b>{{ day.arrivals.cvs_added }}</b><small>CV{{ day.arrivals.cvs_added|pluralize }} added or updated from {{ day.arrivals.cvs_received }} file{{ day.arrivals.cvs_received|pluralize }} received · {{ day.arrivals.applications }} application{{ day.arrivals.applications|pluralize }}{% if day.arrivals.being_read %} · {{ day.arrivals.being_read }} being read{% endif %}</small></a>
+    <a class="today-card{% if day.action.files or day.action.matches or day.action.eligibility %} warn{% endif %}" href="{% url 'candidates:intake' %}#review"><span class="eyebrow">Needs a person</span><b>{{ day.action.files|add:day.action.matches|add:day.action.eligibility }}</b><small>{{ day.action.files }} file{{ day.action.files|pluralize }} (same person?) · {{ day.action.matches }} match{{ day.action.matches|pluralize:"es" }} to review · {{ day.action.eligibility }} key requirement{{ day.action.eligibility|pluralize }} to decide</small></a>
+    <div class="today-card{% if day.problems %} bad{% endif %}"><span class="eyebrow">Problems</span><b>{{ day.problems|length }}</b>{% for text, url in day.problems|slice:":4" %}<small><a href="{{ url }}">{{ text|truncatechars:120 }}</a></small>{% empty %}<small>None: sources are being read and every file has an outcome.</small>{% endfor %}</div>
+  </section>
+  {% endif %}
     <form class="sboard-filters" method="get" aria-label="Filter the summary" data-autosubmit>
       <select name="period" class="select" aria-label="Period">{% for v, l in periods %}<option value="{{ v }}" {% if period.key == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
         {% if years %}<optgroup label="Earlier years">{% for y in years %}<option value="{{ y }}" {% if period.key == y %}selected{% endif %}>{{ y }}</option>{% endfor %}</optgroup>{% endif %}</select>

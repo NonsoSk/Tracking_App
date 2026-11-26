@@ -144,9 +144,15 @@ def requisition_edit(request, pk):
         form = RequisitionForm(instance=requisition, user=user, initial=values)
         return render(request, "requisitions/form.html", {"form": form, "requisition": requisition, "is_new": False,
                                                           "jd_read": bool(values)})
+    from core.concurrency import changed_since, refuse, version_of
+
     form = RequisitionForm(request.POST or None, instance=requisition, user=user,
                            submitting="submit" in request.POST and requisition.is_editable_by_department)
-    if request.method == "POST" and form.is_valid():
+    clash = request.method == "POST" and changed_since(request, requisition)
+    if clash:
+        form.is_valid()
+        refuse(form, "requisition")
+    if request.method == "POST" and not clash and form.is_valid():
         requisition = form.save()
         if any(getattr(requisition, f) != before[f] for f in REQUIREMENT_FIELDS):
             services.requirements_changed(requisition)
@@ -156,7 +162,8 @@ def requisition_edit(request, pk):
         else:
             messages.success(request, "Requisition saved.")
         return redirect(requisition)
-    return render(request, "requisitions/form.html", {"form": form, "requisition": requisition, "is_new": False})
+    return render(request, "requisitions/form.html", {"form": form, "requisition": requisition, "is_new": False,
+                                                      "edit_version": version_of(requisition)})
 
 
 @login_required
@@ -548,3 +555,18 @@ def api_role(request, pk):
         "certifications": role.default_certifications, "courses": role.default_courses,
         "description": role.description,
     })
+
+
+@login_required
+@require_POST
+def confirm_rubric(request, pk):
+    """The hiring manager (the vacancy's department, or HR) confirms the requirements candidates are judged on."""
+    requisition = get_object_or_404(Requisition, pk=pk)
+    user = request.user
+    ensure(user.is_hr or (user.is_department_user and user.department_id == requisition.department_id))
+    requisition.rubric_confirmed_by, requisition.rubric_confirmed_at = user, timezone.now()
+    requisition.rubric_confirmed_version = requisition.rubric_version()
+    requisition.save(update_fields=["rubric_confirmed_by", "rubric_confirmed_at", "rubric_confirmed_version",
+                                    "updated_at"])
+    messages.success(request, "Requirements confirmed. If they change, they show as unconfirmed again.")
+    return redirect(requisition.get_absolute_url() + "#rq-h")

@@ -273,9 +273,15 @@ def unlink_staff(request, pk):
 
 @hr_required
 def candidate_edit(request, pk):
+    from core.concurrency import changed_since, refuse, version_of
+
     candidate = get_object_or_404(Candidate, pk=pk)
     form = CandidateForm(request.POST or None, instance=candidate)
-    if request.method == "POST" and form.is_valid():
+    clash = request.method == "POST" and changed_since(request, candidate)
+    if clash:
+        form.is_valid()
+        refuse(form, "profile")
+    if request.method == "POST" and not clash and form.is_valid():
         from django.utils import timezone
 
         candidate = form.save(commit=False)
@@ -290,7 +296,7 @@ def candidate_edit(request, pk):
     worked_out = next((n for n in (candidate.parse_notes or "").splitlines() if n.startswith("Experience:")), "")
     if worked_out and not form.is_bound:
         form.fields["years_experience"].help_text = worked_out.replace("Experience: ", "Worked out: ", 1)
-    return render(request, "candidates/form.html", {"form": form, "c": candidate})
+    return render(request, "candidates/form.html", {"form": form, "c": candidate, "edit_version": version_of(candidate)})
 
 
 @hr_required
@@ -800,7 +806,11 @@ def match_vacancies(request):
     chosen_cvs = _match_scope(request)
     ids, people, scope = chosen_cvs["ids"], chosen_cvs["people"], chosen_cvs["scope"]
     total = people.count()
-    people = list(people.order_by("-created_at", "-pk")[:MATCH_LIMIT])  # over the limit: the most recent
+    # Large selections are read in batches of MATCH_LIMIT, newest first; every batch can be reached (?batch=).
+    batches = max(1, -(-total // MATCH_LIMIT))
+    batch = min(max(1, int(request.GET.get("batch", "1")) if request.GET.get("batch", "").isdigit() else 1), batches)
+    start = (batch - 1) * MATCH_LIMIT
+    people = list(people.order_by("-created_at", "-pk")[start:start + MATCH_LIMIT])
     from pipeline import ranking
     from pipeline.matching import grade_for
 
@@ -812,7 +822,7 @@ def match_vacancies(request):
         rank_by = str(vacancies[0].pk) if len(vacancies) == 1 else "any"
     # Only the CVs that are a match are shown, unless everything is asked for.
     show_all = request.GET.get("show") == "all"
-    rows, columns, shown_total, hidden = [], [], 0, 0
+    rows, columns, shown_total, hidden, coverage = [], [], 0, 0, None
     if vacancies and people:
         aliases = db_aliases()
         applied = set(Application.objects.filter(candidate__in=people, requisition__in=vacancies)
@@ -861,6 +871,16 @@ def match_vacancies(request):
             else:
                 row["key"] = next(c for c in row["cells"] if str(c["vacancy"].pk) == rank_by)
                 row["key"] = None if row["key"]["unscored"] else row["key"]
+        # Coverage: every CV read is accounted for, before any filter.
+        from collections import Counter
+
+        keyed = [r["key"] for r in rows if r["key"] is not None]
+        left_out = Counter(next((s["name"] for s in k["stages"] if s["passed"] is False), "Overall")
+                           for k in keyed if not k["match"] and not k["review"])
+        coverage = {"considered": total, "read": len(rows), "assessed": len(keyed),
+                    "unscored": len(rows) - len(keyed), "matches": sum(1 for k in keyed if k["match"]),
+                    "review": sum(1 for k in keyed if k["review"]), "not_matched": sum(left_out.values()),
+                    "why_not": left_out.most_common()}
         rows = [r for r in rows if r["key"] is None or (
             ranking.in_range(r["key"]["score"], filters) and not (filters["keyreq"] and r["key"]["failed"]))]
         if filters["keyreq"] or filters["min"] is not None or filters["max"] is not None:
@@ -899,7 +919,10 @@ def match_vacancies(request):
         "match_threshold": settings.RECRUITMENT.get("MATCH_MIN_SCORE", 70),
         "matches_url": "?" + urlencode(base),
         "vacancies_all": vacancies_all, "chosen": chosen, "vacancies": vacancies, "columns": columns, "rows": rows,
-        "ids": ids, "scope": scope, "total": total, "limit": MATCH_LIMIT,
+        "ids": ids, "scope": scope, "total": total, "limit": MATCH_LIMIT, "coverage": coverage,
+        "batch": batch, "batches": batches, "batch_first": start + 1, "batch_last": start + len(people),
+        "batch_urls": {n: "?" + urlencode([(k, v) for k in request.GET for v in request.GET.getlist(k) if k != "batch"]
+                                          + [("batch", n)]) for n in (batch - 1, batch + 1) if 1 <= n <= batches},
         "addable": any(v.can_add for v in vacancies),
         "query": request.GET.urlencode(), "filters": filters, "filtered": ranking.active(filters),
         "filter_text": ranking.describe(filters), "top_choices": ranking.TOP_CHOICES, "rank_by": rank_by,

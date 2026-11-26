@@ -222,6 +222,31 @@ def decide_eligibility(request, pk):
     return _back(application, "match")
 
 
+@login_required
+@require_POST
+def review_match(request, pk):
+    """A person's judgement of the match (match, not a match, still to decide) with the reason. It is kept when the
+    application is assessed again; nothing else happens (no stage move, no message to the candidate)."""
+    from .matching import versions
+    from .models import MatchReview
+
+    application = _get_application(request, pk)
+    user = request.user
+    ensure(user.is_hr or (user.is_department_user and user.department_id == application.requisition.department_id))
+    decision, reason = request.POST.get("decision", ""), request.POST.get("reason", "").strip()
+    if decision not in MatchReview.Decision.values or len(reason) < 5:
+        messages.error(request, "Choose a decision and say why (what in the CV, or missing from it, decided it).")
+        return _back(application, "match")
+    review = MatchReview.objects.create(
+        application=application, decision=decision, reason=reason[:2000], reviewer=user,
+        matcher_verdict=application.match_verdict.get("verdict", ""),
+        versions=versions(application.requisition, application.candidate))
+    services.log(f"Match judged by hand: {review.get_decision_display()}. {reason[:300]}", verb="match_review",
+                 application=application, actor=user)
+    messages.success(request, f"Recorded: {review.get_decision_display()}.")
+    return _back(application, "match")
+
+
 @hr_required
 @require_POST
 def rescore(request, pk):

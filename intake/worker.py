@@ -36,6 +36,7 @@ HEARTBEAT_SECONDS = 3
 RECOVER_SECONDS = 30
 UPDATES_SECONDS = 30
 CLEANUP_SECONDS = 3600
+STALE_SECONDS = 300
 
 
 def default_name() -> str:
@@ -209,7 +210,7 @@ class PortalWorker:
                 watcher.stop()
 
     def upkeep_loop(self):
-        next_recover = next_updates = next_cleanup = 0.0
+        next_recover = next_updates = next_cleanup = next_stale = 0.0
         last_seq = None
         while not self.stopping.is_set():
             close_old_connections()
@@ -222,6 +223,14 @@ class PortalWorker:
                 if self.holds_inputs and now >= next_updates:
                     next_updates = now + UPDATES_SECONDS
                     last_seq = self.write_updates(last_seq)
+                if now >= next_stale:
+                    next_stale = now + STALE_SECONDS
+                    from pipeline.matching import queue_stale
+
+                    queued = queue_stale()
+                    if queued:
+                        self.log(f"{queued} application(s) queued to be assessed again (CV or job description "
+                                 "changed).")
                 if now >= next_cleanup:
                     next_cleanup = now + CLEANUP_SECONDS
                     removed = process.cleanup_stored()

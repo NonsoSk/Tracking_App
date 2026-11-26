@@ -238,3 +238,91 @@ class CandidateWithoutStoryTests(TestCase):
         self.assertEqual(result["match"]["label"], "Needs review")  # no CV text: the role cannot be judged
         self.assertEqual(result["why"]["cv"], "")
         self.assertTrue(INDUSTRIAL_JD)
+
+
+@mock.patch("candidates.experience.timezone.localdate", today)
+class ReviewsVersionsAndEvaluationTests(TestCase):
+    def setUp(self):
+        self.req = requisition()
+        self.hr = User.objects.create_user("hr", password="x", role=User.Role.HR_ADMIN)
+        self.person = person("industrial")
+        self.person.save()
+        self.app = Application.objects.create(candidate=self.person, requisition=self.req)
+        score_application(self.app)
+        self.client.force_login(self.hr)
+
+    def test_a_reviewers_judgement_with_a_reason_stands_and_is_kept(self):
+        from .models import MatchReview
+
+        url = reverse("pipeline:review_match", args=[self.app.pk])
+        self.client.post(url, {"decision": "no_match", "reason": ""})  # a reason is required
+        self.assertFalse(MatchReview.objects.exists())
+        self.client.post(url, {"decision": "no_match", "reason": "Sold groceries retail, not industrial sales."})
+        self.app.refresh_from_db()
+        self.assertFalse(self.app.is_match)
+        score_application(self.app)  # assessed again: the judgement stays
+        self.app = Application.objects.get(pk=self.app.pk)
+        self.assertEqual(self.app.review.decision, "no_match")
+        self.assertFalse(self.app.review.outdated)
+        self.assertContains(self.client.get(self.app.get_absolute_url()), "Sold groceries retail")
+        self.person.cv_text += "\nNew job: Regional Sales Manager, Dangote Fertiliser 2025 - Present"
+        self.person.save()
+        score_application(self.app)
+        self.app = Application.objects.get(pk=self.app.pk)
+        self.assertTrue(self.app.review.outdated)  # the CV changed since the judgement
+
+    def test_a_changed_job_description_queues_a_fresh_assessment(self):
+        from intake import sync
+        from intake.models import Job
+
+        from .matching import is_stale, queue_stale
+
+        self.assertFalse(is_stale(self.app))
+        self.assertEqual(self.app.match_breakdown["versions"]["matcher"], 7)
+        self.req.job_description += "\n- Manage key distributor accounts across the South-South region"
+        self.req.save()
+        self.app = Application.objects.select_related("candidate", "requisition").get(pk=self.app.pk)
+        self.assertTrue(is_stale(self.app))
+        self.assertEqual(queue_stale(), 1)
+        self.assertEqual(queue_stale(), 1)  # queued once (the same job), not twice
+        self.assertEqual(Job.objects.filter(kind="rescore_candidate", status="queued").count(), 1)
+        sync.drain()
+        self.app = Application.objects.select_related("candidate", "requisition").get(pk=self.app.pk)
+        self.assertFalse(is_stale(self.app))
+
+    def test_blind_review_then_report(self):
+        import tempfile
+        from pathlib import Path
+
+        from openpyxl import load_workbook
+
+        from . import evaluation
+
+        out = Path(tempfile.mkdtemp()) / "blind.xlsx"
+        evaluation.export_blind(self.req, out)
+        sheet = load_workbook(out).active
+        self.assertNotIn("score", " ".join(str(c.value or "").lower() for c in sheet[2]))  # blind: no scores
+        unverified = evaluation.report(self.req, out)
+        self.assertIn("UNVERIFIED", unverified["quality"])
+        wb = load_workbook(out)
+        wb.active.cell(row=3, column=4, value="yes")
+        wb.save(out)
+        result = evaluation.report(self.req, out)
+        self.assertEqual((result["reviewed"], result["interview_worthy"]), (1, 1))
+        self.assertEqual(result["new"]["top_10_interview_worthy"], 1)
+        self.assertIsNotNone(result["old"])
+
+
+class RubricConfirmationTests(TestCase):
+    def test_the_hiring_manager_confirms_the_requirements_and_a_change_undoes_it(self):
+        req = requisition()
+        hod = User.objects.create_user("hod", password="x", role=User.Role.HOD, department=req.department)
+        self.client.force_login(hod)
+        self.assertContains(self.client.get(req.get_absolute_url()), "Not yet confirmed by the hiring manager")
+        self.client.post(reverse("requisitions:confirm_rubric", args=[req.pk]))
+        req.refresh_from_db()
+        self.assertTrue(req.rubric_confirmed)
+        req.required_skills = req.required_skills + ["Key account management"]
+        req.save()
+        self.assertFalse(req.rubric_confirmed)
+        self.assertContains(self.client.get(req.get_absolute_url()), "Changed since the hiring manager confirmed it")

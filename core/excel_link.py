@@ -64,6 +64,32 @@ def link(paths, *, user=None) -> list[LinkedWorkbook]:
     return linked
 
 
+def link_pattern(folder, pattern, *, user=None) -> LinkedWorkbook:
+    """Follow the newest file in a folder whose name fits the pattern (a new dated workbook each week, say). The
+    newest file now must hold recruitment sheets; each later file must hold the same kinds of sheet, or it is not
+    loaded and the last good data stays."""
+    from intake.watch import current_path
+
+    folder_path = Path(str(folder).strip().strip('"')).expanduser()
+    pattern = (pattern or "").strip() or "*.xlsx"
+    if not folder_path.is_dir():
+        raise WorkbookError(f"Folder not found: {folder_path}")
+    if not pattern.lower().endswith((".xlsx", "*")):
+        raise WorkbookError("The pattern should end in .xlsx, e.g. Recruitment Master Weekly Report*.xlsx")
+    probe = LinkedWorkbook(path=str(folder_path.resolve()), pattern=pattern, mode=LinkedWorkbook.Mode.LATEST)
+    newest = current_path(probe)
+    if newest is None:
+        raise WorkbookError(f"No workbook in {folder_path} has a name like '{pattern}'.")
+    sheets = read_sheets([str(newest)], require_all=False)
+    workbook, _ = LinkedWorkbook.objects.update_or_create(path=str(folder_path.resolve()), pattern=pattern, defaults={
+        "mode": LinkedWorkbook.Mode.LATEST, "linked_by": user, "current_file": str(newest),
+        "sheets": ", ".join(SHEET_LABELS[k] for k in SHEET_LABELS if k in sheets),
+        "expected_sheets": ",".join(k for k in SHEET_LABELS if k in sheets),
+        "state": LinkedWorkbook.State.WAITING, "message": "", "fingerprint": "", "row_hashes": {},
+        "refresh_requested": True})
+    return workbook
+
+
 def watcher_running() -> bool:
     """Whether the background worker is running (or the scheduler looked at the links recently)."""
     from intake.models import Worker

@@ -186,8 +186,26 @@ class Application(models.Model):
         return (self.match_breakdown or {}).get("match") or {}
 
     @property
+    def review(self):
+        """The latest judgement a person recorded on this match, if any."""
+        cached = getattr(self, "_review", False)
+        if cached is False:
+            cached = self.reviews.select_related("reviewer").first() if self.pk else None
+            self._review = cached
+        return cached
+
+    @property
     def is_match(self) -> bool:
+        """A person's recorded judgement stands over the matcher's."""
+        if self.review:
+            return self.review.decision == MatchReview.Decision.MATCH
         return bool(self.matched_at and self.match_verdict.get("is_match"))
+
+    @property
+    def needs_review(self) -> bool:
+        if self.review:
+            return self.review.decision == MatchReview.Decision.REVIEW
+        return bool(self.matched_at and self.match_verdict.get("needs_review"))
 
     @property
     def needs_eligibility_call(self) -> bool:
@@ -620,3 +638,34 @@ class InterviewRecord(models.Model):
     @property
     def result_tone(self) -> str:
         return {"selected": "success", "rejected": "danger", "on_hold": "warning", "declined": "neutral"}.get(self.result, "neutral")
+
+
+class MatchReview(models.Model):
+    """A person's judgement of a match, with the reason. It stands over the matcher's verdict and is kept when the
+    application is assessed again; the versions of the CV, job description and matcher it was made on are kept with
+    it, so a later change shows."""
+
+    class Decision(models.TextChoices):
+        MATCH = "match", "Match"
+        NO_MATCH = "no_match", "Not a match"
+        REVIEW = "review", "Still to decide"
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="reviews")
+    decision = models.CharField(max_length=10, choices=Decision.choices)
+    reason = models.TextField(help_text="What in the CV (or missing from it) decided it.")
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    matcher_verdict = models.CharField(max_length=10, blank=True, help_text="What the matcher said at the time.")
+    versions = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self):
+        return f"{self.get_decision_display()} ({self.application_id})"
+
+    @property
+    def outdated(self) -> bool:
+        """Made on another CV or job description than the one assessed now."""
+        now = (self.application.match_breakdown or {}).get("versions") or {}
+        return bool(self.versions and now) and any(self.versions.get(k) != now.get(k) for k in ("cv", "jd", "rubric"))

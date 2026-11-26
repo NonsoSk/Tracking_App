@@ -20,16 +20,22 @@ remove an item from this list once it is done.
    until then a scan or photo is left out at intake as "could not be read" (nobody checks uploads by hand any more),
    and job descriptions are built from the requisition without AI.
 2. **Data-protection sign-off for AI.** With AI on, CV content is sent to Anthropic. They need approval from IEFCL's
-   data-protection/IT/legal owner before enabling it. With no key, everything stays in-house.
+   data-protection/IT/legal owner before enabling it. On the upgrade branch, real CVs go to the AI only once
+   `AI_CV_PROCESSING_AUTHORISED=true` is also set (after that sign-off). With no key, everything stays in-house.
 3. **Retirement rule.** Retirement dates follow the staff list's own *Age* + *Years to Retirement*. Only for staff
    rows without them does the portal assume age 60 or 35 years of service, whichever comes first. They need to confirm
    IEFCL's policy and set `RETIREMENT_AGE` / `RETIREMENT_MAX_SERVICE_YEARS` in `.env` for those rows.
 4. **Not built yet:** automatic Microsoft Teams meeting creation (Microsoft Graph) and Microsoft 365 sign-in (Entra ID).
    Today, HR pastes a Teams link or a free video room is created, and staff use portal usernames.
-5. **Hosting.** IEFCL IT has to host it: Docker Compose (Postgres + web + scheduler), HTTPS, SMTP via Microsoft 365, the
+5. **Hosting.** IEFCL IT has to host it (on the upgrade branch: deploy/pilot and docs/upgrade/HANDOVER.md, with a
+   worker service, Caddy HTTPS and nightly checked backups): Docker Compose (Postgres + web + scheduler), HTTPS, SMTP via Microsoft 365, the
    recruitment mailbox (IMAP) and the scheduled jobs. Guide them through README → Deployment and Scheduled jobs. Until
    SMTP is set, emails (including candidate summaries to departments) are only printed in the portal window. Once
    hosted, the server cannot see the Excel files on their PC: they upload the workbook on the Excel link page, or IT
    links a shared-folder path (README → Keeping in step with Excel). The same goes for the watched CV folder (IT links
    a shared folder the server can reach), and Portal updates.xlsx is then written on the server: they download it
    from the Excel link page, or IT sets `PORTAL_UPDATES_PATH` to a shared folder.
+6. **Upgrade branch awaiting approval.** `claude/portal-upgrade` (receipts and background worker, live screens,
+   linked folders and connector, Needs review matching, pilot deployment, backups) is not on the live branch. Moving
+   it to the HR PC, moving records to the pilot or switching the team needs the owner's explicit approval
+   (docs/upgrade/STATUS.md, HANDOVER.md). Remind them when they talk about updating, going live or the pilot.

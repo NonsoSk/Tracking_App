@@ -226,7 +226,7 @@ class SummaryAccessTests(TestCase):
         self.assertEqual(urlparse(response["Location"]).path, "/")
         from core.templatetags.ds import _nav
 
-        self.assertEqual([i["label"] for i in _nav(self.hr) if not i.get("sep")][:2], ["Summary", "My tasks"])
+        self.assertEqual([i["label"] for i in _nav(self.hr) if not i.get("sep")][:2], ["Home", "Vacancies", "Candidates"][:2])
         self.client.force_login(User.objects.create_user("emp", password="x", role=User.Role.EMPLOYEE))
         self.assertRedirects(self.client.get("/"), reverse("core:dashboard"))
 

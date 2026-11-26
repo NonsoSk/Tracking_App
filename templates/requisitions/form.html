@@ -20,7 +20,7 @@
     <button class="btn btn-secondary btn-sm" type="submit" name="read_jd" value="1">{% icon "sparkles" "ico-16" %} Read it</button></div>
 </form>
 
-<form method="post" id="requisition-form" class="wizard" novalidate data-role-url="{% url 'requisitions:api_role' 0 %}" data-suggest-url="{% url 'requisitions:api_suggest' %}">{% csrf_token %}
+<form method="post" id="requisition-form" class="wizard" novalidate data-role-url="{% url 'requisitions:api_role' 0 %}" data-suggest-url="{% url 'requisitions:api_suggest' %}">{% csrf_token %}{% if edit_version %}<input type="hidden" name="edited_version" value="{{ edit_version }}">{% endif %}
   {% if form.non_field_errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>Please check the form</b><span class="small">{{ form.non_field_errors|join:" " }}</span></div></div>{% endif %}
   {% if form.errors and not form.non_field_errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">They are marked in red below.</span></div></div>{% endif %}
 

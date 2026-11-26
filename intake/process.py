@@ -53,6 +53,15 @@ def run(job: Job, *, slow_lane_running: bool = True):
 
         requisition = Requisition.objects.filter(pk=job.payload.get("requisition")).first()
         return rescore_requisition(requisition) if requisition else 0
+    if job.kind == Job.Kind.RESCORE_CANDIDATE and job.payload.get("application"):
+        from pipeline.matching import is_stale, score_application
+        from pipeline.models import Application
+
+        application = Application.objects.select_related("candidate", "requisition").filter(
+            pk=job.payload["application"]).first()
+        if application and is_stale(application):
+            score_application(application)
+        return 1
     if job.kind == Job.Kind.RESCORE_CANDIDATE:
         from candidates.models import Candidate
         from pipeline.matching import rescore_candidate

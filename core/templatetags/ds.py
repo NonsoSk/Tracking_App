@@ -307,22 +307,23 @@ def _nav(user):
 
     hiring = user.is_hr or user.is_department_user or user.is_management
     items = []
+    # The three places a recruiter's day starts from come first: Home, Vacancies, Candidates.
     if hiring:
-        items.append({"label": "Summary", "long": "Summary", "url": reverse("core:summary"), "icon": "layout-dashboard",
-                      "exact": True})
+        items.append({"label": "Home", "long": "Home: new arrivals, what needs action, problems", "icon": "layout-dashboard",
+                      "url": reverse("core:summary"), "exact": True})
+        items.append({"label": "Vacancies", "long": "Vacancies (requisitions)", "url": reverse("requisitions:list"),
+                      "icon": "clipboard-list"})
+    if user.is_hr:
+        items.append({"label": "Candidates", "long": "Candidates (talent database)", "url": reverse("candidates:list"),
+                      "icon": "users", "exclude": [reverse("candidates:intake"), reverse("candidates:refer")]})
     items.append({"label": "My tasks", "long": "My tasks", "url": reverse("core:dashboard"), "icon": "list-checks",
                   "exact": True})
     if hiring:
-        items += [
-            {"label": "Roles", "long": "Requisitions", "url": reverse("requisitions:list"), "icon": "clipboard-list"},
-            {"label": "Pipeline", "long": "Candidate pipeline", "url": reverse("pipeline:applications"), "icon": "square-kanban"},
-        ]
+        items.append({"label": "Pipeline", "long": "Candidate pipeline", "url": reverse("pipeline:applications"),
+                      "icon": "square-kanban"})
     if user.is_hr:
-        items += [
-            {"label": "Talent", "long": "Talent database", "url": reverse("candidates:list"), "icon": "users",
-             "exclude": [reverse("candidates:intake"), reverse("candidates:refer")]},
-            {"label": "CV intake", "long": "CV intake", "url": reverse("candidates:intake"), "icon": "cloud-upload", "extra": True},
-        ]
+        items.append({"label": "CV intake", "long": "CV intake: linked folders and uploads",
+                      "url": reverse("candidates:intake"), "icon": "cloud-upload", "extra": True})
     items.append({"label": "Interviews", "long": "Interviews", "url": reverse("pipeline:interviews"), "icon": "calendar-days"})
     if user.is_management or user.is_hr:
         items.append({"label": "Offers", "long": "Offer reviews", "url": reverse("pipeline:offer_reviews"), "icon": "banknote"})

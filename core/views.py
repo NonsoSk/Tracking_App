@@ -102,6 +102,9 @@ def summary(request):
         "undated_requisitions": s.undated_requisitions(), "talent_url": talent(),
         "person_filters": bool(region or channel), "now": timezone.localtime(),
     })
+    from .today import today
+
+    context["day"] = today(user)
     return render(request, "core/summary.html", context)
 
 
@@ -506,6 +509,17 @@ def excel_link(request):
                 messages.error(request, str(exc))
             else:
                 messages.success(request, f"{workbook.name} uploaded ({workbook.sheets}). It is loaded at the next check.")
+        elif action == "link_pattern":
+            try:
+                workbook = link.link_pattern(request.POST.get("folder", ""), request.POST.get("pattern", ""),
+                                             user=request.user)
+            except WorkbookError as exc:
+                messages.error(request, str(exc))
+            else:
+                from pathlib import Path
+
+                messages.success(request, f"Following the newest '{workbook.pattern}' in {workbook.path} (now "
+                                          f"{Path(workbook.current_file).name}).")
         elif action == "unlink" and request.POST.get("workbook", "").isdigit():
             workbook = get_object_or_404(LinkedWorkbook, pk=request.POST["workbook"])
             workbook.delete()
@@ -571,7 +585,7 @@ def excel_link(request):
         folder.region_label = dict(REGION_CHOICES).get(folder.region, "")
     return render(request, "core/excel_link.html", {
         "regions": REGION_CHOICES,
-        "workbooks": LinkedWorkbook.objects.all(), "watching": link.watcher_running(),
+        "workbooks": _with_last_save(LinkedWorkbook.objects.all()), "watching": link.watcher_running(),
         "minutes": settings.EXCEL_SYNC_MINUTES, "folder_seconds": settings.CV_FOLDER_SECONDS,
         "folders": folders, "sources": IntakeForm.base_fields["source"].choices,
         "vacancies": open_requisitions_for_folder(), "updates": PortalUpdatesFile.objects.filter(pk=1).first(),
@@ -603,3 +617,14 @@ def _link_cv_folder(request):
         return
     messages.success(request, f"Watching {folder.path}. New CVs in it are read within a minute and added to the "
                               "talent database, ready to match.")
+
+
+def _with_last_save(workbooks):
+    """Each workbook with its last save's receipt: how long it took to arrive, and what was held for review."""
+    from intake.models import Receipt
+
+    books = list(workbooks)
+    for book in books:
+        book.last_save = Receipt.objects.filter(workbook=book, kind=Receipt.Kind.WORKBOOK).exclude(
+            status=Receipt.Status.SUPERSEDED).order_by("-pk").first()
+    return books

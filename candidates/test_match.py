@@ -335,3 +335,37 @@ class CommunityCategoryAtIntakeTests(TestCase):
         self.assertTrue(again.duplicate)
         first.refresh_from_db()
         self.assertEqual((first.region, first.region_note), ("jetty", "Set for the upload it came in"))
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class CoverageTests(TestCase):
+    """Nobody is left out silently: a large selection is read in batches, and every CV read is accounted for."""
+
+    def test_the_1001st_candidate_is_assessed_in_the_next_batch(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        dept = Department.objects.create(name="Finance", code="FIN")
+        vacancy = Requisition.objects.create(department=dept, title="Accounts Officer", status="open",
+                                             employment_type="experienced", education_level="hnd",
+                                             courses=["Accounting"], required_skills=["Accounts payable"])
+        hr = User.objects.create_user("hr", password="x", role=User.Role.HR_ADMIN)
+        now = timezone.now()
+        people = Candidate.objects.bulk_create([
+            Candidate(first_name=f"P{i}", last_name="Test", highest_qualification="hnd", course="Accounting",
+                      years_experience=3, skills=["Accounts payable"], source="email") for i in range(1001)])
+        Candidate.objects.filter(pk=people[0].pk).update(created_at=now - timedelta(days=30))  # the oldest
+        Candidate.objects.exclude(pk=people[0].pk).update(created_at=now)
+        self.client.force_login(hr)
+        query = {"r": vacancy.pk, "from": (now - timedelta(days=60)).date().isoformat(), "show": "all"}
+        first = self.client.get(reverse("candidates:match"), query)
+        self.assertEqual((first.context["total"], first.context["batches"]), (1001, 2))
+        self.assertEqual(first.context["coverage"]["read"], 1000)
+        self.assertContains(first, "none is left out")
+        second = self.client.get(reverse("candidates:match"), {**query, "batch": 2})
+        rows = second.context["rows"]
+        self.assertEqual([r["candidate"].pk for r in rows], [people[0].pk])
+        coverage = second.context["coverage"]
+        self.assertEqual(coverage["assessed"], 1)
+        self.assertEqual(coverage["matches"] + coverage["review"] + coverage["not_matched"], 1)

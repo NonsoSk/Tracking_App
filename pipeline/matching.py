@@ -756,10 +756,68 @@ def explain(requisition, candidate, screening: list, components: dict, jd: dict 
             "fits": fits[:8], "gaps": gaps[:8], "confirm": confirm[:5]}
 
 
+RUBRIC_FIELDS = ("education_level", "min_degree_class", "courses", "min_experience_years", "max_experience_years",
+                 "required_skills", "preferred_skills", "tools", "certifications", "requires_nysc", "employment_type")
+
+
+def _digest(*parts) -> str:
+    import hashlib
+    import json as _json
+
+    digest = hashlib.sha256()
+    for part in parts:
+        digest.update(_json.dumps(part, sort_keys=True, default=str).encode("utf-8", "ignore"))
+        digest.update(b"\0")
+    return digest.hexdigest()[:16]
+
+
+def versions(requisition, candidate) -> dict:
+    """What an assessment was made from: the matcher, the CV as read, the job description, and the requirements
+    (rubric) set on the vacancy. When any of them changes, the assessment is out of date and is made again."""
+    from .criteria import fingerprint_text
+
+    return {"matcher": VERSION,
+            "cv": _digest(candidate.cv_text or "", candidate.work_history or [], candidate.skills or [],
+                          candidate.highest_qualification, candidate.course, str(candidate.years_experience),
+                          candidate.certifications or [], candidate.tools or [], candidate.nysc_status,
+                          candidate.degree_class),
+            "jd": _digest(fingerprint_text(requisition)),
+            "rubric": _digest(*[getattr(requisition, f, None) for f in RUBRIC_FIELDS])}
+
+
+def queue_stale(limit: int = 500) -> int:
+    """Queue a fresh assessment (the worker's slow lane) for open applications whose CV, job description,
+    requirements or matcher changed since they were assessed. Returns how many were queued."""
+    from intake.models import Job
+    from intake.queue import enqueue
+
+    from .models import Application
+
+    queued = 0
+    open_apps = (Application.objects.filter(status__in=[Application.Status.ACTIVE, Application.Status.ON_HOLD],
+                                            matched_at__isnull=False)
+                 .select_related("candidate", "requisition").order_by("-pk"))
+    for application in open_apps.iterator(chunk_size=500):
+        if queued >= limit:
+            break
+        if is_stale(application):
+            enqueue(Job.Kind.RESCORE_CANDIDATE, payload={"application": application.pk},
+                    key=f"rescore:application:{application.pk}")
+            queued += 1
+    return queued
+
+
+def is_stale(application) -> bool:
+    """Whether the stored assessment was made from an older CV, JD, rubric or matcher."""
+    stored = (application.match_breakdown or {}).get("versions")
+    return bool(application.matched_at) and stored != versions(application.requisition, application.candidate)
+
+
 def score_application(application, save: bool = True) -> dict:
     from .ai_assess import current
 
     result = compute_match(application.requisition, application.candidate, assessment=current(application))
+    result["versions"] = versions(application.requisition, application.candidate)
     application.match_score = Decimal(str(result["score"]))
     application.match_grade = result["grade"]
     application.match_breakdown = result

@@ -197,6 +197,12 @@
   <div class="split">
     <section class="sheet" aria-labelledby="rq-h">
       <div class="sheet-h"><h2 class="title" id="rq-h">What we are looking for</h2><span class="spacer"></span><span class="small muted">{% icon "info" "ico-14" %} Every applicant is scored against these</span></div>
+      <div class="sheet-b rubric-state">
+        {% if req.rubric_confirmed %}<span class="chip success no-dot">{% icon "check" "ico-14" %} Confirmed by {{ req.rubric_confirmed_by.display_name|default:"the hiring manager" }} · {{ req.rubric_confirmed_at|date:"j M Y" }}</span>
+        {% else %}<span class="chip warning no-dot">{% if req.rubric_confirmed_at %}Changed since the hiring manager confirmed it{% else %}Not yet confirmed by the hiring manager{% endif %}</span>{% endif %}
+        {% if not req.rubric_confirmed %}{% if user.is_hr or user.is_department_user and user.department_id == req.department_id %}<form method="post" action="{% url 'requisitions:confirm_rubric' req.pk %}" class="inline">{% csrf_token %}<button class="btn btn-ghost btn-sm" type="submit">{% icon "check" "ico-16" %} Confirm these requirements</button></form>{% endif %}{% endif %}
+        <p class="small muted">The job description's duties, the must-haves and the nice-to-haves below, and the courses accepted as equivalent, are what every candidate is judged on.</p>
+      </div>
       <div class="sheet-b stack-24">
         <dl class="facts facts-grid">
           <div><dt>Experience</dt><dd>{{ req.min_experience_years }}{% if req.max_experience_years %}–{{ req.max_experience_years }}{% else %}+{% endif %} years</dd></div>

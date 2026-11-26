@@ -13,6 +13,7 @@ urlpatterns = [
     path("<int:pk>/note/", views.add_note, name="note"),
     path("<int:pk>/advert/", views.edit_advert, name="advert"),
     path("<int:pk>/rescore/", views.rescore, name="rescore"),
+    path("<int:pk>/confirm-requirements/", views.confirm_rubric, name="confirm_rubric"),
     path("<int:pk>/auto-shortlist/", views.run_auto_shortlist, name="auto_shortlist"),
     path("<int:pk>/bulk/", views.bulk_action, name="bulk"),
     path("<int:pk>/export/", views.export_applicants, name="export"),

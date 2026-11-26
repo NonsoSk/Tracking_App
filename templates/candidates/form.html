@@ -11,7 +11,7 @@
   </div>
 </header>
 
-<form method="post" class="wizard" novalidate>{% csrf_token %}
+<form method="post" class="wizard" novalidate>{% csrf_token %}{% if edit_version %}<input type="hidden" name="edited_version" value="{{ edit_version }}">{% endif %}
   {% if form.errors %}<div class="banner danger wizard-errors"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>A few details need attention</b><span class="small">{% if form.non_field_errors %}{{ form.non_field_errors|join:" " }}{% else %}They are marked in red below.{% endif %}</span></div></div>{% endif %}
   <div class="wizard-grid">
     <aside class="wizard-side">

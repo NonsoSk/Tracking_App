@@ -1,37 +1,33 @@
 # Upgrade status (branch `claude/portal-upgrade`)
 
-Kept up to date while the upgrade is built. The live install (`claude/quirky-lovelace-sv5emz`) is untouched until the
-owner approves the switch.
+The live install (`claude/quirky-lovelace-sv5emz`) is untouched. Nothing here reaches the HR PC, moves records or
+switches the team without the owner's explicit approval.
 
-| Stage | What | State |
+## What is built and tested
+
+| Area | State | Evidence |
 |---|---|---|
-| 0 | Diagnosis (`DIAGNOSIS.md`) | Done |
-| 1 | Receipts and a durable job queue; the background worker (`run_worker`); workbook saves picked up within a second and imported row by row; open screens refresh themselves | Built, tested; benchmark below |
-| 2 | Workbook sources: weekly dated files (newest file matching a pattern), column checks, field ownership, import issues for review | Pattern links and column checks built (worker side); link screen and docs pending |
-| 3 | CV folders linked from the CV intake page; connector for a PC folder | Pending |
-| 4 | Defensible matching (Needs review, evidence, versions, overrides, coverage, blind evaluation) | Pending |
-| 5 | Recruiter-day screens (Home, Vacancies, Candidates) | Pending |
-| 6 | Pilot deployment, backup and restore, release, handover | Pending |
+| Diagnosis of every path | Done | `DIAGNOSIS.md` (verified in code; the running install was not observed) |
+| Receipts first, durable job queue, one worker reading live inputs | Built | `intake/tests.py` (replay after a stop, a job run twice, failures with evidence, lease takeover, threads as they run) |
+| Workbook saves: complete files read at once, only changed rows imported, coalesced and in order, invalid saves refused | Built | `core/test_excel_link.py`, `intake/tests.py` |
+| Weekly dated workbooks (newest file fitting a pattern) | Built | `core/test_excel_link.py: WeeklyWorkbookTests` |
+| Open screens refresh after each commit, keeping unsaved edits | Built | `intake/tests.py: LiveTests`; browser benchmark below |
+| **2-second target** (save to two recruiters' open screens) | **Met in the benchmark** | 120/120 within 2 s; median 0.84 s, p90 1.1 s, worst 1.24 s (runserver and gunicorn, fictional workbooks of 200/2,000/2,000/1,000/5,000 rows). Real workbook sizes and the real share's behaviour are not yet measured |
+| CV folders linked from the CV intake page (confirm step, status, counts, stop one) | Built | `intake/test_linking.py` |
+| Connector for PC folders (offline queue, catch-up) | Built | `intake/test_linking.py: ConnectorProgramTests` |
+| Needs review (never Match on an unjudged role; missing information is not a mismatch) | Built | `pipeline/test_match_verdict.py` |
+| Version stamps, reviewers' judgements with reasons, re-assessment when CV or JD changes, rubric confirmation | Built | `pipeline/test_match_verdict.py` |
+| Coverage: every CV in a selection read in batches, counts and reasons | Built | `candidates/test_match.py: CoverageTests` (the 1,001st) |
+| Blind evaluation workflow (export, evidence, report old vs new) | Built | `pipeline/test_match_verdict.py`; **real-world quality UNVERIFIED** until reviewers label real cases |
+| Home: new today, needs a person, problems; Home/Vacancies/Candidates first | Built | `core/test_upgrade_ui.py` |
+| Simultaneous edits not silently overwritten | Built | `core/test_upgrade_ui.py` |
+| Pilot deployment (Caddy HTTPS, web, worker, scheduler, PostgreSQL, private media, restart policies) | Files written | Not started here (no Docker daemon in this environment) |
+| Backup and restore on a second installation; SQLite to PostgreSQL | Built | `core/test_backup.py`; rehearsal on fictional data: 6,000 candidates, 2,000 applications, 37 files, counts and hashes match on PostgreSQL 16 |
 
-## Stage 1 in short
+## Still needs people or access
 
-* Every file is received before anything else: a private copy under `media/receipts/` and a `Receipt` row, with its
-  job, in one transaction (`intake/receive.py`). The receipt keeps the outcome and the reason (added, brought up to
-  date, already in the portal, not a CV, could not be read, same person?, failed).
-* Jobs (`intake/models.py: Job`) are claimed with a lease. A worker that stops leaves its job to be picked up again,
-  once; a job that ran but was not marked done finds its receipt finished and does nothing.
-* `python manage.py run_worker` runs the threads: workbooks (every 0.25 s), folders (every 30 s and on change
-  events), a fast lane (CVs, workbook saves) and a slow lane (OCR, AI, bulk re-assessment), and upkeep (heartbeat,
-  recovery, Portal updates.xlsx, resumes). Only one worker reads the live inputs (`Worker.holds_inputs`).
-  `sync_workbooks --watch` now starts the same worker, so `start-portal.bat` keeps working.
-* Workbook saves: a complete .xlsx is read at once (Excel swaps a new file in), a half-copied one waits; only rows
-  whose content changed are imported, and the whole-database passes look only at the people those rows touched.
-  A save that lost sheets it had is refused and the last good data stays. Saves made while one is importing are
-  coalesced; an older save never overwrites a newer one.
-* Open screens: `/intake/live/` returns change counters to signed-in staff; `static/ds/live.js` refetches the page
-  through the normal view and swaps the live region, keeping unsaved edits, open dialogs, the selected tab and open
-  sections.
-
-## Measured
-
-See the benchmark section of the final report (tools/live_benchmark.py).
+* The authoritative workbook: where "Recruitment Master Weekly Report" lives, one file or weekly files, who saves it.
+* Hosting access (IEFCL IT), the intranet name and certificate, the shares to mount, SMTP.
+* AI for real CVs: IEFCL's authorisation of the provider and the data use.
+* Hiring managers: confirm each vacancy's requirements; reviewers: the blind evaluation on real vacancies.
+* Two recruiters on two devices, and the usability test.

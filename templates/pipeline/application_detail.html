@@ -346,6 +346,26 @@
           {% include "pipeline/_why.html" with why=breakdown.why stages=breakdown.match.stages %}
         </section>
         {% endif %}
+        {% with rv=app.review %}
+        <section class="match-review" aria-labelledby="mr-h">
+          {% if rv %}<div class="banner {% if rv.decision == 'match' %}success{% elif rv.decision == 'review' %}warning{% else %}neutral-banner{% endif %}"><span class="tile">{% icon "user-check" "ico-18" %}</span><div><b>Judged by {{ rv.reviewer.display_name|default:"a former user" }}: {{ rv.get_decision_display }}</b><span class="small">{{ rv.reason }} · {{ rv.created_at|date:"j M Y H:i" }}{% if rv.matcher_verdict %} · the matcher said {{ rv.matcher_verdict|cut:"_"|lower }}{% endif %}{% if rv.outdated %} · <b>the CV or job description has changed since</b>{% endif %}</span></div></div>{% endif %}
+          {% if breakdown.versions %}<p class="small muted" id="mr-h">Assessed with matcher v{{ breakdown.versions.matcher }} on CV {{ breakdown.versions.cv|slice:":8" }}, job description {{ breakdown.versions.jd|slice:":8" }}, requirements {{ breakdown.versions.rubric|slice:":8" }}{% if app.matched_at %} · {{ app.matched_at|date:"j M Y H:i" }}{% endif %}</p>{% endif %}
+          {% if user.is_hr or user.is_department_user and user.department_id == req.department_id %}
+          <details class="mr-form"><summary class="btn btn-ghost btn-sm">{% icon "scale" "ico-16" %} {% if rv %}Change the judgement{% else %}Record your judgement{% endif %}</summary>
+            <form method="post" action="{% url 'pipeline:review_match' app.pk %}" class="stack-8">{% csrf_token %}
+              <div class="seg" role="radiogroup" aria-label="Decision">
+                <label class="check"><input type="radio" name="decision" value="match" required> Match</label>
+                <label class="check"><input type="radio" name="decision" value="no_match"> Not a match</label>
+                <label class="check"><input type="radio" name="decision" value="review"> Still to decide</label>
+              </div>
+              <label class="field"><span class="label">Why</span><textarea name="reason" rows="2" required minlength="5" placeholder="What in the CV, or missing from it, decided it"></textarea></label>
+              <p class="small muted">Kept when the application is assessed again. It moves no stage and sends nothing to the candidate.</p>
+              <button class="btn btn-primary btn-sm" type="submit">Record</button>
+            </form>
+          </details>
+          {% endif %}
+        </section>
+        {% endwith %}
         {% if breakdown.cap.applied %}
         <div class="banner warning cap-banner"><span class="tile">{% icon "gauge" "ico-18" %}</span>
           <div><b>Held at {{ breakdown.cap.limit }}: {{ breakdown.cap.reason }}</b>

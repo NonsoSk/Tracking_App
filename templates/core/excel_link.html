@@ -33,7 +33,10 @@
           <td><b>{{ wb.name }}</b><div class="small muted">{{ wb.sheets|default:"—" }}</div><div class="small muted break">{{ wb.path }}</div></td>
           <td data-label="State"><span class="chip {% if wb.state == 'ok' %}success{% elif wb.state == 'waiting' %}brand{% else %}danger{% endif %}">{{ wb.get_state_display }}</span>{% if wb.refresh_requested %}<div class="small muted">Refresh requested</div>{% endif %}{% if wb.checked_at %}<div class="small muted">Checked {{ wb.checked_at|ago }}</div>{% endif %}</td>
           <td data-label="Last loaded" class="num">{% if wb.synced_at %}{{ wb.synced_at|date:"j M Y, H:i" }}{% if wb.file_modified_at %}<div class="small muted">File saved {{ wb.file_modified_at|date:"j M, H:i" }}</div>{% endif %}{% else %}<span class="muted">Not yet</span>{% endif %}</td>
-          <td data-label="What changed" class="small">{{ wb.message|default:"—" }}{% if wb.report_path %} <a href="?report={{ wb.pk }}">{% icon "file-spreadsheet" "ico-14" %} Report</a>{% endif %}</td>
+          <td data-label="What changed" class="small">{{ wb.message|default:"—" }}{% if wb.report_path %} <a href="?report={{ wb.pk }}">{% icon "file-spreadsheet" "ico-14" %} Report</a>{% endif %}
+            {% with r=wb.last_save %}{% if r %}<div class="small muted">Last save {% if r.status == "done" %}in the portal {% if wb.last_latency is not None %}{{ wb.last_latency|floatformat:1 }} s after it was saved{% endif %} · {{ r.details.rows_changed|default:0 }} row{{ r.details.rows_changed|pluralize }} changed{% else %}{{ r.get_status_display|lower }}{% endif %}</div>
+            {% if r.details.held_count or r.details.issue_count %}<details class="small"><summary>{% if r.details.held_count %}{{ r.details.held_count }} row{{ r.details.held_count|pluralize }} held: same person?{% endif %}{% if r.details.held_count and r.details.issue_count %} · {% endif %}{% if r.details.issue_count %}{{ r.details.issue_count }} value{{ r.details.issue_count|pluralize }} not used{% endif %}</summary>
+              <ul>{% for h in r.details.held %}<li>Row {{ h.rows }}: {{ h.name }} {{ h.email }}: {{ h.reason }}</li>{% endfor %}{% for i in r.details.issues %}<li>{{ i.sheet }} row {{ i.row }}, {{ i.column }} "{{ i.value }}": {{ i.note }}</li>{% endfor %}</ul></details>{% endif %}{% endif %}{% endwith %}</td>
           <td><form method="post">{% csrf_token %}<input type="hidden" name="workbook" value="{{ wb.pk }}"><button class="btn btn-ghost btn-sm" type="submit" name="action" value="unlink" data-confirm="Stop following {{ wb.name }}? The records already loaded stay in the portal." data-confirm-label="Stop following">Stop following</button></form></td>
         </tr>
       {% endfor %}
@@ -94,6 +97,18 @@
     {% if updates.message %}<div class="banner warning"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>Waiting</b><span class="small">{{ updates.message }}</span></div></div>{% endif %}
   </div>
 </section>
+
+<form method="post" class="sheet" aria-labelledby="pat-h">{% csrf_token %}
+  <div class="sheet-h"><h2 class="title" id="pat-h">A new dated workbook each week?</h2></div>
+  <div class="sheet-b stack">
+    <p class="small soft">Follow the newest file in a folder whose name fits a pattern, e.g. <code>Recruitment Master Weekly Report*.xlsx</code>. Each new file must hold the same kinds of sheet as the first, or it is not loaded and the last good data stays. Temporary files and "Portal updates.xlsx" are never read.</p>
+    <div class="form-grid">
+      <div class="field span-2"><label class="label" for="pat-folder">Folder (as the portal's worker sees it)</label><input class="input" id="pat-folder" name="folder" required placeholder="\\fileserver\HR\Recruitment"></div>
+      <div class="field span-2"><label class="label" for="pat-name">File names like</label><input class="input" id="pat-name" name="pattern" value="Recruitment Master Weekly Report*.xlsx"></div>
+    </div>
+  </div>
+  <div class="sheet-f row"><span class="spacer"></span><button class="btn btn-primary" type="submit" name="action" value="link_pattern">{% icon "link" "ico-18" %} Follow the newest file</button></div>
+</form>
 
 <div class="split split-even">
   <form method="post" enctype="multipart/form-data" class="sheet" data-loading aria-labelledby="up-h">{% csrf_token %}

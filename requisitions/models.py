@@ -151,6 +151,12 @@ class Requisition(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # The hiring manager's confirmation of what candidates are judged on (job description, must-haves, preferred
+    # skills, accepted courses and their equivalents). It lapses when any of them changes.
+    rubric_confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                            on_delete=models.SET_NULL, related_name="+")
+    rubric_confirmed_at = models.DateTimeField(null=True, blank=True)
+    rubric_confirmed_version = models.CharField(max_length=40, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -166,6 +172,16 @@ class Requisition(models.Model):
 
     def get_absolute_url(self):
         return reverse("requisitions:detail", args=[self.pk])
+
+    def rubric_version(self) -> str:
+        from pipeline.matching import _digest, versions
+
+        current = versions(self, _NoCv())
+        return _digest(current["jd"], current["rubric"])
+
+    @property
+    def rubric_confirmed(self) -> bool:
+        return bool(self.rubric_confirmed_at) and self.rubric_confirmed_version == self.rubric_version()
 
     @property
     def is_trainee_track(self) -> bool:
@@ -227,3 +243,10 @@ class RequisitionNote(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+
+
+class _NoCv:
+    """Stands in for a candidate when only the vacancy's side of the versions is wanted."""
+
+    cv_text, work_history, skills, highest_qualification, course = "", [], [], "", ""
+    years_experience, certifications, tools, nysc_status, degree_class = None, [], [], "", ""

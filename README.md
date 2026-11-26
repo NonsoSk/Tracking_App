@@ -186,9 +186,22 @@ Any workbook holding at least one of the record sheets above can be linked, and 
 of sheet (for example, each officer's own interview records): each file is loaded on its own when it changes. Within
 one workbook, only the first sheet of each kind is read; a second one is listed in the report.
 
-From then on, `start-portal.bat` also opens a minimised **Excel link** window
-(`python manage.py sync_workbooks --watch`). It checks the files every `EXCEL_SYNC_MINUTES` (5) and, when one was
-saved with changes, loads a copy:
+From then on, the **background worker** (`python manage.py run_worker`; `start-portal.bat` opens it in a minimised
+window, the pilot runs it as the `worker` service) looks at the files every quarter of a second. As soon as a save is
+complete (Excel writes a whole new file and swaps it in; a file still being copied waits), it keeps a copy with a
+receipt and imports **only the rows that changed**. Open screens refresh themselves: in a benchmark on fictional
+workbooks of 5,000 rows, a save showed on two recruiters' screens within 2 seconds every time (median 0.8 s).
+
+* A team that saves a new dated workbook each week links the folder instead: on **Excel link**, *A new dated workbook
+  each week?* follows the newest file whose name fits a pattern (e.g. `Recruitment Master Weekly Report*.xlsx`).
+* A save that lost a sheet it had (or whose headings changed) is not loaded, and the last good data stays; the link
+  shows *Columns not recognised*. A file that is missing or cannot be opened shows as such, and the data stays.
+* Saves made while one is still loading are combined, and an older save never overwrites a newer one.
+* Rows that may be someone already in the portal but do not clearly match are held for review, listed under the
+  workbook on the Excel link page (see docs/upgrade/HANDOVER.md for which fields Excel owns and which the portal
+  owns).
+
+On each save:
 
 * New rows are added and rows edited in Excel update their records (a corrected interview result or CBT score updates
   that record rather than adding a second one). Nothing is duplicated.
@@ -202,29 +215,25 @@ HR Admins see each linked file, when it was last loaded and what changed under *
 saved workbook on that page instead; the scheduler loads it. Once everyone works in the portal, click **Stop
 following** (or run `sync_workbooks --unlink`). The records already loaded stay.
 
-### The CV folder: new CVs read on their own
+### CV folders: new CVs read on their own
 
-When CVs are saved into one folder (for example by an Outlook rule that saves attachments, or by whoever receives
-them), the portal can read them as they arrive. On **Excel link**, under **CV folder**, paste the folder's path (from
-the File Explorer address bar), choose how these CVs arrive (by email, hard copy, agency…), optionally a vacancy, and
-whether to read the CVs already in it, then **Watch this folder**.
+On **CV intake**, **Link a folder** (the other action, **Upload files once**, is a one-time copy). Give it a name,
+the folder's full path, how these CVs arrive, optionally a vacancy (each CV then becomes an application, scored at
+once; without one they join the talent pool) and a community category, whether to include subfolders, and whether to
+**import the files already there and watch for new ones** or **watch new files only**. A confirm step shows what will
+happen before anything is read. Several folders can be linked; each can be stopped on its own.
 
-The same Excel link window (or the server's scheduler) then looks in the folder every `CV_FOLDER_SECONDS` (60):
-
-* Each new file, subfolders included, is read like an upload on the CV intake page. **Only a CV becomes a profile**
-  (see *Only CVs, and each CV once* below); HR gets a notification. If the folder has a vacancy, the CV is applied to
-  it and scored at once.
-* Each file is read once. A file saved again with changes is read again (and updates the same person, found by email
-  or phone); a copy of a CV already in the portal, under another name or in another format, is not added again. A
-  file still being copied waits for the next check, and at most 50 files are read per check, so a big folder is worked
-  through in turns.
-* Files that are not CVs (cover letters, certificates, spreadsheets, Word lock files, Thumbs.db) are left out, with
-  the reason noted against the file. **Files in the folder are never moved, renamed or deleted.**
-
-The page shows each folder, when it was last checked, how many CVs were read, how many were already in the portal,
-left out as not CVs or could not be read, and the latest ones, with **Check now**, **Try the unread again** (for scans
-and photos, once OCR or AI is set up) and **Stop watching** (the profiles already read stay). On a server, the folder
-must be one the server can reach (a shared folder IT links).
+* A folder shows *Waiting for the worker* until the background worker has opened it, then **Linked** (or
+  *Unavailable*, with the reason). The portal reads it with every browser closed.
+* On the pilot server the path must be one the server can reach (IT mounts the shared folders under `/inputs`). A
+  folder on someone's PC is sent by the **connector** on that PC (**Add a PC** on the CV intake page gives its key;
+  run `portal-connector.bat` there). The connector keeps a queue while the PC is offline and catches up afterwards.
+* Every file gets a receipt with its outcome: added, brought up to date, already in the portal (the same file, a
+  renamed copy, the Word and PDF of one CV), not a CV, could not be read, or **same person?** when the email or phone
+  belongs to someone whose name differs (HR answers on the page: same person, or someone else). Failed files keep
+  their copy and can be tried again. Files in the folder are never moved, renamed or deleted.
+* Per folder: when it was last checked, the last complete check, counts, issues, **Check now**, **Read unreadable
+  again** and **Stop watching** (the candidates already imported stay).
 
 ### Portal updates.xlsx: the portal's latest data, in Excel
 
@@ -604,7 +613,9 @@ workbook was loaded. A date that does not fit the order of the steps is marked *
 |---|---|---|
 | `python manage.py send_retirement_alerts` | daily | Asks departments about staff retiring within `RETIREMENT_ALERT_MONTHS` (at most once every 90 days per person) |
 | `python manage.py send_reminders` | every 15–60 min | Interview reminders 24 hours ahead, chasers for overdue selection reports, expired-offer alerts |
-| `python manage.py sync_workbooks` | every 5–15 min | Loads the linked Excel workbooks that were saved with changes, reads new CVs from the CV folder, and rewrites Portal updates.xlsx when the portal's data changed (see Keeping in step with Excel). With AI on, it also has Claude read a few open applications against their job description. `--watch` keeps going (workbooks every `EXCEL_SYNC_MINUTES`, the folder every `CV_FOLDER_SECONDS`, Claude every minute); `start-portal.bat` runs it on Windows |
+| `python manage.py run_worker` | always running | The background worker: linked workbooks and CV folders as they change, the queue (CVs, workbook saves, OCR, re-assessing applications whose CV or job description changed), Portal updates.xlsx, website resumes, AI checks when authorised. `start-portal.bat` runs it on Windows; the pilot's `worker` service elsewhere. `sync_workbooks --watch` starts the same worker |
+| `python manage.py sync_workbooks` | only without a worker | One pass of the same work in this process. When a worker that reads the inputs is running, it leaves them to it |
+| `python manage.py portal_backup --out <folder> --verify` | nightly | Every record and stored file in one .zip, checked by restoring it on a throwaway second installation (`portal_restore` restores into a new, empty one) |
 | `python manage.py fetch_resumes` | after loading the applications dump | Saves the resumes from the website links as PDFs (`load-resumes.bat`). The Excel link window also saves up to 100 new ones each time it checks |
 | `python manage.py send_department_summaries` | every 15–60 min | Emails the candidate summary to departments for vacancies set to send it daily or weekly (once per day or week, from `SUMMARY_EMAIL_HOUR`) |
 | `python manage.py fetch_cv_emails` | every 15 min | Reads unread emails in the recruitment mailbox (IMAP) and adds their CV attachments. A requisition reference (e.g. `REQ-2026-0004`) or the vacancy title in the subject applies the CV to that vacancy |
@@ -615,15 +626,20 @@ runs all of them.
 
 ## Deployment
 
+The team's always-on portal (the pilot): **deploy/pilot/** on one Linux host with Docker, behind HTTPS (Caddy), with
+PostgreSQL, the web app (gunicorn), the background worker, the scheduler and a nightly checked backup. Every service
+restarts on its own. No password or sample account is in the files: they come from `.env` on the server.
+
 ```bash
-cp .env.example .env    # set DJANGO_DEBUG=false, DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, SITE_URL, SMTP, …
+cd deploy/pilot
+cp .env.pilot.example .env      # fill in on the server; never commit it
 docker compose up -d --build
 docker compose exec web python manage.py createsuperuser
 ```
 
-This starts PostgreSQL, the web app (gunicorn + WhiteNoise for static files) and the scheduler. Put it behind the
-company's HTTPS reverse proxy or load balancer. For Microsoft 365 email, use `smtp.office365.com:587` with a licensed
-mailbox, or an SMTP relay.
+docs/upgrade/HANDOVER.md covers the sources, which fields Excel owns, the worker, backups, moving the HR PC's data to
+the pilot (only with the owner's approval), rollback and what IT provides. The `docker-compose.yml` at the top of the
+repository is a local trial only (sample database password, no HTTPS).
 
 ## Configuration
 
@@ -684,7 +700,7 @@ Blender brief, and dropping a render into `static/img/3d/` with the listed file 
 python manage.py test
 ```
 
-The 202 tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
+The tests cover the CV reader (PDF/Word/text, scanned files, duplicates), matching, the paper-form rating legend,
 both hiring tracks end to end, all offer-review outcomes, permissions, the careers flow, calendar invites, the AI
 client (mocked, so no API calls), loading and refreshing the workbooks (edits in Excel, work kept in the portal, no
 duplicates), the candidate groups and their filters, joining staff records to profiles and the applicant/staff/former
@@ -693,6 +709,16 @@ from a local test website, the compulsory requisition details, the job descripti
 department approvals, the summary page (each figure checked against the workbook rows, dates only from Excel, the
 department view, click-through counts), strict matching and its working, and the hiring timeline. A smoke test loads
 the demo data and opens every screen as every role.
+The upgrade adds tests for receipts and the job queue (replay after a worker stopped, a job run twice, failures kept
+with their evidence), duplicates across retries and renames, the worker's threads as they run (files dropped while it
+runs and while it is stopped), fast consecutive saves and out-of-order saves, a save that lost sheets, weekly dated
+workbooks, live-screen counters (only after a commit, only to signed-in staff), linking folders from the CV intake
+page, the connector offline then catching up, "same person?" answers, Needs review for an unjudged role, age,
+community category and source kept out of the score, reviewers' judgements, re-assessment of out-of-date results,
+the 1,001st candidate, simultaneous edits, and a backup restored on a second installation.
+
+`tools/live_benchmark.py` measures a workbook save reaching two recruiters' open screens on fictional data in a
+throwaway folder (it refuses any other). Tests use a temporary database file (`SQLITE_TEST_PATH` to choose where).
 
 ## Possible next steps
 
