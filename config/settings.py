@@ -18,7 +18,7 @@ def _load_dotenv(path: Path) -> None:
     """Minimal .env loader so the project has no extra dependency for it."""
     if not path.exists():
         return
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():  # -sig: Notepad may add a byte-order mark
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
