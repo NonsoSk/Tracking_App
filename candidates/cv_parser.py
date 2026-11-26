@@ -15,6 +15,8 @@ scanned image / scanned PDF) into structured candidate data:
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import io
 import logging
 import os
@@ -51,6 +53,31 @@ class ExtractedText:
     method: str = "none"
     scanned: bool = False
     notes: list[str] = field(default_factory=list)
+    ocr_deferred: bool = False  # a scan that OCR can read, left for the slow lane
+
+
+# The background worker reads arrivals in two lanes: ordinary files at once, scans (OCR) in a slower lane, so a long
+# OCR never holds up the next file or a workbook refresh. Inside ``ocr_deferred()`` a scan is not OCR'd here.
+_DEFER_OCR = contextvars.ContextVar("defer_ocr", default=False)
+
+
+@contextlib.contextmanager
+def ocr_deferred():
+    token = _DEFER_OCR.set(True)
+    try:
+        yield
+    finally:
+        _DEFER_OCR.reset(token)
+
+
+def _ocr_now(result: "ExtractedText") -> bool:
+    """Whether to OCR this scan now (False when OCR is not installed, or deferred to the slow lane)."""
+    if not ocr_available():
+        return False
+    if _DEFER_OCR.get():
+        result.ocr_deferred = True
+        return False
+    return True
 
 
 def ocr_available() -> bool:
@@ -88,7 +115,7 @@ def _pdf_extract(data: bytes) -> ExtractedText:
         result.text = "\n".join(pages)
         if len(re.sub(r"\s", "", result.text)) < 80:
             result.scanned = True
-            if ocr_available():
+            if _ocr_now(result):
                 images = []
                 for index in range(min(len(pdf), 6)):
                     page = pdf[index]
@@ -96,7 +123,7 @@ def _pdf_extract(data: bytes) -> ExtractedText:
                     page.close()
                 result.text = _ocr_images(images)
                 result.method = "ocr"
-            else:
+            elif not result.ocr_deferred:
                 result.notes.append("Scanned PDF: no text layer and OCR is not installed.")
     finally:
         pdf.close()
@@ -230,12 +257,12 @@ def extract_text(data: bytes, filename: str) -> ExtractedText:
             return ExtractedText(text=_strip_rtf(text) if ext == ".rtf" else text, method="text")
         if ext in IMAGE_EXTENSIONS:
             result = ExtractedText(method="image", scanned=True)
-            if ocr_available():
+            if _ocr_now(result):
                 from PIL import Image
 
                 result.text = _ocr_images([Image.open(io.BytesIO(data))])
                 result.method = "ocr"
-            else:
+            elif not result.ocr_deferred:
                 result.notes.append("Image CV: OCR is not installed.")
             return result
     except Exception as exc:  # corrupt files must never break an upload
@@ -698,7 +725,9 @@ def parse_cv(data: bytes, filename: str) -> dict:
     from_dates = heuristic.pop("experience_from_dates", False)
 
     ai_data = None
-    if ai.ai_enabled():
+    # Sending a CV to an outside AI service needs the company's authorisation (AI_CV_PROCESSING_AUTHORISED), not just
+    # an API key; and a scan waiting for the slow lane is read there, not here.
+    if ai.cv_processing_allowed() and not extracted.ocr_deferred:
         ai_data = ai_extract(data, filename, extracted.text)
         if ai_data is None:
             notes.append("AI extraction unavailable; used rule-based extraction.")
@@ -741,4 +770,5 @@ def parse_cv(data: bytes, filename: str) -> dict:
     parsed["method"] = method
     parsed["notes"] = notes
     parsed["scanned"] = extracted.scanned
+    parsed["ocr_deferred"] = extracted.ocr_deferred
     return parsed

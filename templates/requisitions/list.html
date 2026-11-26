@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load ds %}
 {% block title %}Requisitions{% endblock %}
+{% block live %} data-live="hiring"{% endblock %}
 {% block crumbs %}<span aria-current="page">Requisitions</span>{% endblock %}
 {% block primary_action %}{% if request.user.can_raise_requisition %}<a class="btn btn-primary btn-sm" href="{% url 'requisitions:create' %}">{% icon "plus" "ico-16" %} Raise requisition</a>{% endif %}{% endblock %}
 {% block content %}

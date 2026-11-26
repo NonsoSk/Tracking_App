@@ -24,6 +24,12 @@ def ai_enabled() -> bool:
     return bool(settings.AI_ENABLED and settings.ANTHROPIC_API_KEY)
 
 
+def cv_processing_allowed() -> bool:
+    """Whether candidates' CVs may be sent to the AI provider: an API key is not enough, the company must also have
+    authorised the provider and the use of the data (AI_CV_PROCESSING_AUTHORISED=true)."""
+    return ai_enabled() and bool(getattr(settings, "AI_CV_PROCESSING_AUTHORISED", False))
+
+
 def _client():
     import anthropic
 

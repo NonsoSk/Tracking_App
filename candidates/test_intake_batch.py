@@ -54,16 +54,16 @@ class ManyCvsTests(TestCase):
         self.assertEqual(response.context["counts"]["not_cv"], 1)
 
     def test_a_file_that_breaks_the_reader_does_not_stop_the_others(self):
-        from . import views
+        from . import intake
 
-        real = views.ingest_cv
+        real = intake.ingest_cv
 
         def flaky(content, filename, **kw):
             if filename == "broken.docx":
                 raise ValueError("corrupt file")
             return real(content, filename, **kw)
 
-        with mock.patch.object(views, "ingest_cv", side_effect=flaky):
+        with mock.patch.object(intake, "ingest_cv", side_effect=flaky):
             response = self.client.post(self.url, {"files": [cv("Bad", "bad@example.com", "broken.docx"),
                                                              cv("Ada", "ada@example.com")], "source": "email"})
         errors = {name: r.error for name, r in response.context["results"]}
@@ -75,8 +75,8 @@ class ManyCvsTests(TestCase):
         token = "run12345abc"
         first = self.client.post(self.url, {"files": [cv("Ada", "ada@example.com"), cv("Bola", "bola@example.com")],
                                             "source": "email"}, HTTP_X_INTAKE_BATCH=token)
-        self.assertEqual(first.json(), {"results": [{"name": "Ada.docx", "ok": True, "error": ""},
-                                                    {"name": "Bola.docx", "ok": True, "error": ""}]})
+        self.assertEqual(first.json(), {"results": [{"name": "Ada.docx", "ok": True, "error": "", "status": "added"},
+                                                    {"name": "Bola.docx", "ok": True, "error": "", "status": "added"}]})
         second = self.client.post(self.url, {"files": [cv("Chidi", "chidi@example.com"),
                                                        SimpleUploadedFile("notes.zip", b"zip")], "source": "email"},
                                   HTTP_X_INTAKE_BATCH=token)

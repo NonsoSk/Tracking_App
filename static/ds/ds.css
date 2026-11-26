@@ -2072,3 +2072,18 @@ form.is-uploading .dropzone { pointer-events: none; opacity: .6; }
 .mp-chip.mp-chip-sm small { font-weight: 700; }
 .mp-chip.is-empty { opacity: .55; }
 .mp-date { white-space: nowrap; }
+
+/* Live screens (live.js): a part of the page that changed while it held unsaved edits */
+.live-notice { display: flex; flex-wrap: wrap; gap: var(--s-8); align-items: center; justify-content: space-between;
+  margin: 0 0 var(--s-12); padding: var(--s-8) var(--s-12); border: 1px solid var(--info-line); border-radius: var(--r-md);
+  background: var(--info-bg); color: var(--info-ink); font-size: 14px; }
+
+/* CV intake: linked folders */
+.page-actions { gap: var(--s-8); align-self: end; }
+.folder-row { display: flex; flex-wrap: wrap; gap: var(--s-12); justify-content: space-between; padding: var(--s-12) 0; border-bottom: 1px solid var(--line); }
+.folder-row:last-of-type { border-bottom: 0; }
+.folder-main { min-width: 0; flex: 1 1 320px; display: grid; gap: 4px; }
+.folder-main code { word-break: break-all; }
+.folder-actions { gap: var(--s-8); align-items: start; }
+.sheet-note { padding: 0 var(--s-16); }
+.danger-ink { color: var(--danger-ink); }

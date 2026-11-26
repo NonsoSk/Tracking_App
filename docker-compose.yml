@@ -1,3 +1,5 @@
+# A LOCAL TRIAL on one computer only (sample database password, no HTTPS). For the team's always-on portal use
+# deploy/pilot/docker-compose.yml (README, Deployment).
 services:
   db:
     image: postgres:16
@@ -24,6 +26,21 @@ services:
     depends_on:
       - db
 
+  # The background worker: workbook saves, CV folders, the queue, Portal updates.xlsx.
+  worker:
+    build: .
+    env_file: .env
+    environment:
+      POSTGRES_DB: recruitment
+      POSTGRES_USER: recruitment
+      POSTGRES_PASSWORD: recruitment
+      POSTGRES_HOST: db
+    volumes:
+      - media:/app/media
+    depends_on:
+      - web
+    command: python manage.py run_worker
+
   # Background jobs: retirement alerts (daily), reminders (hourly), mailbox CVs (every 15 min).
   scheduler:
     build: .
@@ -40,7 +57,6 @@ services:
     command: >
       sh -c 'i=0; while true; do
         python manage.py send_reminders;
-        python manage.py sync_workbooks;
         python manage.py send_department_summaries;
         [ -n "$$CV_INBOX_HOST" ] && python manage.py fetch_cv_emails;
         [ $$((i % 96)) -eq 0 ] && python manage.py send_retirement_alerts;

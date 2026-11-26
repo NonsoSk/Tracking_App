@@ -1,0 +1,20 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Connector key{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:intake' %}">CV intake</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Connector key</span>{% endblock %}
+{% block content %}
+<header class="page-head"><div><div class="eyebrow">Connector</div><h1>{{ connector.name }}</h1>
+<p class="lede">Copy this key now: it is shown only once. Anyone with it can send files to the portal, so keep it on that PC only.</p></div></header>
+<section class="sheet" aria-labelledby="ct-h">
+  <div class="sheet-h"><h2 class="title" id="ct-h">Set up the PC</h2></div>
+  <div class="sheet-b stack">
+    <div class="banner warning"><span class="tile">{% icon "key-round" "ico-18" %}</span><div><b>Key</b><span class="small"><code data-live-hold>{{ token }}</code></span></div></div>
+    <ol class="how-list">
+      <li><span>On that PC, copy the portal folder's <code>tools\portal_connector.py</code> and <code>portal-connector.bat</code> (any folder will do; Python 3.10 or newer is needed).</span></li>
+      <li><span>Double-click <code>portal-connector.bat</code>. The first time, it asks for the portal's address (<code>{{ portal_url }}</code>) and this key, and keeps them in its settings file on that PC.</span></li>
+      <li><span>Back here, link a folder and choose <b>{{ connector.name }}</b> as the PC that sends it. It shows as Linked once the PC has opened it.</span></li>
+    </ol>
+  </div>
+  <div class="sheet-f row"><span class="spacer"></span><a class="btn btn-primary" href="{% url 'intake:folder_link' %}">{% icon "folder-open" "ico-18" %} Link a folder</a></div>
+</section>
+{% endblock %}

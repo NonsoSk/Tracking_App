@@ -1,7 +1,5 @@
 import logging
-import time
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
@@ -26,8 +24,7 @@ class Command(BaseCommand):
         parser.add_argument("--list", action="store_true", help="Show the linked workbooks and when they were loaded.")
         parser.add_argument("--now", action="store_true", help="Load the linked workbooks now even if unchanged.")
         parser.add_argument("--watch", action="store_true",
-                            help=f"Keep running: workbooks every EXCEL_SYNC_MINUTES ({settings.EXCEL_SYNC_MINUTES}), "
-                                 f"the CV folder every CV_FOLDER_SECONDS ({settings.CV_FOLDER_SECONDS}).")
+                            help="Keep running as the background worker (the same as run_worker).")
 
     def handle(self, *args, **options):
         if options["unlink"]:
@@ -49,29 +46,15 @@ class Command(BaseCommand):
                 self.stdout.write("No Excel workbooks or CV folder are linked yet (Excel link page, or link-excel.bat).")
             self.run_check(force=options["now"])
             return
-        minutes = max(1, settings.EXCEL_SYNC_MINUTES)
-        folder_seconds = max(15, settings.CV_FOLDER_SECONDS)
-        self.stdout.write(f"Keeping the portal in step with Excel (every {minutes} minute(s)) and the CV folder (every "
-                          f"{folder_seconds} seconds). Keep this window open (it can stay minimised). Ctrl+C stops it.")
-        force, next_books, next_folders, next_assess = options["now"], 0.0, 0.0, 0.0
-        try:
-            while True:
-                now = time.monotonic()
-                wrote = False
-                if now >= next_books or LinkedWorkbook.objects.filter(refresh_requested=True).exists():
-                    self.safely(self.check_workbooks, force=force)
-                    force, next_books, wrote = False, now + minutes * 60, True
-                if now >= next_folders or WatchedFolder.objects.filter(check_requested=True).exists():
-                    self.safely(self.check_folders)
-                    next_folders, wrote = now + folder_seconds, True
-                if wrote or PortalUpdatesFile.objects.filter(write_requested=True).exists():
-                    self.safely(self.write_updates)
-                if now >= next_assess:
-                    self.safely(self.assess_matches)
-                    next_assess = now + 60
-                time.sleep(10)
-        except KeyboardInterrupt:
-            self.stdout.write("Stopped watching.")
+        # --watch is now the background worker (intake/worker.py): saves are picked up within a second and open
+        # screens refresh themselves. Kept so existing shortcuts and scripts keep working.
+        from intake.worker import PortalWorker
+
+        if options["now"]:
+            LinkedWorkbook.objects.update(refresh_requested=True)
+        self.stdout.write("Keeping the portal in step with Excel and the CV folders. Keep this window open (it can "
+                          "stay minimised). Ctrl+C stops it.")
+        PortalWorker(log=self.stdout.write).run_forever()
 
     def log(self, message):
         self.stdout.write(f"[{timezone.localtime().strftime('%H:%M')}] {message}")
@@ -85,9 +68,20 @@ class Command(BaseCommand):
             self.log(f"{step.__name__.replace('_', ' ')} failed: {exc}. Trying again at the next check.")
 
     def run_check(self, *, force):
-        """One round (the server's scheduler, or sync_workbooks without --watch)."""
-        self.safely(self.check_workbooks, force=force)
-        self.safely(self.check_folders)
+        """One round (the server's scheduler, or sync_workbooks without --watch). When the background worker is
+        running and reads the inputs, it alone does: this round then only writes the updates file and the AI checks."""
+        from django.conf import settings
+
+        from intake.worker import status
+
+        holder = status()["holder"]
+        if holder:
+            self.log(f"The background worker ({holder.name}) reads the linked workbooks and folders.")
+        elif not settings.PORTAL_INPUTS_ENABLED:
+            self.log("PORTAL_INPUTS_ENABLED is false: the linked workbooks and folders are not read here.")
+        else:
+            self.safely(self.check_workbooks, force=force)
+            self.safely(self.check_folders)
         self.safely(self.write_updates)
         self.safely(self.assess_matches)
 
@@ -103,10 +97,11 @@ class Command(BaseCommand):
     def check_workbooks(self, *, force=False):
         if not LinkedWorkbook.objects.exists():
             return
-        results = excel_link.check(force=force, log=self.log)
-        for workbook, result in results.items():
-            if result.report_path:
-                self.log(f"Report for {workbook.name}: {result.report_path}")
+        for workbook, counts in excel_link.check(force=force, log=self.log).items():
+            workbook.refresh_from_db()
+            self.log(f"{workbook.name}: {workbook.message}")
+            if workbook.report_path:
+                self.log(f"Report for {workbook.name}: {workbook.report_path}")
         # Resumes of applicants new in the applications dump, a few at a time (load-resumes.bat does many at once).
         queue = pending()[:RESUMES_PER_CHECK]
         if queue and acquire_lock():

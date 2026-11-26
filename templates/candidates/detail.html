@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load ds portal humanize %}
 {% block title %}{{ c.full_name }}{% endblock %}
+{% block live %} data-live="people hiring"{% endblock %}
 {% block crumbs %}{% if request.user.is_hr %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-16" %}{% endif %}<span aria-current="page">{{ c.full_name }}</span>{% endblock %}
 {% block primary_action %}
   {% if request.user.is_hr %}

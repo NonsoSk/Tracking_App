@@ -27,6 +27,7 @@ people is treated as a placeholder and never used to match anyone. Salaries are 
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from collections import Counter, defaultdict
@@ -375,22 +376,67 @@ def snapshot(instance) -> dict:
 
 
 # --------------------------------------------------------------------------- reading
-def read_sheets(paths, *, require_all=True, skipped=None) -> dict[str, Sheet]:
-    """The record sheets in these files, by kind. A second sheet of a kind already found is listed in ``skipped``."""
+def _plain(value):
+    """A cell as openpyxl gives it, whichever reader read it: whole numbers as int, dates as datetime, blanks None."""
+    if value == "":
+        return None
+    if isinstance(value, float) and value.is_integer() and abs(value) < 2 ** 53:
+        return int(value)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return datetime(value.year, value.month, value.day)
+    return value
+
+
+def _book(path):
+    """(sheet title, rows as tuples, number of the first row) for every sheet of an .xlsx file.
+
+    python-calamine reads a workbook about ten times faster than openpyxl, which matters when a save must reach open
+    screens within seconds; openpyxl is used when calamine is not installed or cannot read the file."""
+    try:
+        from python_calamine import CalamineWorkbook
+    except ImportError:
+        CalamineWorkbook = None
+    if CalamineWorkbook is not None:
+        try:
+            book = CalamineWorkbook.from_path(str(path))
+            sheets = []
+            for name in book.sheet_names:
+                sheet = book.get_sheet_by_name(name)
+                first = (sheet.start or (0, 0))[0] + 1 if hasattr(sheet, "start") else 1
+                sheets.append((name, [tuple(_plain(v) for v in row) for row in sheet.to_python()], first))
+            return sheets
+        except Exception:  # noqa: BLE001 - let openpyxl try, and report its error if it fails too
+            pass
     from openpyxl import load_workbook
 
+    try:
+        wb = load_workbook(path, read_only=True, data_only=True)
+    except Exception as exc:  # noqa: BLE001 - any unreadable file
+        raise WorkbookError(f"Could not open {os.path.basename(path)}: {exc}") from exc
+    try:
+        return [(ws.title, [tuple(_plain(v) for v in row) for row in ws.iter_rows(values_only=True)],
+                 ws.min_row or 1) for ws in wb.worksheets]
+    finally:
+        wb.close()
+
+
+def row_hash(record: dict) -> str:
+    """A short fingerprint of one row's content (headings and values), to tell which rows changed since last time."""
+    digest = hashlib.blake2b(digest_size=8)
+    for key in sorted(record):
+        value = jsonable(record[key])
+        digest.update(f"{key}\x1f{'' if value is None else value}\x1e".encode("utf-8", "replace"))
+    return digest.hexdigest()
+
+
+def read_sheets(paths, *, require_all=True, skipped=None) -> dict[str, Sheet]:
+    """The record sheets in these files, by kind. A second sheet of a kind already found is listed in ``skipped``."""
     found: dict[str, Sheet] = {}
     for path in paths:
-        try:
-            wb = load_workbook(path, read_only=True, data_only=True)
-        except Exception as exc:  # noqa: BLE001 - any unreadable file
-            raise WorkbookError(f"Could not open {os.path.basename(path)}: {exc}") from exc
-        for ws in wb.worksheets:
-            rows = ws.iter_rows(values_only=True)
-            try:
-                raw_headers = next(rows)
-            except StopIteration:
+        for title, table, first in _book(path):
+            if not table:
                 continue
+            raw_headers, body = table[0], table[1:]
             headers = [header_key(h) for h in raw_headers]
             labels = {header_key(h): re.sub(r"\s+", " ", str(h).replace("\xa0", " ")).strip()
                       for h in raw_headers if header_key(h)}
@@ -399,15 +445,14 @@ def read_sheets(paths, *, require_all=True, skipped=None) -> dict[str, Sheet]:
                 continue
             if kind in found:
                 if skipped is not None:
-                    skipped.append((os.path.basename(path), ws.title, kind, found[kind]))
+                    skipped.append((os.path.basename(path), title, kind, found[kind]))
                 continue
             data = []
-            for number, values in enumerate(rows, start=2):
+            for number, values in enumerate(body, start=first + 1):
                 record = {h: v for h, v in zip(headers, values) if h}
                 if any(clean(v) for v in record.values() if not isinstance(v, bool)):
                     data.append((number, record))
-            found[kind] = Sheet(kind, os.path.basename(path), ws.title, labels, data)
-        wb.close()
+            found[kind] = Sheet(kind, os.path.basename(path), title, labels, data)
     missing = [SHEET_LABELS[k] for k in SHEET_SIGNATURES if k not in found and k not in OPTIONAL_SHEETS]
     if missing and (require_all or not found):
         names = ", ".join(os.path.basename(str(p)) for p in paths)
@@ -418,10 +463,44 @@ def read_sheets(paths, *, require_all=True, skipped=None) -> dict[str, Sheet]:
     return found
 
 
+IDENTITY_COLUMNS = {"staff": "emp no", "requisitions": "req_ref"}
+
+
+def changed_rows(sheets: dict, previous: dict | None) -> tuple[dict, dict, int]:
+    """Only the rows not seen in the last load, per sheet (same content anywhere in the sheet counts as seen).
+    Returns (sheets holding only those rows, the fingerprints of every row now, how many rows changed)."""
+    hashes, subset, changed = {}, {}, 0
+    for kind, sheet in sheets.items():
+        seen = set((previous or {}).get(kind) or ())
+        now = [row_hash(row) for _, row in sheet.rows]
+        hashes[kind] = now
+        fresh = [item for item, h in zip(sheet.rows, now) if h not in seen]
+        changed += len(fresh)
+        column = IDENTITY_COLUMNS.get(kind)
+        if fresh and column and seen:
+            # "Appears twice; second row skipped" must judge the whole sheet: bring along the unchanged rows that
+            # share a changed row's reference, in sheet order.
+            keys = {clean(row.get(column)).lower() for _, row in fresh} - {""}
+            picked = {id(item) for item in fresh}
+            fresh = [item for item in sheet.rows
+                     if id(item) in picked or clean(item[1].get(column)).lower() in keys]
+        if fresh:
+            subset[kind] = Sheet(sheet.kind, sheet.file, sheet.title, sheet.labels, fresh)
+    return subset, hashes, changed
+
+
 # --------------------------------------------------------------------------- importer
 class WorkbookImporter:
-    def __init__(self, paths, *, replace=False, report_dir=None, log=print, require_all=True):
+    def __init__(self, paths, *, replace=False, report_dir=None, log=print, require_all=True, sheets=None,
+                 incremental=False, skipped=None):
+        """``sheets``: already read (read_sheets), so the file is not read twice. ``incremental``: the sheets hold only
+        the rows that changed since the last load (changed_rows); the passes over every candidate then look only at
+        the people those rows touched."""
         self.paths = list(paths)
+        self.given_sheets = sheets
+        self.given_skipped = list(skipped or [])
+        self.incremental = incremental and not replace
+        self.touched = set()
         self.replace = replace
         self.require_all = require_all or replace  # never empty the portal to load only part of the data
         self.report_dir = report_dir
@@ -454,8 +533,9 @@ class WorkbookImporter:
     # -- main
     def run(self) -> ImportResult:
         self.log("Reading the workbooks...")
-        skipped = []
-        sheets = read_sheets(self.paths, require_all=self.require_all, skipped=skipped)
+        skipped = list(self.given_skipped)
+        sheets = (self.given_sheets if self.given_sheets is not None
+                  else read_sheets(self.paths, require_all=self.require_all, skipped=skipped))
         self.sheets = sheets
         for file, title, kind, used in skipped:
             self.result.issues.append((file, title, "", "", "", f"Not read: a second {SHEET_LABELS[kind]} sheet. Only "
@@ -487,8 +567,16 @@ class WorkbookImporter:
                 from candidates.dates import assign_all as date_all
 
                 self.result.counts.update(link_staff(log=self.log))
-                assign_all(log=self.log)
-                date_all(log=self.log)
+                if self.incremental:
+                    people = Candidate.objects.filter(pk__in=self.touched)
+                    assign_all(people, log=self.log)
+                    date_all(people, log=self.log)
+                else:
+                    assign_all(log=self.log)
+                    date_all(log=self.log)
+            from intake.live import touch
+
+            touch()  # open screens refresh once this is committed
         if self.report_dir:
             self.result.report_path = write_report(self.result, self.report_dir)
         return self.result
@@ -742,6 +830,8 @@ class WorkbookImporter:
 
         self.log(f"Matching people across the sheets ({len(rows):,} rows)...")
         groups = self.group_people(rows)
+        if self.incremental:  # people only already in the portal have nothing new from these rows
+            groups = [g for g in groups if any(r.kind != "existing" for r in g)]
         self.log(f"  {len(groups):,} different people found")
         self.save_people(groups, sheets)
 
@@ -875,6 +965,7 @@ class WorkbookImporter:
                 self.result.same_names.append((people[0].full_name, " | ".join(
                     f"{p.email or '-'} {p.phone or '-'} ({p.source_detail or 'spreadsheet'})" for p in people)))
         self.result.counts["candidates added"] += len(new_people)
+        self.touched.update(p.pk for p, group in plan if any(r.kind != "existing" for r in group))
         self.save_history(plan, sheets)
 
     def fill_person(self, person: Candidate, group):
@@ -1228,6 +1319,8 @@ class WorkbookImporter:
                 candidate.created_at = first_seen
                 dated.append(candidate)
         Candidate.objects.bulk_update(dated, ["created_at"], batch_size=500)
+        self.touched.update(c.pk for _, c, _, _ in matched)
+        self.touched.update(c.pk for c, _ in created)
         counts = self.result.counts
         counts["website applications: new candidates"] += len(created)
         counts["website applications: matched to candidates already in the portal"] += len(matched)

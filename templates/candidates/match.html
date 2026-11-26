@@ -49,7 +49,7 @@
       {% for col in columns %}<option value="{{ col.vacancy.pk }}" {% if rank_by == col.vacancy.pk|stringformat:"s" %}selected{% endif %}>{{ col.vacancy.title }}</option>{% endfor %}
     </select></label>
   <label class="mf-field"><span>CVs</span>
-    <select name="show" class="select select-sm" data-autosubmit><option value="">Matches only</option><option value="all" {% if show_all %}selected{% endif %}>All CVs, matched or not</option></select></label>
+    <select name="show" class="select select-sm" data-autosubmit><option value="">Matches and those to review</option><option value="all" {% if show_all %}selected{% endif %}>All CVs, matched or not</option></select></label>
   <label class="mf-field"><span>Show</span>
     <select name="top" class="select select-sm" data-autosubmit><option value="">Everyone</option>{% for n, label in top_choices %}<option value="{{ n }}" {% if filters.top == n %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
   <span class="mf-field"><span>Score</span><span class="mf-range">
@@ -76,7 +76,7 @@
 <form method="post" action="{% url 'candidates:match_add' %}" class="sheet" aria-labelledby="mr-h">{% csrf_token %}
   <input type="hidden" name="query" value="{{ query }}">
   <div class="sheet-h"><h2 class="title" id="mr-h">Results</h2><span class="count">{{ rows|length|intcomma }}</span>
-    <span class="small muted">{% if show_all %}All CVs, matched or not{% else %}Matches only{% endif %}{% if filtered %} · {{ filter_text }}{% if rows|length < shown_total %} · {{ shown_total }} in the score range{% endif %}{% endif %}{% if hidden %} · <a href="{{ all_url }}">{{ hidden }} other CV{{ hidden|pluralize }} did not match: show {{ hidden|pluralize:"it,them" }}</a>{% elif show_all %} · <a href="{{ matches_url }}">show matches only</a>{% endif %}</span>
+    <span class="small muted">{% if show_all %}All CVs, matched or not{% else %}Matches and those to review{% endif %}{% if filtered %} · {{ filter_text }}{% if rows|length < shown_total %} · {{ shown_total }} in the score range{% endif %}{% endif %}{% if hidden %} · <a href="{{ all_url }}">{{ hidden }} other CV{{ hidden|pluralize }} did not match: show {{ hidden|pluralize:"it,them" }}</a>{% elif show_all %} · <a href="{{ matches_url }}">show matches only</a>{% endif %}</span>
     <span class="spacer"></span>
     {% if addable %}<button class="btn btn-primary btn-sm" type="submit">{% icon "plus" "ico-16" %} Add the ticked matches as applications</button>{% endif %}</div>
   {% if total > limit %}<p class="sheet-b small muted">{{ total|intcomma }} CVs are in this selection: the {{ limit|intcomma }} added most recently were read. Narrow the dates, the community category or the source to read the rest.</p>{% endif %}
@@ -84,7 +84,7 @@
   <div class="table-wrap match-wrap"><table class="table match-table">
     <thead><tr><th scope="col" class="cb"><input type="checkbox" class="form-check-input" data-select-all="pick" aria-label="Select everyone shown"></th><th scope="col">Candidate</th>
       {% for col in columns %}<th scope="col" class="mt-vac"><a href="{{ col.vacancy.get_absolute_url }}">{{ col.vacancy.title }}</a>
-        <small><b>{{ col.matches }} match{{ col.matches|pluralize:"es" }}</b> of {{ col.scored }} CV{{ col.scored|pluralize }} · {{ col.meets_all }} meet every requirement</small>
+        <small><b>{{ col.matches }} match{{ col.matches|pluralize:"es" }}</b>{% if col.review %} · <b>{{ col.review }}</b> to review (evidence missing or unclear){% endif %} of {{ col.scored }} CV{{ col.scored|pluralize }} · {{ col.meets_all }} meet every requirement</small>
         {% if col.scored %}<span class="mt-dist">{% for g, n in col.grades.items %}{% if n %}<span class="mt-grade g{{ g }}" title="Grade {{ g }}">{{ g }} {{ n }}</span>{% endif %}{% endfor %}</span>{% endif %}
         {% if col.unscored %}<small class="mt-warn">No requirements yet: <a href="{% url 'requisitions:edit' col.vacancy.pk %}">add them</a></small>
         {% elif not col.vacancy.can_add %}<small class="mt-warn">{{ col.vacancy.get_status_display }}: scores only. Approve it to add applications.</small>{% endif %}</th>{% endfor %}</tr></thead>
@@ -96,7 +96,7 @@
       {% for c in r.cells %}
       <td class="mt-cell{% if c.is_key %} is-key{% endif %}">
         {% if c.unscored %}<span class="small muted">Not scored</span>
-        {% else %}<div class="mt-top"><b class="mt-score">{{ c.score|floatformat:"-1" }}</b><span class="mt-grade g{{ c.grade }}">Grade {{ c.grade }}</span>{% if c.match %}<span class="chip success no-dot mt-verdict">{% icon "check" %} Match</span>{% else %}<span class="chip neutral no-dot mt-verdict">Not a match</span>{% endif %}</div>
+        {% else %}<div class="mt-top"><b class="mt-score">{{ c.score|floatformat:"-1" }}</b><span class="mt-grade g{{ c.grade }}">Grade {{ c.grade }}</span>{% if c.match %}<span class="chip success no-dot mt-verdict">{% icon "check" %} Match</span>{% elif c.review %}<span class="chip warning no-dot mt-verdict" title="{{ c.reason }}">Needs review</span>{% else %}<span class="chip neutral no-dot mt-verdict">Not a match</span>{% endif %}</div>
           <span class="mt-rank" title="Rank among the {{ c.of }} CVs scored for {{ c.vacancy.title }}">#{{ c.rank }} of {{ c.of }}</span>
           {% if c.strongest and c.match %}<span class="mt-best">{% icon "star" "ico-14" %} Fits this role best</span>{% endif %}
           <details class="mt-whybox"{% if c.match and c.is_key or c.match and columns|length == 1 %} open{% endif %}>

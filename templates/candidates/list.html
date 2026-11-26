@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load ds portal humanize %}
 {% block title %}Talent database{% endblock %}
+{% block live %} data-live="people hiring"{% endblock %}
 {% block crumbs %}<span aria-current="page">Talent database</span>{% endblock %}
 {% block primary_action %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-16" %} Upload CVs</a>{% endblock %}
 {% block content %}

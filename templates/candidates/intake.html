@@ -1,20 +1,63 @@
 {% extends "ds/base.html" %}
 {% load ds %}
 {% block title %}CV intake{% endblock %}
+{% block live %} data-live="intake"{% endblock %}
 {% block crumbs %}<a href="{% url 'candidates:list' %}">Talent database</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">CV intake</span>{% endblock %}
 {% block content %}
 <header class="page-head">
   <div>
     <div class="eyebrow">Talent</div>
     <h1>CV intake</h1>
-    <p class="lede">Add a whole folder as often as you like. Only the CVs in it become profiles, each CV once: files that are not CVs, and CVs already in the portal, are left out.</p>
+    <p class="lede">Only CVs become profiles, each CV once: files that are not CVs, and CVs already in the portal, are left out, each with the reason.</p>
+  </div>
+  <div class="row wrap page-actions">
+    <a class="btn btn-primary" href="{% url 'intake:folder_link' %}">{% icon "folder-open" "ico-18" %} Link a folder</a>
+    <a class="btn btn-ghost" href="#upload">{% icon "upload" "ico-18" %} Upload files once</a>
   </div>
 </header>
 
+{% if folders and not worker.online %}
+<div class="banner warning" role="status"><span class="tile">{% icon "triangle-alert" "ico-18" %}</span><div><b>The background worker is not running, so linked folders are not being read.</b><span class="small">On the HR PC, start the portal with start-portal.bat (it starts the worker). On the server, IT checks the "worker" service. Files that arrive meanwhile are read once it starts.</span></div></div>
+{% endif %}
+
+<section class="sheet" id="folders" aria-labelledby="folders-h">
+  <div class="sheet-h"><h2 class="title" id="folders-h">Linked folders</h2>{% if folders %}<span class="count">{{ folders|length }}</span>{% endif %}<span class="spacer"></span>
+    <a class="btn btn-ghost btn-sm" href="{% url 'intake:folder_link' %}">{% icon "plus" "ico-16" %} Link a folder</a></div>
+  <div class="sheet-b">
+  {% for f in folders %}
+    <article class="folder-row">
+      <div class="folder-main">
+        <div class="row wrap"><b>{{ f.name }}</b>
+          <span class="chip {% if f.state == 'ok' %}success{% elif f.state == 'pending' %}brand{% else %}danger{% endif %} no-dot">{{ f.get_state_display }}</span>
+          {% if f.requisition %}<span class="chip neutral no-dot">{% icon "briefcase" "ico-14" %} {{ f.requisition.title }}</span>{% else %}<span class="chip neutral no-dot">Talent pool</span>{% endif %}
+        </div>
+        <p class="small muted"><code>{{ f.path }}</code>{% if f.location == "connector" %} · sent by {{ f.connector.name|default:"a removed PC" }}{% endif %} · {% if f.include_subfolders %}with subfolders{% else %}this folder only{% endif %} · {{ f.get_source_display|default:f.source }}</p>
+        <p class="small">
+          <span title="When the folder was last looked at">Last checked {% if f.checked_at %}{{ f.checked_at|timesince }} ago{% else %}not yet{% endif %}</span> ·
+          <span title="Last look that read every file without an error">last complete check {% if f.last_success_at %}{{ f.last_success_at|timesince }} ago{% else %}not yet{% endif %}</span>
+        </p>
+        <p class="small"><b>{{ f.stats.read }}</b> added or updated · {{ f.stats.held }} already in the portal · {{ f.stats.skipped }} not CVs{% if f.stats.unread %} · <b>{{ f.stats.unread }}</b> could not be read{% endif %}{% if f.stats.review %} · <a href="#review"><b>{{ f.stats.review }}</b> to review</a>{% endif %}{% if f.stats.waiting %} · {{ f.stats.waiting }} being read{% endif %}{% if f.stats.failed %} · <b>{{ f.stats.failed }}</b> failed{% endif %}</p>
+        {% if f.message %}<p class="small {% if f.state == 'ok' %}muted{% else %}danger-ink{% endif %}">{{ f.message }}</p>{% endif %}
+      </div>
+      <div class="row wrap folder-actions">
+        <form method="post" action="{% url 'intake:folder_action' f.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" name="action" value="check">{% icon "refresh-cw" "ico-16" %} Check now</button></form>
+        {% if f.stats.unread %}<form method="post" action="{% url 'intake:folder_action' f.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" name="action" value="retry">{% icon "rotate-ccw" "ico-16" %} Read unreadable again</button></form>{% endif %}
+        <form method="post" action="{% url 'intake:folder_action' f.pk %}" data-confirm="Stop watching {{ f.name }}? The candidates already imported stay, and the folder's files are not touched.">{% csrf_token %}<button class="btn btn-ghost btn-sm" name="action" value="stop">{% icon "x" "ico-16" %} Stop watching</button></form>
+      </div>
+    </article>
+  {% empty %}
+    <p class="muted">No folders linked yet. <a href="{% url 'intake:folder_link' %}">Link a folder</a> and the portal reads the CVs in it, then each new CV as it arrives, even with every browser closed.</p>
+  {% endfor %}
+  {% if connectors %}<p class="small muted">PCs that send folders: {% for c in connectors %}{{ c.name }} ({% if c.online %}online{% elif c.last_seen_at %}offline since {{ c.last_seen_at|timesince }}{% else %}not connected yet{% endif %}){% if not forloop.last %}, {% endif %}{% endfor %} · <a href="{% url 'intake:connector_add' %}">add a PC</a></p>
+  {% else %}<p class="small muted">Folder on a PC the server cannot reach? <a href="{% url 'intake:connector_add' %}">Add that PC</a> first.</p>{% endif %}
+  </div>
+</section>
+
 <div class="intake-grid">
   <div class="stack-24">
-    <form method="post" enctype="multipart/form-data" class="sheet" data-loading data-batch-upload="5" aria-labelledby="add-h">{% csrf_token %}
-      <div class="sheet-h"><h2 class="title" id="add-h">Add CVs</h2></div>
+    <form method="post" enctype="multipart/form-data" class="sheet" id="upload" data-loading data-batch-upload="5" aria-labelledby="add-h">{% csrf_token %}
+      <div class="sheet-h"><h2 class="title" id="add-h">Upload files once</h2></div>
+      <p class="small muted sheet-note">A one-time copy of the files you pick: the folder is not watched afterwards. To keep reading a folder as CVs arrive, <a href="{% url 'intake:folder_link' %}">link it</a> instead.</p>
       <div class="sheet-b stack">
         {% include "ds/components/dropzone.html" with f=form.files title="Drop CVs or a whole folder here, or" hint="PDF, Word, text, or photos of paper CVs. Pick as many as you like: each pick adds to the list." folder=True %}
         <div class="form-grid">
@@ -53,6 +96,8 @@
     <div class="sheet-b intake-tally">
       <span class="tally ok"><b>{{ counts.added }}</b> new CV{{ counts.added|pluralize }} added</span>
       {% if counts.updated %}<span class="tally ok"><b>{{ counts.updated }}</b> profile{{ counts.updated|pluralize }} brought up to date</span>{% endif %}
+      {% if counts.identity %}<span class="tally warn"><b>{{ counts.identity }}</b> same person? needs a look</span>{% endif %}
+      {% if counts.queued %}<span class="tally"><b>{{ counts.queued }}</b> received, being read</span>{% endif %}
       {% if counts.duplicate %}<span class="tally"><b>{{ counts.duplicate }}</b> already in the portal</span>{% endif %}
       {% if counts.not_cv %}<span class="tally warn"><b>{{ counts.not_cv }}</b> not CV{{ counts.not_cv|pluralize }}: left out</span>{% endif %}
       {% if counts.unreadable %}<span class="tally bad"><b>{{ counts.unreadable }}</b> could not be read</span>{% endif %}
@@ -67,6 +112,10 @@
       <div class="intake-left"><span class="tile sm">{% icon "ban" "ico-16" %}</span><div><b>{{ name }}</b><span class="small">{{ r.error }}</span></div></div>
       {% elif r.status == "unreadable" or r.status == "error" %}
       <div class="banner danger"><span class="tile">{% icon "file-x" "ico-18" %}</span><div><b>{{ name }}</b><span class="small">{{ r.error }}</span></div></div>
+      {% elif r.status == "identity" %}{% with c=r.identity %}
+      <div class="banner warning"><span class="tile">{% icon "users" "ico-18" %}</span><div><b>{{ name }}: same person?</b><span class="small">The email or phone on this CV belongs to <a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>, but the name on it is different. Nothing was merged. Decide under <a href="#review">Needs review</a>.</span></div></div>
+      {% endwith %}{% elif r.status == "queued" or r.status == "deferred" %}
+      <div class="intake-left held"><span class="tile sm">{% icon "clock" "ico-16" %}</span><div><b>{{ name }}</b><span class="small">Received and kept. The background worker reads it in a moment; its outcome appears under Recent files.</span></div></div>
       {% elif r.status == "duplicate" %}{% with c=r.candidate %}
       <div class="intake-left held"><span class="tile sm">{% icon "copy" "ico-16" %}</span><div><b>{{ name }}</b><span class="small">Already in the portal as <a href="{{ c.get_absolute_url }}">{{ c.full_name }}</a>: not added again.{% if r.application %} Applied to {{ r.application.requisition.title }} (match {{ r.application.match_score|floatformat:"-1" }}%).{% endif %}</span></div></div>
       {% endwith %}{% else %}{% with c=r.candidate %}
@@ -85,6 +134,42 @@
       {% endfor %}
     </div>
     {% else %}{% empty_state "Nothing read yet" "Upload CVs on the left. Each one appears here with what was found in it." object_name="Lab beaker of polymer pellets" %}{% endif %}
+  </section>
+</div>
+
+<div class="intake-grid">
+  <section class="sheet" id="review" aria-labelledby="review-h">
+    <div class="sheet-h"><h2 class="title" id="review-h">Needs a look</h2>{% if review %}<span class="count">{{ review|length }}</span>{% endif %}</div>
+    <div class="sheet-b stack-8">
+    {% for r in review %}
+      <div class="banner {% if r.status == 'failed' %}danger{% else %}warning{% endif %}"><span class="tile">{% if r.outcome == 'identity' %}{% icon "users" "ico-18" %}{% else %}{% icon "file-x" "ico-18" %}{% endif %}</span>
+        <div><b>{{ r.original_name }}</b>{% if r.folder %} <span class="small muted">· {{ r.folder.name }}</span>{% endif %}<span class="small">{{ r.message }}</span>
+          <div class="row wrap">
+          {% if r.outcome == 'identity' %}
+            <form method="post" action="{% url 'intake:receipt_action' r.pk %}">{% csrf_token %}<input type="hidden" name="candidate" value="{{ r.candidate_id }}"><button class="btn btn-ghost btn-sm" name="action" value="same">{% icon "user-check" "ico-16" %} Same person: update {{ r.candidate.full_name }}</button></form>
+            <form method="post" action="{% url 'intake:receipt_action' r.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" name="action" value="different">{% icon "user-plus" "ico-16" %} Someone else: new profile</button></form>
+          {% elif r.can_retry and r.stored %}
+            <form method="post" action="{% url 'intake:receipt_action' r.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" name="action" value="retry">{% icon "rotate-ccw" "ico-16" %} Try again</button></form>
+          {% endif %}
+            <form method="post" action="{% url 'intake:receipt_action' r.pk %}">{% csrf_token %}<button class="btn btn-ghost btn-sm" name="action" value="leave">{% icon "ban" "ico-16" %} Leave it out</button></form>
+          </div>
+        </div>
+      </div>
+    {% empty %}<p class="muted">Nothing to look at: every file received has an outcome.</p>{% endfor %}
+    </div>
+  </section>
+  <section class="sheet" id="recent" aria-labelledby="recent-h">
+    <div class="sheet-h"><h2 class="title" id="recent-h">Recent files</h2></div>
+    <div class="sheet-b">
+    {% if recent %}<table class="table compact"><thead><tr><th>File</th><th>From</th><th>Outcome</th><th>When</th></tr></thead><tbody>
+      {% for r in recent %}<tr>
+        <td>{{ r.original_name|truncatechars:40 }}</td>
+        <td class="small">{% if r.folder %}{{ r.folder.name }}{% else %}{{ r.get_channel_display }}{% endif %}</td>
+        <td><span class="chip {{ r.tone }} no-dot">{% if r.outcome %}{{ r.get_outcome_display }}{% else %}{{ r.get_status_display }}{% endif %}</span>{% if r.candidate and r.outcome != 'identity' %} <a class="small" href="{{ r.candidate.get_absolute_url }}">{{ r.candidate.full_name }}</a>{% endif %}</td>
+        <td class="small muted">{{ r.received_at|timesince }} ago</td>
+      </tr>{% endfor %}</tbody></table>
+    {% else %}<p class="muted">No files received yet.</p>{% endif %}
+    </div>
   </section>
 </div>
 {% endblock %}

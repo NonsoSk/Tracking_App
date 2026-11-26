@@ -410,7 +410,7 @@ class AIWrapperTests(TestCase):
         self.assertFalse(ai.ai_enabled())
         self.assertIsNone(ai.structured_request(system="s", content="c", schema={}))
 
-    @override_settings(ANTHROPIC_API_KEY="test-key", AI_ENABLED=True)
+    @override_settings(ANTHROPIC_API_KEY="test-key", AI_ENABLED=True, AI_CV_PROCESSING_AUTHORISED=True)
     def test_cv_parse_merges_ai_with_rules(self):
         from candidates import cv_parser
         from core import ai
@@ -430,7 +430,7 @@ class AIWrapperTests(TestCase):
         self.assertIn("Aspen HYSYS", parsed["tools"])
         self.assertIsNone(parsed["graduation_year"])
 
-    @override_settings(ANTHROPIC_API_KEY="test-key", AI_ENABLED=True)
+    @override_settings(ANTHROPIC_API_KEY="test-key", AI_ENABLED=True, AI_CV_PROCESSING_AUTHORISED=True)
     def test_scanned_pdf_is_sent_as_document(self):
         from candidates import cv_parser
         from core import ai

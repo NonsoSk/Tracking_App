@@ -1,0 +1,29 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Confirm the folder{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:intake' %}">CV intake</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Confirm the folder</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><div class="eyebrow">Link a folder</div><h1>Check before linking</h1>
+  <p class="lede">This is what will happen. Nothing is read until you confirm.</p></div>
+</header>
+<form method="post" class="sheet" aria-labelledby="fc-h">{% csrf_token %}
+  {% for field in form %}{% if field.name == "include_subfolders" %}{% if field.value %}<input type="hidden" name="include_subfolders" value="on">{% endif %}{% else %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default:'' }}">{% endif %}{% endfor %}
+  <input type="hidden" name="confirm" value="1">
+  <div class="sheet-h"><h2 class="title" id="fc-h">{{ data.label }}</h2></div>
+  <div class="sheet-b stack">
+    <dl class="facts">
+      <div><dt>Folder</dt><dd><code>{{ data.path }}</code>{% if data.location == "connector" %} on {{ data.connector.name }}{% endif %}</dd></div>
+      <div><dt>Read by</dt><dd>{% if data.location == "connector" %}The connector on {{ data.connector.name }}, whenever that PC is on{% else %}The portal's background worker, with every browser closed{% endif %}</dd></div>
+      <div><dt>Subfolders</dt><dd>{% if data.include_subfolders %}Included{% else %}Not included{% endif %}</dd></div>
+      <div><dt>Each CV becomes</dt><dd>{% if data.requisition %}An application to <b>{{ data.requisition.title }}</b> ({{ data.requisition.reference }}), scored at once{% else %}A profile in the talent pool, ready to match to vacancies{% endif %}</dd></div>
+      <div><dt>Channel</dt><dd>{{ source_label }}</dd></div>
+      {% if data.region %}<div><dt>Community category</dt><dd>{{ region_label }}</dd></div>{% endif %}
+      <div><dt>Files already there</dt><dd>{% if data.mode == "existing" %}<b>Imported now</b>, then new ones as they arrive{% else %}<b>Left alone</b>: only files added from now on are read{% endif %}</dd></div>
+      {% if preview.counted %}<div><dt>In the folder now</dt><dd>{{ preview.total }}{% if preview.capped %}+{% endif %} file{{ preview.total|pluralize }}, of which {{ preview.readable }} could be CVs (PDF, Word, text or photos){% if data.mode == "existing" and preview.readable %}: each is read once, duplicates and files that are not CVs are left out with the reason{% endif %}.</dd></div>{% endif %}
+    </dl>
+    <p class="small muted">{% icon "shield-check" "ico-14" %} The files stay in the folder untouched. A private copy of each file read is kept by the portal as the record of what arrived. Stopping the link later keeps the candidates already imported.</p>
+  </div>
+  <div class="sheet-f row"><button class="btn btn-ghost" type="submit" formaction="{% url 'intake:folder_link' %}" name="confirm" value="0">{% icon "arrow-left" "ico-18" %} Change</button><span class="spacer"></span><button class="btn btn-primary" type="submit">{% icon "check" "ico-18" %} {% if data.mode == "existing" %}Import existing files and watch for new ones{% else %}Watch new files only{% endif %}</button></div>
+</form>
+{% endblock %}

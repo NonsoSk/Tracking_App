@@ -235,7 +235,7 @@ AI_ANSWER = {"overall": "possible", "summary": "Sells in retail; no industrial b
 
 
 @mock.patch("candidates.experience.timezone.localdate", lambda: TODAY)
-@override_settings(AI_ENABLED=True, ANTHROPIC_API_KEY="test", AI_MATCH_ASSESSMENT=True)
+@override_settings(AI_ENABLED=True, ANTHROPIC_API_KEY="test", AI_MATCH_ASSESSMENT=True, AI_CV_PROCESSING_AUTHORISED=True)
 class ClaudeAssessmentTests(TestCase):
     def setUp(self):
         self.req = requisition()

@@ -678,14 +678,28 @@
   }
   if (document.readyState === "complete") setTimeout(initBoards, 0); else document.addEventListener("DOMContentLoaded", initBoards);
 
-  function init() {
-    initCvLinks();
-    applyTheme(storedTheme());
-    $$(".tabs[role='tablist']").forEach(initTabs);
-    $$(".tabs:not([role='tablist'])").forEach(function (l) {
+  /* What a part of the page needs once drawn: on load, and again when live.js swaps in a fresher copy */
+  function initRegion(root) {
+    $$(".tabs[role='tablist']", root).forEach(initTabs);
+    $$(".tabs:not([role='tablist'])", root).forEach(function (l) {
       if (!$(".indicator", l)) { var i = document.createElement("span"); i.className = "indicator"; i.setAttribute("aria-hidden", "true"); l.appendChild(i); }
       moveIndicator(l);
     });
+    /* Filter forms that apply as soon as a choice changes */
+    $$("form[data-autosubmit]", root).forEach(function (form) {
+      form.classList.add("is-auto");
+      $$("select", form).forEach(function (s) {
+        s.addEventListener("change", function () { if (form.requestSubmit) form.requestSubmit(); else form.submit(); });
+      });
+    });
+    $$(".dropzone", root).forEach(initDropzone);
+    $$("form[data-batch-upload]", root).forEach(initBatchUpload);
+  }
+
+  function init() {
+    initCvLinks();
+    applyTheme(storedTheme());
+    initRegion(document);
     $$("#toasts .toast").forEach(arm);
     /* A clock that keeps time (the summary board) */
     $$("[data-clock]").forEach(function (el) {
@@ -693,16 +707,7 @@
       tick();
       setInterval(tick, 15000);
     });
-    /* Filter forms that apply as soon as a choice changes */
-    $$("form[data-autosubmit]").forEach(function (form) {
-      form.classList.add("is-auto");
-      $$("select", form).forEach(function (s) {
-        s.addEventListener("change", function () { if (form.requestSubmit) form.requestSubmit(); else form.submit(); });
-      });
-    });
     $$("dialog.palette").forEach(initPalette);
-    $$(".dropzone").forEach(initDropzone);
-    $$("form[data-batch-upload]").forEach(initBatchUpload);
     $$(".enter").forEach(function (box) {
       Array.prototype.slice.call(box.children, 0, 8).forEach(function (c, n) { c.style.setProperty("--i", n); });
     });
@@ -719,5 +724,6 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
-  window.DS = { toast: toast, confetti: confetti, setTheme: setTheme, animateRing: animateRing, countUp: countUp };
+  window.DS = { toast: toast, confetti: confetti, setTheme: setTheme, animateRing: animateRing, countUp: countUp,
+                initRegion: function (root) { initRegion(root); initCvLinks(); } };
 })();

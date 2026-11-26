@@ -6,6 +6,8 @@ local ``.env`` file). See ``.env.example`` for the full list.
 """
 
 import os
+import sys
+import tempfile
 import warnings
 from pathlib import Path
 
@@ -72,6 +74,7 @@ INSTALLED_APPS = [
     "candidates",
     "pipeline",
     "careers",
+    "intake",
 ]
 
 MIDDLEWARE = [
@@ -98,6 +101,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.portal",
+                "intake.context_processors.live",
             ],
         },
     },
@@ -124,8 +128,14 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / env("SQLITE_PATH", "db.sqlite3"),
-            # Pages wait for an Excel refresh to finish writing instead of failing with "database is locked".
-            "OPTIONS": {"timeout": 60},
+            # Pages wait for an Excel refresh to finish writing instead of failing with "database is locked". The
+            # web app and the worker share the file; intake/db.py turns on write-ahead logging so pages keep reading
+            # while the worker writes.
+            # IMMEDIATE: a transaction takes the write lock when it starts, so a writer waits its turn instead of
+            # failing half-way when another process wrote in between.
+            "OPTIONS": {"timeout": 60, "transaction_mode": "IMMEDIATE"},
+            # Tests use a database file too (not memory), so the worker's threads can be tested as they run.
+            "TEST": {"NAME": env("SQLITE_TEST_PATH", "") or str(Path(tempfile.gettempdir()) / "iefcl-portal-tests.sqlite3")},
         }
     }
 
@@ -174,6 +184,15 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = env_bool("SECURE_COOKIES", True)
     CSRF_COOKIE_SECURE = env_bool("SECURE_COOKIES", True)
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # Behind the pilot's HTTPS proxy: browsers are told to come back over HTTPS only (start with an hour).
+    SECURE_HSTS_SECONDS = env_int("SECURE_HSTS_SECONDS", 0)
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_AGE = env_int("SESSION_COOKIE_AGE", 12 * 3600)
+    if SECRET_KEY in {"dev-only-insecure-key-change-me", "change-me-to-a-long-random-string"} \
+            and "test" not in sys.argv and "collectstatic" not in sys.argv:
+        raise RuntimeError("Set DJANGO_SECRET_KEY to a long random value when DJANGO_DEBUG is false.")
 
 # ---------------------------------------------------------------------------
 # Email (console by default so nothing is sent while testing)
@@ -211,6 +230,9 @@ SITE_URL = env("SITE_URL", "http://localhost:8000").rstrip("/")
 # scanned-CV reading and skill suggestions when a key is configured.
 # ---------------------------------------------------------------------------
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY")
+# Candidates' CVs are sent to the AI provider (reading scans, the AI check against the JD, fit summaries) only when the
+# company has authorised the provider and the use of the data. An API key alone does not.
+AI_CV_PROCESSING_AUTHORISED = env_bool("AI_CV_PROCESSING_AUTHORISED", False)
 ANTHROPIC_MODEL = env("ANTHROPIC_MODEL", "claude-opus-5-5")
 AI_ENABLED = env_bool("AI_ENABLED", True)
 # Server-side refusal fallback (Claude API only). Disable if you route
@@ -230,8 +252,33 @@ EXPERIENCE_COUNTS_NYSC = env_bool("EXPERIENCE_COUNTS_NYSC", True)
 # With AI on, Claude also reads each open application's CV against the job description and judges every requirement
 # (pipeline/ai_assess.py). Set to false to keep AI for CV reading only.
 AI_MATCH_ASSESSMENT = env_bool("AI_MATCH_ASSESSMENT", True)
-# A watched CV folder (Excel link page) is checked this often; new files in it are read on their own.
-CV_FOLDER_SECONDS = env_int("CV_FOLDER_SECONDS", 60)
+# ---------------------------------------------------------------------------
+# The background worker (python manage.py run_worker; start-portal.bat and the pilot's "worker" service run it)
+# ---------------------------------------------------------------------------
+# How often it looks at the linked workbooks (seconds). A save is picked up once the file stops changing for
+# WORKBOOK_STABLE_SECONDS, so Excel's save-to-temporary-file-then-rename is never read half-written.
+WORKBOOK_POLL_SECONDS = float(env("WORKBOOK_POLL_SECONDS", "0.25"))
+WORKBOOK_STABLE_SECONDS = float(env("WORKBOOK_STABLE_SECONDS", "0.3"))
+# A full comparison of every linked workbook (content hash), to recover saves a network share did not report.
+WORKBOOK_RECHECK_SECONDS = env_int("WORKBOOK_RECHECK_SECONDS", 60)
+# CV folders: changes are noticed at once where the system reports them (local disks); every CV_FOLDER_SECONDS the
+# whole folder is compared as well (network shares, missed events). A CV is read once it stops changing.
+CV_FOLDER_SECONDS = env_int("CV_FOLDER_SECONDS", 30)
+CV_STABLE_SECONDS = float(env("CV_STABLE_SECONDS", "1.0"))
+# A worker or connector not heard from for this long is shown as offline.
+WORKER_OFFLINE_SECONDS = env_int("WORKER_OFFLINE_SECONDS", 20)
+CONNECTOR_OFFLINE_SECONDS = env_int("CONNECTOR_OFFLINE_SECONDS", 60)
+WORKER_NAME = env("WORKER_NAME", "")
+# Only one worker may read the live folders and workbooks. Set to false on a rehearsal or second instance.
+PORTAL_INPUTS_ENABLED = env_bool("PORTAL_INPUTS_ENABLED", True)
+# Folders the "Link a folder" screen may browse (the paths the worker can read; on the pilot, the mounted shares).
+# Empty: any path typed in is checked by the worker.
+PORTAL_INPUT_ROOTS = env_list("PORTAL_INPUT_ROOTS")
+# Open screens ask for changes this often (milliseconds) and refresh themselves after a committed change.
+LIVE_POLL_MS = env_int("LIVE_POLL_MS", 700)
+# Received files are kept privately (media/receipts). A CV that became a profile is filed with it, so its receipt copy
+# is removed after this many days; files that failed, need review or could not be read keep theirs.
+RECEIPT_KEEP_DAYS = env_int("RECEIPT_KEEP_DAYS", 30)
 # Where "Portal updates.xlsx" is written (a folder or a full file path). Empty: beside the linked workbook that holds
 # the requisition tracker.
 PORTAL_UPDATES_PATH = env("PORTAL_UPDATES_PATH", "")
@@ -274,3 +321,15 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", "INFO")},
     "loggers": {"django": {"handlers": ["console"], "level": "WARNING", "propagate": False}},
 }
+
+
+# ---------------------------------------------------------------------------
+# Rehearsal: a restored copy used to try an upgrade or train staff. It never e-mails anyone, never calls the AI
+# provider and never reads the live folders or workbooks.
+# ---------------------------------------------------------------------------
+PORTAL_REHEARSAL = env_bool("PORTAL_REHEARSAL", False)
+if PORTAL_REHEARSAL:
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    AI_ENABLED = False
+    AI_CV_PROCESSING_AUTHORISED = False
+    PORTAL_INPUTS_ENABLED = False

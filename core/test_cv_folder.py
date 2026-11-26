@@ -13,6 +13,7 @@ from accounts.models import User
 from candidates.models import Candidate
 from core.demo_files import cv_lines, simple_docx
 from core.models import Department, FolderFile, Notification, PortalUpdatesFile, WatchedFolder
+from intake.models import Receipt
 from pipeline.models import Application
 from requisitions.models import Requisition
 
@@ -60,7 +61,11 @@ class CvFolderTests(TestCase):
         folder.refresh_from_db()
         self.assertEqual((folder.files_read, folder.state), (2, "ok"))
         skipped = FolderFile.objects.get(name="Applicants list.xlsx")
-        self.assertIn("Not a CV file type", skipped.skipped)
+        self.assertIn("Not a CV", skipped.skipped)
+        # Every file has a receipt with its outcome; temporary and system files are not files to read.
+        outcomes = dict(Receipt.objects.filter(folder=folder).values_list("source_path", "outcome"))
+        self.assertEqual(outcomes, {"Ada Obi CV.docx": "added", "May/Bola Ade.docx": "added",
+                                    "Applicants list.xlsx": "not_cv"})
         self.assertFalse(FolderFile.objects.filter(name__startswith="~$").exists())
         self.assertTrue(Notification.objects.filter(recipient=self.hr, title__contains="2 new CVs").exists())
         # Nothing new: nothing read again.
@@ -71,10 +76,11 @@ class CvFolderTests(TestCase):
         self.put("Ada.docx", cv_bytes("Ada", "Obi", "ada@example.com"))
         cv_folder.link(str(self.root))
         cv_folder.check()
-        # A copy of a CV already read, under another name, is not read again.
+        # A copy of a CV already read, under another name, adds nothing: its receipt says it is already held.
         self.put("Ada (copy).docx", (self.root / "Ada.docx").read_bytes())
         self.assertEqual(cv_folder.check(), [])
-        self.assertIn("copy", FolderFile.objects.get(name="Ada (copy).docx").skipped)
+        copy = Receipt.objects.get(source_path="Ada (copy).docx")
+        self.assertEqual((copy.outcome, copy.candidate.email), ("duplicate", "ada@example.com"))
         # A new CV is read; one saved again with changes is that person's newer CV (and updates the same profile).
         self.put("Chidi.docx", cv_bytes("Chidi", "Eze", "chidi@example.com"))
         self.put("Ada.docx", cv_bytes("Ada", "Obi", "ada@example.com", phone="0803 111 2222"), age=60)
@@ -87,7 +93,7 @@ class CvFolderTests(TestCase):
         cv_folder.link(str(self.root))
         self.put("Fresh.docx", cv_bytes("Efe", "Musa", "efe@example.com"), age=0)
         self.assertEqual(cv_folder.check(), [])
-        self.assertIn("waiting for the next check", WatchedFolder.objects.get().message)
+        self.assertIn("still being copied", WatchedFolder.objects.get().message)
         os.utime(self.root / "Fresh.docx", (time.time() - 120, time.time() - 120))
         self.assertEqual(len(cv_folder.check()), 1)
 

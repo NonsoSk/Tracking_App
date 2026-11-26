@@ -160,15 +160,40 @@ class Notification(models.Model):
 
 
 class LinkedWorkbook(models.Model):
-    """An Excel workbook the portal keeps itself in step with (see core/excel_link.py)."""
+    """An Excel workbook the portal keeps itself in step with (see core/excel_link.py).
+
+    Either one file (``mode=file``: ``path`` is the file) or the newest file in a folder whose name fits a pattern
+    (``mode=latest``: ``path`` is the folder, ``pattern`` e.g. ``Recruitment Master Weekly Report*.xlsx``), for a
+    team that saves a new dated workbook every week. A workbook on a PC the server cannot reach is sent by that PC's
+    connector (``connector``)."""
 
     class State(models.TextChoices):
         WAITING = "waiting", "Waiting for the first refresh"
         OK = "ok", "Up to date"
         ERROR = "error", "Could not be read"
         MISSING = "missing", "File not found"
+        OFFLINE = "offline", "Source offline"
+        INVALID = "invalid", "Columns not recognised"
 
-    path = models.CharField(max_length=500, unique=True, help_text="Full path of the .xlsx file on the computer running the portal.")
+    class Mode(models.TextChoices):
+        FILE = "file", "One file"
+        LATEST = "latest", "The newest file in a folder that fits a pattern"
+
+    path = models.CharField(max_length=500, help_text="Full path of the .xlsx file (or, for the newest file in a folder, "
+                                                      "the folder) as the worker sees it.")
+    mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.FILE)
+    pattern = models.CharField(max_length=200, blank=True, help_text="For the newest file in a folder: the file names "
+                                                                     "to consider, e.g. 'Recruitment Master*.xlsx'.")
+    current_file = models.CharField(max_length=700, blank=True, help_text="The file last loaded.")
+    expected_sheets = models.CharField(max_length=255, blank=True, help_text="Sheet kinds every new file must hold "
+                                                                             "(set when the source is linked).")
+    row_hashes = models.JSONField(default=dict, blank=True, help_text="Fingerprints of the rows last loaded, per "
+                                                                      "sheet, so a refresh reads only changed rows.")
+    connector = models.ForeignKey("intake.Connector", null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="workbooks")
+    received_at = models.DateTimeField(null=True, blank=True, help_text="When the last changed save was received.")
+    last_latency = models.FloatField(null=True, blank=True, help_text="Seconds from that save to the change being "
+                                                                      "in the portal.")
     sheets = models.CharField(max_length=255, blank=True, help_text="The recruitment sheets found in it.")
     state = models.CharField(max_length=10, choices=State.choices, default=State.WAITING)
     message = models.TextField(blank=True)
@@ -184,26 +209,51 @@ class LinkedWorkbook(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+        constraints = [models.UniqueConstraint(fields=["path", "pattern"], name="one_link_per_workbook_source")]
 
     def __str__(self):
         return self.name
 
     @property
     def name(self) -> str:
+        if self.mode == self.Mode.LATEST:
+            return self.pattern or self.path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
         return self.path.replace("\\", "/").rsplit("/", 1)[-1]
+
+    @property
+    def current_name(self) -> str:
+        return (self.current_file or self.path).replace("\\", "/").rsplit("/", 1)[-1]
 
 
 class WatchedFolder(models.Model):
-    """A folder the portal reads CVs from on its own: every new or changed file in it is read into a profile waiting
-    for its check (see core/cv_folder.py). Files in the folder are never moved, renamed or deleted."""
+    """A folder the portal reads CVs from on its own: every new or changed file in it becomes a receipt, then a profile
+    (see core/cv_folder.py and intake/). Files in the folder are never moved, renamed or deleted.
+
+    A folder is *Linked* only once the worker (or, for a folder on a PC, that PC's connector) has opened it; until then
+    it is *Waiting for the worker*."""
 
     class State(models.TextChoices):
-        OK = "ok", "Watching"
-        MISSING = "missing", "Folder not found"
+        PENDING = "pending", "Waiting for the worker to confirm access"
+        OK = "ok", "Linked"
+        MISSING = "missing", "Unavailable"
         ERROR = "error", "Could not be read"
 
+    class Location(models.TextChoices):
+        SERVER = "server", "A folder the portal's worker can open"
+        CONNECTOR = "connector", "A folder on a PC, sent by its connector"
+
     path = models.CharField(max_length=500, unique=True,
-                            help_text="Full path of the folder on the computer running the portal.")
+                            help_text="Full path of the folder as the worker (or the connector's PC) sees it.")
+    label = models.CharField("Name", max_length=120, blank=True, help_text="A name for the folder, e.g. 'Emailed CVs'.")
+    location = models.CharField(max_length=10, choices=Location.choices, default=Location.SERVER)
+    connector = models.ForeignKey("intake.Connector", null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="folders")
+    include_subfolders = models.BooleanField(default=True)
+    import_existing = models.BooleanField("Import the files already there", default=True,
+                                          help_text="Unticked: only files added after the link are read.")
+    baseline_done = models.BooleanField(default=False, help_text="The first look at the folder has been made.")
+    verified_at = models.DateTimeField(null=True, blank=True, help_text="When the worker last opened it.")
+    last_success_at = models.DateTimeField(null=True, blank=True, help_text="Last complete check without errors.")
     source = models.CharField("Channel", max_length=20, default="email",
                               help_text="How these CVs reached IEFCL (recorded on each profile).")
     requisition = models.ForeignKey("requisitions.Requisition", null=True, blank=True, on_delete=models.SET_NULL,
@@ -228,7 +278,11 @@ class WatchedFolder(models.Model):
 
     @property
     def name(self) -> str:
-        return self.path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or self.path
+        return self.label or self.path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or self.path
+
+    @property
+    def linked(self) -> bool:
+        return self.state == self.State.OK
 
 
 class FolderFile(models.Model):

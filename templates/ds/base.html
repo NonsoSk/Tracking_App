@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#0B1224" media="(prefers-color-scheme: dark)">
   {% block head %}{% endblock %}
 </head>
-<body data-terms-url="{% url 'requisitions:api_terms' %}"{% block body_attrs %}{% endblock %}>
+<body data-terms-url="{% url 'requisitions:api_terms' %}" data-live-url="{% url 'intake:live' %}" data-live-ms="{{ LIVE_POLL_MS }}" data-live-seq="{{ live_seq }}"{% block body_attrs %}{% endblock %}>
 <a class="skip-link" href="#main">Skip to content</a>
 {% nav_items as nav %}
 {% with u=request.user %}
@@ -67,7 +67,7 @@
       {% block primary_action %}{% endblock %}
     </header>
 
-    <main id="main" class="{% block main_class %}enter{% endblock %}" tabindex="-1">
+    <main id="main" class="{% block main_class %}enter{% endblock %}" tabindex="-1"{% block live %}{% endblock %}>
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -93,6 +93,7 @@
 {% include "ds/_icons.html" %}
 <script src="{% asset 'ds/ds.js' %}" defer></script>
 <script src="{% asset 'ds/app.js' %}" defer></script>
+<script src="{% asset 'ds/live.js' %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

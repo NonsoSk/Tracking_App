@@ -1,0 +1,41 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Link a folder{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:intake' %}">CV intake</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Link a folder</span>{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="eyebrow">CV intake</div>
+    <h1>Link a folder</h1>
+    <p class="lede">Link a folder once. The portal reads the CVs in it, then every CV added to it later, on its own, with every browser closed. The files stay where they are; nothing in the folder is moved, renamed or deleted.</p>
+  </div>
+</header>
+<div class="split">
+  <form method="post" class="sheet" aria-labelledby="fl-h">{% csrf_token %}
+    <div class="sheet-h"><h2 class="title" id="fl-h">The folder</h2></div>
+    <div class="sheet-b stack">
+      {% if form.non_field_errors %}<div class="banner danger"><span class="tile">{% icon "circle-alert" "ico-18" %}</span><div><b>{{ form.non_field_errors|join:" " }}</b></div></div>{% endif %}
+      {% dsfield form.label %}
+      <fieldset class="stack-8"><legend class="label">{{ form.location.label }}</legend>
+        {% for choice in form.location %}<label class="check">{{ choice.tag }} {{ choice.choice_label }}</label>{% endfor %}
+      </fieldset>
+      {% dsfield form.path %}
+      {% dsfield form.connector %}
+      <div class="form-grid">{% dsfield form.source "span-2" %}{% dsfield form.requisition "span-2" %}{% dsfield form.region "span-4" %}</div>
+      <label class="check"><input type="checkbox" name="include_subfolders" value="on"{% if form.include_subfolders.value %} checked{% endif %}> {{ form.include_subfolders.label }}</label>
+      <fieldset class="stack-8"><legend class="label">{{ form.mode.label }}</legend>
+        {% for choice in form.mode %}<label class="check">{{ choice.tag }} {{ choice.choice_label }}</label>{% endfor %}
+      </fieldset>
+    </div>
+    <div class="sheet-f row"><a class="btn btn-ghost" href="{% url 'candidates:intake' %}">Cancel</a><span class="spacer"></span><button class="btn btn-primary" type="submit">{% icon "arrow-right" "ico-18" %} Check and continue</button></div>
+  </form>
+  <section class="sheet next-card" aria-labelledby="fl-help">
+    <h2 class="eyebrow" id="fl-help">Which kind of folder?</h2>
+    <ol class="next-list">
+      <li><span class="tile sm">{% icon "folder-open" "ico-16" %}</span><span><b>A shared folder the portal can open</b> (on the server, or a share IT has given it access to): type its full path. It shows as <b>Linked</b> once the portal's background worker has opened it.</span></li>
+      <li><span class="tile sm">{% icon "link" "ico-16" %}</span><span><b>A folder on someone's PC</b> that the server cannot reach: install the connector on that PC (<a href="{% url 'intake:connector_add' %}">add a PC</a>), then choose it here. The PC sends new files whenever it is on.</span></li>
+      <li><span class="tile sm">{% icon "upload" "ico-16" %}</span><span>Only need the files once? <a href="{% url 'candidates:intake' %}#upload">Upload them</a> instead: an upload is a one-time copy, it does not watch the folder.</span></li>
+    </ol>
+  </section>
+</div>
+{% endblock %}

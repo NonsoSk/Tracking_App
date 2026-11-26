@@ -82,7 +82,7 @@ SCHEMA = {
 
 
 def enabled() -> bool:
-    return ai.ai_enabled() and getattr(settings, "AI_MATCH_ASSESSMENT", True)
+    return ai.cv_processing_allowed() and getattr(settings, "AI_MATCH_ASSESSMENT", True)
 
 
 def fingerprint(requisition, candidate) -> str:

@@ -1,10 +1,10 @@
 """Keep the portal in step with the recruitment workbooks while the team still works in Excel.
 
-Link the files once (link-excel.bat, or ``python manage.py sync_workbooks --link FILE ...``). From then on
-``sync_workbooks`` checks them: on this PC every few minutes while start-portal.bat is open, on the server
-from the scheduler. When a file was saved with changes, a copy of it is loaded as a refresh: new rows are
-added, rows edited in Excel update their records, nothing is duplicated, and what the hiring team did in
-the portal is kept (see core/workbook_import.py). Rows deleted from Excel stay in the portal.
+Link the files once (Excel link page, link-excel.bat, or ``python manage.py sync_workbooks --link FILE ...``). The
+background worker (intake/worker.py, started by start-portal.bat and the pilot's "worker" service) notices each save
+within a second, keeps a copy with a receipt, and imports only the rows that changed: new rows are added, rows edited
+in Excel update their records, nothing is duplicated, and what the hiring team did in the portal is kept (see
+core/workbook_import.py). Rows deleted from Excel stay in the portal. Open screens refresh themselves.
 
 When the server cannot reach the file, HR uploads the latest copy on the Excel link page instead.
 """
@@ -13,20 +13,17 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import shutil
 import tempfile
-from datetime import datetime, timezone as dt_timezone
 from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
 
 from .models import LinkedWorkbook
-from .workbook_import import SHEET_LABELS, WorkbookError, WorkbookImporter, read_sheets
+from .workbook_import import SHEET_LABELS, WorkbookError, read_sheets
 
 logger = logging.getLogger(__name__)
 
-SETTLE_SECONDS = 20  # a file saved more recently than this may still be being written
 UPLOAD_DIR = "excel-link"
 
 
@@ -57,18 +54,24 @@ def link(paths, *, user=None) -> list[LinkedWorkbook]:
             raise WorkbookError(f"{path.name} is the file the portal writes its updates to, not a recruitment "
                                 "workbook: link your own workbooks instead.")
         sheets = read_sheets([str(path)], require_all=False)
-        workbook, _ = LinkedWorkbook.objects.update_or_create(path=str(path), defaults={
+        workbook, _ = LinkedWorkbook.objects.update_or_create(path=str(path), pattern="", defaults={
             "sheets": ", ".join(SHEET_LABELS[k] for k in SHEET_LABELS if k in sheets), "linked_by": user,
-            "state": LinkedWorkbook.State.WAITING, "message": "", "fingerprint": "", "refresh_requested": True,
+            "expected_sheets": ",".join(k for k in SHEET_LABELS if k in sheets), "current_file": str(path),
+            "state": LinkedWorkbook.State.WAITING, "message": "", "fingerprint": "", "row_hashes": {},
+            "refresh_requested": True,
         })
         linked.append(workbook)
     return linked
 
 
 def watcher_running() -> bool:
-    """Whether something has checked the links or the CV folder recently (the watcher window or the scheduler)."""
+    """Whether the background worker is running (or the scheduler looked at the links recently)."""
+    from intake.models import Worker
+
     from .models import WatchedFolder
 
+    if any(w.online for w in Worker.objects.all()):
+        return True
     stamps = [model.objects.exclude(checked_at=None).order_by("-checked_at").values_list("checked_at", flat=True).first()
               for model in (LinkedWorkbook, WatchedFolder)]
     latest = max((s for s in stamps if s), default=None)
@@ -80,74 +83,12 @@ def describe(counts: dict) -> str:
     return ("Refreshed: " + "; ".join(changes) + ".") if changes else "Checked: nothing new since the last refresh."
 
 
-def check(*, force: bool = False, log=logger.info):
-    """Look at every linked workbook and load the ones saved with changes. Returns {workbook: import result}."""
-    now = timezone.now()
-    due = []
-    for workbook in LinkedWorkbook.objects.all():
-        path = Path(workbook.path)
-        workbook.checked_at = now
-        if not path.is_file():
-            workbook.state = LinkedWorkbook.State.MISSING
-            workbook.message = "The file is not there any more. If it was moved or renamed, link it again."
-            workbook.refresh_requested = False
-            workbook.save(update_fields=["checked_at", "state", "message", "refresh_requested"])
-            continue
-        modified = datetime.fromtimestamp(path.stat().st_mtime, tz=dt_timezone.utc)
-        if (now - modified).total_seconds() < SETTLE_SECONDS and not force:
-            workbook.save(update_fields=["checked_at"])  # Excel may still be saving; look again next time
-            continue
-        try:
-            digest = fingerprint(path)
-        except OSError as exc:
-            workbook.state, workbook.message = LinkedWorkbook.State.ERROR, f"Could not open the file: {exc}"
-            workbook.save(update_fields=["checked_at", "state", "message"])
-            continue
-        if force or workbook.refresh_requested or digest != workbook.fingerprint:
-            due.append((workbook, modified))
-        elif workbook.state == LinkedWorkbook.State.MISSING:
-            workbook.state, workbook.message = LinkedWorkbook.State.OK, "The file is back and unchanged."
-        workbook.save(update_fields=["checked_at", "state", "message"])
-    if not due:
-        return {}
+def check(*, force: bool = False, log=logger.info) -> dict:
+    """Look at every linked workbook now and import the saves found (in this process: the scheduler's run, the
+    tests). The worker does the same on its own within a second of each save. Returns {workbook: counts}."""
+    from intake import sync
 
-    # One file at a time, so two files holding the same kind of sheet (say, each officer's interview records)
-    # are both read. Files with the requisition tracker go first, so interviews can find their requisitions.
-    due.sort(key=lambda item: "requisition tracker" not in item[0].sheets.lower())
-    results = {}
-    for workbook, modified in due:
-        result = load(workbook, modified, log)
-        if result:
-            results[workbook] = result
-    return results
-
-
-def load(workbook, modified, log):
-    """Load a copy of one workbook, so Excel can keep the file open and save it while the refresh runs."""
-    log(f"Refreshing from {workbook.name}...")
-    with tempfile.TemporaryDirectory() as tmp:
-        copy = Path(shutil.copy2(workbook.path, Path(tmp) / workbook.name))
-        try:
-            result = WorkbookImporter([str(copy)], replace=False, report_dir=str(report_dir()), log=log,
-                                      require_all=False).run()
-        except Exception as exc:  # noqa: BLE001 - a bad file must not stop the next check
-            if isinstance(exc, WorkbookError):
-                message = str(exc)
-            else:
-                logger.exception("Excel refresh failed")
-                message = f"The refresh failed: {exc}"
-            workbook.state, workbook.message, workbook.refresh_requested = LinkedWorkbook.State.ERROR, message, False
-            workbook.save(update_fields=["state", "message", "refresh_requested"])
-            log(f"{workbook.name}: {message}")
-            return None
-        digest = fingerprint(copy)
-    counts = {k: v for k, v in sorted(result.counts.items()) if v}
-    workbook.fingerprint, workbook.file_modified_at, workbook.synced_at = digest, modified, timezone.now()
-    workbook.state, workbook.message, workbook.counts = LinkedWorkbook.State.OK, describe(counts), counts
-    workbook.report_path, workbook.refresh_requested = result.report_path, False
-    workbook.save()
-    log(f"{workbook.name}: {describe(counts)}")
-    return result
+    return sync.workbooks(force=force, log=log)
 
 
 def save_upload(uploaded, *, user=None) -> LinkedWorkbook:

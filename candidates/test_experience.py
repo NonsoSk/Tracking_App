@@ -81,7 +81,7 @@ class YearsOfExperienceTests(TestCase):
                 {"job_title": "Industrial training (SIWES)", "company": "NNPC", "start": "2016", "end": "2017"}]
         self.assertEqual(from_history(jobs).years, 1.5)
 
-    @override_settings(AI_ENABLED=True, ANTHROPIC_API_KEY="test")
+    @override_settings(AI_ENABLED=True, ANTHROPIC_API_KEY="test", AI_CV_PROCESSING_AUTHORISED=True)
     def test_with_ai_the_years_come_from_the_dates_not_the_ais_total(self):
         ai = {"first_name": "Ada", "last_name": "Obi", "years_experience": 9,
               "work_history": [{"job_title": "Accountant", "company": "Notore", "start": "2023", "end": "2024",

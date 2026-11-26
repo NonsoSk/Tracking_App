@@ -100,10 +100,37 @@ class VerdictTests(TestCase):
         self.assertFalse(result["match"]["is_match"])
         self.assertIn("a match needs 99", result["match"]["reason"])
 
-    def test_a_profile_without_a_cv_is_judged_on_the_requirements_only(self):
+    def test_a_profile_without_a_cv_is_never_a_match_on_an_unjudged_role(self):
+        """A sparse profile that meets every stated requirement and scores well is not called a Match while the
+        role itself could not be judged: it goes to a person (the defect found in the diagnosis)."""
         result = self.match("none", cv_text="")
-        self.assertIsNone(result["match"]["stages"][1]["passed"])
-        self.assertIn("Not judged", result["match"]["stages"][1]["detail"])
+        verdict = result["match"]
+        self.assertEqual(verdict["stages"][0]["passed"], True)
+        self.assertIsNone(verdict["stages"][1]["passed"])
+        self.assertIn("Not judged", verdict["stages"][1]["detail"])
+        self.assertEqual((verdict["is_match"], verdict["verdict"], verdict["label"]),
+                         (False, "review", "Needs review"))
+        self.assertIn("not judged", verdict["reason"])
+
+    def test_missing_information_is_for_review_and_a_shown_mismatch_is_not_a_match(self):
+        unknown = self.match("industrial", highest_qualification="")["match"]
+        self.assertEqual(unknown["verdict"], "review")
+        self.assertIn("minimum qualification", unknown["reason"])
+        wrong = self.match("industrial", highest_qualification="ond")["match"]
+        self.assertEqual(wrong["verdict"], "no_match")
+        self.assertIn("Not met", wrong["stages"][0]["detail"])
+        no_years = self.match("industrial", years=None)["match"]
+        self.assertNotEqual(no_years["verdict"], "match")
+
+    def test_age_community_and_source_do_not_change_the_score(self):
+        base = self.match("industrial")
+        for extra in (dict(date_of_birth=date(1960, 1, 1)), dict(date_of_birth=date(2001, 1, 1)),
+                      dict(region="host", community_status="host"), dict(region="outside"),
+                      dict(source="referral"), dict(source="import"), dict(gender="female"),
+                      dict(state_of_origin="Lagos")):
+            other = self.match("industrial", **extra)
+            self.assertEqual((other["score"], other["match"]["verdict"]), (base["score"], base["match"]["verdict"]),
+                             extra)
 
 
 @mock.patch("candidates.experience.timezone.localdate", today)
@@ -208,6 +235,6 @@ class CandidateWithoutStoryTests(TestCase):
         result = compute_match(req, Candidate(first_name="A", last_name="B", highest_qualification="bsc",
                                               course="Marketing", years_experience=6, skills=["Microsoft Office"]),
                                aliases={})
-        self.assertIn(result["match"]["label"], {"Match", "Not a match"})
+        self.assertEqual(result["match"]["label"], "Needs review")  # no CV text: the role cannot be judged
         self.assertEqual(result["why"]["cv"], "")
         self.assertTrue(INDUSTRIAL_JD)

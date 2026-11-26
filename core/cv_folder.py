@@ -1,33 +1,27 @@
-"""Read CVs from a folder on their own: every new file dropped into a watched folder becomes a profile.
+"""Read CVs from a folder on their own: every new file dropped into a linked folder becomes a profile.
 
-Link the folder once on the Excel link page. From then on the watcher that keeps the portal in step with Excel
-(start-portal.bat on this PC, the scheduler on the server) looks in it every CV_FOLDER_SECONDS: each new file, or a
-file whose content changed, is read like an upload on the CV intake page: only a CV becomes a profile (and, if the
-folder has a vacancy, is applied to it and scored at once). A file that is not a CV, and a CV the portal already
-holds, are left out and noted against the file. Files are never moved, renamed or deleted, and each is read once.
+Link a folder once (CV intake page, or the Excel link page). The background worker (intake/worker.py) then notices
+each new or changed file, keeps a private copy with a receipt, and reads it like an upload: only a CV becomes a
+profile (and, if the folder has a vacancy, is applied to it and scored at once). Every file gets a visible outcome
+on its receipt: added, brought up to date, already in the portal, not a CV, could not be read, or "same person?".
+Files are never moved, renamed or deleted, and each version of a file is read once.
 """
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
-import time
 from pathlib import Path
 
-from django.conf import settings
+from django.db.models import Count
 from django.utils import timezone
 
 from .models import FolderFile, WatchedFolder
 
 logger = logging.getLogger(__name__)
 
-SETTLE_SECONDS = 20  # a file changed more recently than this may still be being copied or saved
-PER_CHECK = 50       # at most this many files are read per check, so a big folder is worked through in turns
-IGNORED_NAMES = {"thumbs.db", "desktop.ini", ".ds_store"}
-HELD = "Already in the portal"      # how a file is noted when its CV is already held
-UNREAD = "Could not be read"        # …and when it could not be read (a scan without OCR or AI)
-PARTIAL_SUFFIXES = (".tmp", ".crdownload", ".part", ".partial", ".download")
+HELD = "Already in the portal"      # receipts' wording, kept for the summaries
+UNREAD = "Could not be read"
 
 
 class FolderError(Exception):
@@ -35,137 +29,43 @@ class FolderError(Exception):
 
 
 def link(path: str, *, source: str = "email", requisition=None, user=None, read_existing: bool = True,
-         region: str = "") -> WatchedFolder:
-    """Watch this folder. With ``read_existing`` False, the files already in it are marked as seen and only files
-    added from now on are read."""
+         region: str = "", label: str = "", subfolders: bool = True) -> WatchedFolder:
+    """Watch this folder. It shows as waiting until the worker has opened it. With ``read_existing`` False, the files
+    already in it are left alone and only files added from now on are read."""
     folder_path = Path(str(path).strip().strip('"')).expanduser()
-    if not folder_path.is_dir():
-        raise FolderError(f"Folder not found: {folder_path}. Copy its full path from the File Explorer address bar.")
+    if not str(path).strip() or not folder_path.is_dir():
+        raise FolderError(f"Folder not found: {folder_path}. Copy its full path from the File Explorer address bar "
+                          "(on the server: a path the portal's worker can open).")
     folder_path = folder_path.resolve()
-    folder, created = WatchedFolder.objects.update_or_create(path=str(folder_path), defaults={
+    existing = WatchedFolder.objects.filter(path=str(folder_path)).first()
+    created = existing is None
+    folder, _ = WatchedFolder.objects.update_or_create(path=str(folder_path), defaults={
         "source": source, "requisition": requisition, "region": region, "linked_by": user,
-        "state": WatchedFolder.State.OK,
-        "message": "", "check_requested": True})
-    if not read_existing:
-        for name, full in _files(folder_path):
+        "label": label[:120] or (existing.label if existing else ""), "include_subfolders": subfolders,
+        "location": WatchedFolder.Location.SERVER, "check_requested": True,
+        **({"state": WatchedFolder.State.PENDING, "message": "", "import_existing": read_existing,
+            "baseline_done": False} if created else {})})
+    if created and not read_existing:
+        from intake.watch import folder_files
+
+        for name, full in folder_files(folder_path, subfolders=subfolders):
             stat = full.stat()
             FolderFile.objects.update_or_create(folder=folder, name=name, defaults={
                 "size": stat.st_size, "modified": stat.st_mtime, "skipped": "Already in the folder when it was linked"})
+        WatchedFolder.objects.filter(pk=folder.pk).update(baseline_done=True)
+        folder.baseline_done = True
     return folder
 
 
-def _files(root: Path):
-    """(name inside the folder, full path) for every file in it, subfolders included, skipping system and
-    half-written files."""
-    for directory, subdirs, names in os.walk(root):
-        subdirs[:] = [d for d in subdirs if not d.startswith(".")]
-        for name in names:
-            lower = name.lower()
-            if lower in IGNORED_NAMES or name.startswith((".", "~$")) or lower.endswith(PARTIAL_SUFFIXES):
-                continue
-            full = Path(directory) / name
-            yield str(full.relative_to(root)).replace("\\", "/"), full
+def check(*, log=logger.info, limit: int | None = None) -> list:
+    """Look in every linked folder now and read the new files (in this process). Returns the profiles created or
+    updated. The worker does the same on its own; this is for the scheduler's run and the tests."""
+    from intake import sync
+
+    return sync.folders(log=log)
 
 
-def check(*, log=logger.info, limit: int = PER_CHECK) -> list:
-    """Look in every watched folder and read the new files. Returns the profiles created or updated."""
-    from candidates.cv_parser import SUPPORTED_EXTENSIONS
-    from candidates.intake import ingest_cv
-    from requisitions.models import Requisition
-
-    read, budget, now = [], limit, timezone.now()
-    for folder in WatchedFolder.objects.select_related("requisition"):
-        root = Path(folder.path)
-        folder.checked_at, folder.check_requested = now, False
-        if not root.is_dir():
-            folder.state = WatchedFolder.State.MISSING
-            folder.message = "The folder is not there (or this computer cannot reach it). Link it again if it moved."
-            folder.save(update_fields=["checked_at", "check_requested", "state", "message"])
-            continue
-        known = {f.name: f for f in folder.files.all()}
-        digests = set(folder.files.exclude(digest="").values_list("digest", flat=True))
-        vacancy = folder.requisition
-        if vacancy and vacancy.status not in {Requisition.Status.OPEN, Requisition.Status.APPROVED}:
-            vacancy = None  # closed since: the CVs still come in, for the talent database
-        new_here, waiting = 0, 0
-        try:
-            entries = list(_files(root))
-        except OSError as exc:
-            folder.state, folder.message = WatchedFolder.State.ERROR, f"Could not list the folder: {exc}"
-            folder.save(update_fields=["checked_at", "check_requested", "state", "message"])
-            continue
-        for name, full in sorted(entries, key=lambda e: e[1].stat().st_mtime if e[1].exists() else 0):
-            try:
-                stat = full.stat()
-            except OSError:
-                continue
-            seen = known.get(name)
-            if seen and seen.size == stat.st_size and abs(seen.modified - stat.st_mtime) < 1:
-                continue  # unchanged since it was read (or skipped)
-            if time.time() - stat.st_mtime < SETTLE_SECONDS:
-                waiting += 1
-                continue  # still being copied or saved: next check
-            if budget <= 0:
-                waiting += 1
-                continue
-            record = seen or FolderFile(folder=folder, name=name)
-            record.size, record.modified = stat.st_size, stat.st_mtime
-            extension = os.path.splitext(name)[1].lower()
-            if extension not in SUPPORTED_EXTENSIONS:
-                record.skipped = f"Not a CV file type ({extension or 'no extension'})"
-                record.save()
-                continue
-            if stat.st_size > settings.MAX_UPLOAD_MB * 1024 * 1024:
-                record.skipped = f"Larger than {settings.MAX_UPLOAD_MB} MB"
-                record.save()
-                continue
-            try:
-                content = full.read_bytes()
-            except OSError as exc:  # open elsewhere and locked: try again next time
-                logger.info("Could not read %s yet: %s", full, exc)
-                waiting += 1
-                continue
-            digest = hashlib.sha256(content).hexdigest()
-            if digest in digests and (not seen or seen.digest != digest):
-                record.digest, record.skipped = digest, "A copy of a CV already read from this folder"
-                record.save()
-                continue
-            budget -= 1
-            try:
-                result = ingest_cv(content, os.path.basename(name), source=folder.source, requisition=vacancy,
-                                   notify_team=False, only_cvs=True, region=folder.region)
-            except Exception as exc:  # noqa: BLE001 - one bad file never stops the folder
-                logger.exception("Could not read %s", full)
-                record.digest, record.skipped = digest, f"Could not be read: {exc}"[:255]
-                record.save()
-                continue
-            record.digest, record.read_at = digest, timezone.now()
-            record.candidate = result.candidate
-            if result.duplicate:
-                record.skipped = f"{HELD}: {result.candidate.full_name}"[:255]
-            else:
-                record.skipped = result.error[:255] if result.error else ""
-            record.save()
-            digests.add(digest)
-            if result.candidate and not result.duplicate:
-                read.append(result.candidate)
-                new_here += 1
-                log(f"CV folder {folder.name}: read {name} → {result.candidate.full_name}")
-            elif result.error:
-                log(f"CV folder {folder.name}: left out {name} ({result.error})")
-        folder.state = WatchedFolder.State.OK
-        folder.message = (f"{waiting} file{'s' if waiting != 1 else ''} waiting for the next check."
-                          if waiting else "")
-        if new_here:
-            folder.files_read += new_here
-            folder.last_read_at = timezone.now()
-        folder.save()
-    if read:
-        _tell_hr(read)
-    return read
-
-
-def _tell_hr(people):
+def tell_hr(people):
     from .notify import hr_team, notify
 
     count = len({p.pk for p in people})
@@ -174,22 +74,39 @@ def _tell_hr(people):
 
 
 def summary(folder: WatchedFolder) -> dict:
-    files = folder.files.all()
-    left_out = (files.exclude(skipped="").exclude(skipped__startswith="Already in the folder")
-                .exclude(skipped__startswith=HELD).exclude(skipped__startswith="A copy of a CV"))
-    not_cvs = left_out.exclude(skipped__startswith=UNREAD)
-    return {"read": files.filter(read_at__isnull=False, skipped="").count(),
-            "held": files.filter(skipped__startswith=HELD).count() + files.filter(
-                skipped__startswith="A copy of a CV").count(),
-            "skipped": not_cvs.count(), "unread": left_out.filter(skipped__startswith=UNREAD).count(),
-            "examples": [f"{f.name}: {f.skipped}" for f in not_cvs[:6]],
-            "recent": list(files.filter(read_at__isnull=False, skipped="").select_related("candidate")[:5])}
+    """Counts of what came of the folder's files, from their receipts."""
+    from intake.models import Receipt
+
+    receipts = Receipt.objects.filter(folder=folder)
+    outcomes = dict(receipts.values_list("outcome").annotate(n=Count("pk")).order_by())
+    not_cvs = receipts.filter(outcome=Receipt.Outcome.NOT_CV)
+    return {"read": outcomes.get("added", 0) + outcomes.get("updated", 0), "held": outcomes.get("duplicate", 0),
+            "skipped": outcomes.get("not_cv", 0), "unread": outcomes.get("unreadable", 0),
+            "review": outcomes.get("identity", 0),
+            "waiting": receipts.filter(status__in=[Receipt.Status.RECEIVED, Receipt.Status.PROCESSING]).count(),
+            "failed": receipts.filter(status=Receipt.Status.FAILED).count(),
+            "examples": [f"{r.source_path}: {r.message}" for r in not_cvs[:6]],
+            "recent": [r.candidate for r in receipts.filter(outcome__in=["added", "updated"])
+                       .select_related("candidate")[:5] if r.candidate]}
 
 
 def retry_unread(folder: WatchedFolder) -> int:
-    """Forget the files that could not be read, so the next check tries them again (after OCR or AI is set up)."""
-    count, _ = folder.files.filter(skipped__startswith=UNREAD).delete()
+    """Read again the files that could not be read (after OCR or AI was set up)."""
+    from intake.models import Receipt
+    from intake.receive import requeue
+
+    count = 0
+    for receipt in Receipt.objects.filter(folder=folder, outcome=Receipt.Outcome.UNREADABLE).exclude(stored=""):
+        requeue(receipt)
+        count += 1
     if count:
-        folder.check_requested = True
-        folder.save(update_fields=["check_requested"])
+        WatchedFolder.objects.filter(pk=folder.pk).update(check_requested=True)
     return count
+
+
+def file_kind(name: str) -> str:
+    return os.path.splitext(name)[1].lower()
+
+
+def stamp():
+    return timezone.now()

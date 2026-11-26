@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load ds humanize %}
 {% block title %}Summary{% endblock %}
+{% block live %} data-live="hiring people intake"{% endblock %}
 {% block crumbs %}<span aria-current="page">Summary</span>{% endblock %}
 {% block primary_action %}<a class="btn btn-secondary btn-sm" href="{% url 'core:dashboard' %}">{% icon "list-checks" "ico-16" %} My tasks</a>{% endblock %}
 {% block content %}

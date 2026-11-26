@@ -157,10 +157,20 @@ class IntakeResult:
     error: str = ""
     duplicate: bool = False   # a CV the portal already holds: nothing was added
     set_aside: str = ""       # what the file is when it is not a CV ("a cover letter", "unreadable"…)
+    ocr_deferred: bool = False  # a scan left for the worker's slow lane (OCR); nothing saved yet
+    identity: Candidate | None = None  # someone already here who may or may not be this person: nothing saved yet
+    queued: bool = False      # received and kept; the background worker reads it shortly
+    receipt: object = None    # the intake receipt that keeps the file and its outcome
 
     @property
     def status(self) -> str:
-        """added, updated, duplicate, not_cv, unreadable or error."""
+        """added, updated, duplicate, not_cv, unreadable, identity, deferred, queued or error."""
+        if self.queued:
+            return "queued"
+        if self.ocr_deferred:
+            return "deferred"
+        if self.identity is not None:
+            return "identity"
         if self.set_aside:
             return "unreadable" if self.set_aside == "unreadable" else "not_cv"
         if self.error:
@@ -168,6 +178,21 @@ class IntakeResult:
         if self.duplicate:
             return "duplicate"
         return "added" if self.created else "updated"
+
+
+NAME_STOP = {"mr", "mrs", "ms", "miss", "dr", "engr", "eng", "chief", "pastor", "barr", "prof", "jr", "sr"}
+
+
+def _name_words(text: str) -> set:
+    return {w for w in re.findall(r"[a-z]{3,}", (text or "").lower()) if w not in NAME_STOP}
+
+
+def uncertain_identity(candidate: Candidate, parsed: dict) -> bool:
+    """Whether a profile found by email or phone may be someone else: the names share no word (a shared family
+    phone, an agency's email). Both names must be known; a CV with no readable name is not doubted."""
+    mine = _name_words(f"{candidate.first_name} {candidate.last_name}")
+    theirs = _name_words(f"{parsed.get('first_name', '')} {parsed.get('last_name', '')}")
+    return bool(mine and theirs) and not (mine & theirs)
 
 
 def find_duplicate(content: bytes) -> CandidateDocument | None:
@@ -180,13 +205,18 @@ def find_duplicate(content: bytes) -> CandidateDocument | None:
 @transaction.atomic
 def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, user=None, referred_by=None,
               referral_note: str = "", fallback_email: str = "", notify_team: bool = True,
-              only_cvs: bool = False, region: str = "") -> IntakeResult:
+              only_cvs: bool = False, region: str = "", defer_ocr: bool = False, review_identity: bool = False,
+              same_as: Candidate | None = None, new_person: bool = False) -> IntakeResult:
     """Read a CV file, create or update the candidate, file the CV in their folder
     and (when a requisition is given) create and score the application.
 
     A CV the portal already holds is not added again (``duplicate``). With ``only_cvs`` (CV intake, the CV folder,
     the mailbox), a file that is not a CV is set aside and nothing is saved from it (``set_aside``). ``region`` is
-    the community category HR chose for the whole upload or folder (host, pipeline, jetty, indirect…)."""
+    the community category HR chose for the whole upload or folder (host, pipeline, jetty, indirect…).
+
+    The background worker passes ``defer_ocr`` (a scan is left for its slow lane: ``ocr_deferred``) and
+    ``review_identity`` (someone found by email or phone whose name does not fit is not merged: ``identity``). HR's
+    answer to such a review comes back as ``same_as`` (merge into that profile) or ``new_person``."""
     from pipeline.services import create_application, log
 
     from . import regions
@@ -214,17 +244,32 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
     if held:  # the very same file, whatever it is called now
         return already_held(held.candidate, held)
 
-    parsed = parse_cv(content, filename)
+    if defer_ocr:
+        from .cv_parser import ocr_deferred
+
+        with ocr_deferred():
+            parsed = parse_cv(content, filename)
+        if parsed.get("ocr_deferred"):
+            return IntakeResult(ocr_deferred=True, parsed=parsed)
+    else:
+        parsed = parse_cv(content, filename)
     if only_cvs:
         verdict = judge(parsed, filename)
         if not verdict.is_cv:
             return IntakeResult(error=verdict.reason, set_aside=verdict.kind, parsed=parsed)
     key = text_key(parsed.get("text", ""))
     twin = Candidate.objects.filter(cv_digest=key).first() if key else None
-    if twin:  # the same CV saved under another name or in another format
+    if twin and not new_person:  # the same CV saved under another name or in another format
         return already_held(twin)
     email = parsed.get("email") or fallback_email
-    candidate = find_existing(email, parsed.get("phone", ""))
+    if same_as is not None:
+        candidate = same_as
+    elif new_person:
+        candidate = None
+    else:
+        candidate = find_existing(email, parsed.get("phone", ""))
+        if candidate is not None and review_identity and uncertain_identity(candidate, parsed):
+            return IntakeResult(identity=candidate, parsed=parsed)
     created = candidate is None
     if not created and candidate.cv_text and same_cv(candidate.cv_text, parsed.get("text", "")):
         return already_held(candidate)  # their CV again, read slightly differently (saved as Word and as PDF)
@@ -233,6 +278,8 @@ def ingest_cv(content: bytes, filename: str, *, source: str, requisition=None, u
                               referred_by=referred_by, referral_note=referral_note)
         if not parsed.get("email") and fallback_email:
             candidate.email = fallback_email
+        if new_person and parsed.get("email") and Candidate.objects.filter(email__iexact=parsed["email"]).exists():
+            parsed = dict(parsed, email="")  # the email belongs to the other person; this one keeps it in their CV
     elif referred_by and not candidate.referred_by_id:
         candidate.referred_by = referred_by
         candidate.referral_note = referral_note

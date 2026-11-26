@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load ds portal humanize %}
 {% block title %}{{ c.full_name }} · {{ req.title }}{% endblock %}
+{% block live %} data-live="hiring people"{% endblock %}
 {% block crumbs %}<a href="{% url 'requisitions:list' %}">Requisitions</a>{% icon "chevron-right" "ico-16" %}<a href="{{ req.get_absolute_url }}">{{ req.reference }} · {{ req.title }}</a>{% icon "chevron-right" "ico-16" %}<span aria-current="page">{{ c.full_name }}</span>{% endblock %}
 {% block primary_action %}
   {% if summary %}<a class="btn btn-secondary btn-sm desktop-only" href="{% url 'pipeline:selection_report' app.pk %}" target="_blank" rel="noopener">{% icon "printer" "ico-16" %} Report</a>{% endif %}
@@ -337,7 +338,7 @@
           <div class="ms-score{% if app.eligibility == 'not_eligible' %} is-out{% endif %}"><b>{{ breakdown.score|floatformat:"-1" }}</b><span>/ 100</span></div>
           <div><b>{{ breakdown.grade_label }}</b>
             <p class="small muted">{{ breakdown.track_label }} · scored {{ app.matched_at|naturaltime }}.{% if breakdown.version < 4 and not breakdown.eligible %} This score was worked out when a missing must-have set it to 0; re-score to count everything the candidate has.{% endif %}</p></div>
-          {% if breakdown.match %}<span class="chip {% if breakdown.match.is_match %}success{% else %}neutral{% endif %} no-dot ms-verdict">{% if breakdown.match.is_match %}{% icon "check" %} {% endif %}{{ breakdown.match.label }}</span>{% endif %}
+          {% if breakdown.match %}<span class="chip {% if breakdown.match.is_match %}success{% elif breakdown.match.needs_review %}warning{% else %}neutral{% endif %} no-dot ms-verdict">{% if breakdown.match.is_match %}{% icon "check" %} {% endif %}{{ breakdown.match.label }}</span>{% endif %}
         </div>
         {% if breakdown.why %}
         <section class="why-box{% if breakdown.match.is_match %} is-match{% endif %}" id="why" aria-labelledby="why-box-h">

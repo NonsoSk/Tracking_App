@@ -17,6 +17,7 @@ from django.urls import reverse
 from accounts.models import User
 from candidates.models import Candidate, CBTResult
 from core import excel_link
+from intake.models import Receipt
 from core.models import LinkedWorkbook
 from core.test_workbook_import import (
     CBT_HEADERS, CV_HEADERS, IV_HEADERS, REQ_HEADERS, STAFF_HEADERS, cbt_rows, cv_rows, iv_rows, req_rows, staff_rows,
@@ -87,7 +88,7 @@ class ExcelLinkTests(TestCase):
         self.assertEqual(len(results), 2)
         self.assertEqual(self.totals(), first)
         for result in results.values():
-            self.assertFalse(any(k for k, v in result.counts.items() if v and "repeated" not in k), result.counts)
+            self.assertFalse(any(k for k, v in result.items() if v and "repeated" not in k), result)
 
     def test_the_same_records_in_several_workbooks_are_loaded_once(self):
         # A second workbook holding copies of the same sheets (as when files are combined).
@@ -135,8 +136,8 @@ class ExcelLinkTests(TestCase):
         self.assertEqual(candidates, before[0] + 2)  # the new interviewee and the new CV
         self.assertEqual(records, before[2] + 1)  # only the new interview; the corrected one was updated
         self.assertEqual(apps, before[3] + 1)
-        self.assertEqual(result.counts["interview records changed in Excel (updated)"], 1)
-        self.assertEqual(result.counts["CBT results changed in Excel (updated)"], 1)
+        self.assertEqual(result["interview records changed in Excel (updated)"], 1)
+        self.assertEqual(result["CBT results changed in Excel (updated)"], 1)
         dan.refresh_from_db()
         self.assertEqual((dan.status, dan.decision), ("rejected", "reject"))
         self.assertEqual(CBTResult.objects.get(candidate__email="ada.test@example.com", category="Lab_GET").score, 110)
@@ -220,18 +221,56 @@ class ExcelLinkTests(TestCase):
                                                                      "2348011110002", 2)])])
         self.settle(both)
         result = self.result_for(self.link_and_load(both), both)
-        self.assertEqual(result.counts["sheets not read (a second sheet of the same kind; see report)"], 1)
-        self.assertIn("Interviews 2026", [issue[1] for issue in result.issues])
+        self.assertEqual(result["sheets not read (a second sheet of the same kind; see report)"], 1)
+        receipt = Receipt.objects.filter(workbook=LinkedWorkbook.objects.get()).latest("pk")
+        self.assertIn("Interviews 2026", [issue["sheet"] for issue in receipt.details["issues"]])
         self.assertIn("1 sheets not read", LinkedWorkbook.objects.get().message)
 
-    def test_recently_saved_and_missing_files(self):
+    def test_saves_half_written_files_lost_sheets_and_missing_files(self):
         self.link_and_load(self.master)
+        workbook = LinkedWorkbook.objects.get()
+        loaded = workbook.synced_at
+        # A save made a moment ago is read at once: Excel writes a whole new file and swaps it in.
         self.reqs[1][COORDINATOR] = "Someone Else"
-        write(self.master, [("Manpower_Requisition_Summary", REQ_HEADERS, self.reqs)])  # saved just now
-        self.assertEqual(excel_link.check(log=lambda *a: None), {})  # Excel may still be writing it
+        write(self.master, [("Manpower_Requisition_Summary", REQ_HEADERS, self.reqs),
+                            ("Recruitment_Interview_Records", IV_HEADERS, self.ivs),
+                            ("Recruitment_CBTs", CBT_HEADERS, self.cbts),
+                            ("Retirement Forecast_3 Years Pro", STAFF_HEADERS, staff_rows())])
+        self.assertEqual(len(excel_link.check(log=lambda *a: None)), 1)
+        self.assertEqual(Requisition.objects.get(reference="Req_901").coordinator_name, "Someone Else")
+        receipt = Receipt.objects.filter(workbook=workbook).latest("pk")
+        self.assertEqual((receipt.outcome, receipt.details["full"], receipt.details["rows_changed"]),
+                         ("imported", False, 1))  # only the changed row was imported
+        # A file still being copied in (not a whole .xlsx yet) waits; nothing changes.
+        before = self.totals()
+        with open(self.master, "r+b") as handle:
+            handle.truncate(os.path.getsize(self.master) // 2)
+        self.assertEqual(excel_link.check(log=lambda *a: None), {})
+        self.assertEqual(self.totals(), before)
+        # A save that lost sheets it had (or whose headings changed) is not loaded: the last good data stays.
+        write(self.master, [("Manpower_Requisition_Summary", REQ_HEADERS, self.reqs)])
+        self.assertEqual(excel_link.check(log=lambda *a: None), {})
+        workbook.refresh_from_db()
+        self.assertEqual(workbook.state, "invalid")
+        self.assertIn("Interview records", workbook.message)
+        self.assertEqual(self.totals(), before)
+        self.assertGreater(workbook.synced_at, loaded)
+        # A missing file is shown as such; the records stay.
         os.remove(self.master)
         excel_link.check(log=lambda *a: None)
         self.assertEqual(LinkedWorkbook.objects.get().state, "missing")
+        self.assertEqual(self.totals(), before)
+
+    def test_an_unchanged_workbook_is_checked_but_not_loaded_again(self):
+        self.link_and_load(self.master)
+        workbook = LinkedWorkbook.objects.get()
+        checked, loaded = workbook.checked_at, workbook.synced_at
+        os.utime(self.master)  # touched (opened and closed without changes)
+        self.assertEqual(excel_link.check(log=lambda *a: None), {})
+        workbook.refresh_from_db()
+        self.assertGreater(workbook.checked_at, checked)
+        self.assertEqual(workbook.synced_at, loaded)
+        self.assertEqual(Receipt.objects.filter(workbook=workbook).count(), 1)
 
     def test_a_workbook_without_recruitment_sheets_is_refused(self):
         other = os.path.join(self.dir, "Budget.xlsx")

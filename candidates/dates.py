@@ -56,12 +56,13 @@ def applied_on(candidate) -> date | None:
     return from_excel
 
 
-def assign_all(*, log=None, Candidate=None) -> int:
-    """Work out every person's application date again (after each Excel load). Returns how many changed."""
+def assign_all(queryset=None, *, log=None, Candidate=None) -> int:
+    """Work out every person's application date again (after each Excel load), or only these people's. Returns how
+    many changed."""
     if Candidate is None:
         from .models import Candidate
     changed = []
-    for candidate in Candidate.objects.only("id", "source", "source_records", "created_at", "applied_on") \
+    for candidate in (queryset if queryset is not None else Candidate.objects).only("id", "source", "source_records", "created_at", "applied_on") \
             .iterator(chunk_size=2000):
         value = applied_on(candidate)
         if value != candidate.applied_on:

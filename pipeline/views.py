@@ -128,7 +128,7 @@ def application_detail(request, pk):
     order = {"experience": 0, "knowledge": 0, "duty": 1, "interview": 2, "confirm": 2}
     context["jd_rows"] = sorted(jd.get("criteria") or [], key=lambda r: order.get(r.get("kind"), 3))
     context["jd_ai"] = jd.get("ai", False)
-    context["ai_on"] = ai.ai_enabled()
+    context["ai_on"] = ai.cv_processing_allowed()
     saved = application.ai_assessment or {}
     context["ai_read_at"] = saved.get("at") if saved.get("criteria") and jd.get("ai") else None
     context["cv_terms"] = presentation.cv_terms(application.candidate)
@@ -235,8 +235,9 @@ def rescore(request, pk):
 @require_POST
 def ai_summary(request, pk):
     application = _get_application(request, pk)
-    if not ai.ai_enabled():
-        messages.warning(request, "AI is not configured. Add ANTHROPIC_API_KEY to enable fit summaries.")
+    if not ai.cv_processing_allowed():
+        messages.warning(request, "AI is not available for CVs: it needs ANTHROPIC_API_KEY and the company's "
+                                  "authorisation to send CVs to the provider (AI_CV_PROCESSING_AUTHORISED=true).")
         return _back(application, "match")
     from .ai_assess import can_assess, run
 

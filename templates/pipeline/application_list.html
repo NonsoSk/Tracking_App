@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load static ds portal %}
 {% block title %}Candidate pipeline{% endblock %}
+{% block live %} data-live="hiring people"{% endblock %}
 {% block crumbs %}<span aria-current="page">Candidate pipeline</span>{% endblock %}
 {% block primary_action %}
   {% if request.user.is_hr %}<a class="btn btn-primary btn-sm" href="{% url 'candidates:intake' %}">{% icon "cloud-upload" "ico-16" %} Upload CVs</a>{% endif %}

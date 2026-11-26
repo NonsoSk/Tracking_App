@@ -1,0 +1,17 @@
+# HTTPS in front of the portal. PORTAL_TLS: "internal" (Caddy's own certificate, for an intranet name; install
+# Caddy's root certificate on staff PCs, or use IT's certificate instead) or an e-mail address for a public
+# certificate (the name must then be reachable from the internet).
+{$PORTAL_DOMAIN} {
+	tls {$PORTAL_TLS}
+	encode gzip
+	# Everything goes through the portal: uploaded and received files are never served from here.
+	reverse_proxy web:8000 {
+		header_up X-Forwarded-Proto https
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		-Server
+	}
+}

@@ -1,0 +1,13 @@
+{% extends "ds/base.html" %}
+{% load ds %}
+{% block title %}Add a PC{% endblock %}
+{% block crumbs %}<a href="{% url 'candidates:intake' %}">CV intake</a>{% icon "chevron-right" "ico-14" %}<span aria-current="page">Add a PC</span>{% endblock %}
+{% block content %}
+<header class="page-head"><div><div class="eyebrow">Connector</div><h1>Add a PC that sends folders</h1>
+<p class="lede">For folders (or a workbook) on a PC the server cannot reach. A small program on that PC sends new and changed files to the portal over its secure address, and catches up after the PC was off or offline.</p></div></header>
+<form method="post" class="sheet" aria-labelledby="ca-h">{% csrf_token %}
+  <div class="sheet-h"><h2 class="title" id="ca-h">The PC</h2></div>
+  <div class="sheet-b stack">{% dsfield form.name %}</div>
+  <div class="sheet-f row"><a class="btn btn-ghost" href="{% url 'candidates:intake' %}#folders">Cancel</a><span class="spacer"></span><button class="btn btn-primary" type="submit">{% icon "plus" "ico-18" %} Create its key</button></div>
+</form>
+{% endblock %}

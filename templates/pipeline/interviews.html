@@ -1,6 +1,7 @@
 {% extends "ds/base.html" %}
 {% load ds %}
 {% block title %}Interviews{% endblock %}
+{% block live %} data-live="hiring"{% endblock %}
 {% block crumbs %}<span aria-current="page">Interviews</span>{% endblock %}
 {% block content %}
 {% with u=request.user %}

@@ -4,6 +4,11 @@ pypdfium2>=4.30
 python-docx>=1.1
 Pillow>=10.4
 openpyxl>=3.1
+# Reads workbooks about ten times faster than openpyxl (saves reach open screens within seconds); optional.
+python-calamine>=0.3
+# Notices new files in linked CV folders at once where the system reports changes; optional (folders are also
+# compared every CV_FOLDER_SECONDS).
+watchdog>=4.0
 pytesseract>=0.3.10
 whitenoise>=6.7
 gunicorn>=23.0

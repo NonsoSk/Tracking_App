@@ -72,8 +72,10 @@ class MatchGridTests(TestCase):
         self.assertTrue(any(f.startswith("Accepted course") or "course" in f.lower() for f in ada_hr["failed"]))
         columns = {c["vacancy"].title: c for c in response.context["columns"]}
         self.assertEqual((columns["HR Officer"]["scored"], columns["HR Officer"]["meets_all"]), (2, 1))
-        # Possible matches or better in each CV's ranked role are ticked, ready to add; weak ones are not.
-        self.assertContains(response, f'value="{self.ada.pk}:{self.payable.pk}" checked')
+        # Only real matches are ticked, ready to add. These profiles have no CV text, so the role cannot be judged:
+        # Ada is "Needs review" for Accounts Payable, shown but never ticked for HR (and never called a match).
+        self.assertEqual((ada_pay["match"], ada_pay["review"]), (False, True))
+        self.assertNotContains(response, f'value="{self.ada.pk}:{self.payable.pk}" checked')
         self.assertNotContains(response, f'value="{self.ada.pk}:{self.hr_officer.pk}" checked')
         # Nothing is saved by looking.
         self.assertFalse(Application.objects.exists())

@@ -442,28 +442,47 @@ INTAKE_RUNS_KEPT = 3
 
 
 def _ingest_upload(uploaded, data, user):
-    """Read one uploaded file. Only a CV becomes a profile: a file that is not a CV, a CV already in the portal, a
-    file that is too large or cannot be read is reported, and the other files carry on."""
+    """Receive one uploaded file (a private copy and a receipt first), then read it here so the page shows the
+    outcome at once. Only a CV becomes a profile: a file that is not a CV, a CV already in the portal, a file that
+    is too large or cannot be read is reported, and the other files carry on. If reading stops part-way (the
+    browser closed, the server restarted), the background worker reads the kept copy later."""
     from django.conf import settings
+    from django.utils import timezone
+
+    from intake.models import Receipt
+    from intake.process import read_now
+    from intake.receive import receive
 
     from .cv_parser import SUPPORTED_EXTENSIONS
     from .intake import IntakeResult
 
     ext = os.path.splitext(uploaded.name)[1].lower()
+    problem = ""
     if ext not in SUPPORTED_EXTENSIONS:
-        return IntakeResult(error=f"Not a CV: not a file type the portal reads ({ext or 'no extension'}). "
-                                  "CVs can be PDF, Word, text or photos.", set_aside="another kind of file")
-    if uploaded.size > settings.MAX_UPLOAD_MB * 1024 * 1024:
-        return IntakeResult(error=f"Skipped: larger than {settings.MAX_UPLOAD_MB} MB.")
-    try:
-        return ingest_cv(
-            uploaded.read(), uploaded.name, source=data["source"], requisition=data.get("requisition"), user=user,
-            referred_by=data.get("referred_by"), referral_note=data.get("note", ""), notify_team=False,
-            only_cvs=not data.get("every_file"), region=data.get("region", ""),
-        )
-    except Exception:
-        logger.exception("CV intake could not read %s", uploaded.name)
-        return IntakeResult(error="Could not be read. Open it to check it is a CV, then add it again on its own.")
+        problem = (f"Not a CV: not a file type the portal reads ({ext or 'no extension'}). CVs can be PDF, Word, text "
+                   "or photos.")
+    elif uploaded.size > settings.MAX_UPLOAD_MB * 1024 * 1024:
+        problem = f"Skipped: larger than {settings.MAX_UPLOAD_MB} MB."
+    if problem:  # nothing to read: the receipt records the file and why it was left out
+        Receipt.objects.create(channel=Receipt.Channel.UPLOAD, original_name=os.path.basename(uploaded.name)[:255],
+                               size=uploaded.size or 0, sha256="", received_by=user, status=Receipt.Status.DONE,
+                               outcome=Receipt.Outcome.NOT_CV if ext not in SUPPORTED_EXTENSIONS
+                               else Receipt.Outcome.ERROR, message=problem, finished_at=timezone.now())
+        return IntakeResult(error=problem, set_aside="another kind of file" if ext not in SUPPORTED_EXTENSIONS else "")
+    referred_by = data.get("referred_by")
+    options = {"source": data["source"], "note": data.get("note", ""), "region": data.get("region", ""),
+               "every_file": bool(data.get("every_file")), "referred_by": referred_by.pk if referred_by else None}
+    receipt, _ = receive(uploaded.read(), uploaded.name, channel=Receipt.Channel.UPLOAD,
+                         requisition=data.get("requisition"), user=user, options=options, delay=120)
+    result = read_now(receipt)
+    if result is None:
+        receipt.refresh_from_db()
+        if receipt.status in {Receipt.Status.RECEIVED, Receipt.Status.PROCESSING}:
+            return IntakeResult(queued=True, receipt=receipt)
+        return IntakeResult(error=receipt.message or "Could not be read. Open it to check it is a CV, then add it "
+                                                     "again on its own.", receipt=receipt)
+    result.receipt = receipt
+    return result
 
 
 def _remember_run(request, token, results):
@@ -475,7 +494,9 @@ def _remember_run(request, token, results):
         entries.append({"name": name, "candidate": r.candidate.pk if r.candidate else None, "created": r.created,
                         "application": getattr(r.application, "pk", None), "method": parsed.get("method", ""),
                         "notes": [str(n) for n in (parsed.get("notes") or [])][:5], "error": r.error,
-                        "duplicate": r.duplicate, "set_aside": r.set_aside})
+                        "duplicate": r.duplicate, "set_aside": r.set_aside, "queued": r.queued,
+                        "identity": r.identity.pk if r.identity else None,
+                        "receipt": getattr(r.receipt, "pk", None)})
     runs[token] = entries
     while len(runs) > INTAKE_RUNS_KEPT:
         runs.pop(next(iter(runs)))
@@ -490,18 +511,39 @@ def _results_of_run(request, token):
     entries = request.session.get("intake_runs", {}).get(token)
     if entries is None:
         return None
-    people_by_id = Candidate.objects.in_bulk([e["candidate"] for e in entries if e["candidate"]])
+    people_by_id = Candidate.objects.in_bulk([e["candidate"] for e in entries if e["candidate"]] +
+                                             [e["identity"] for e in entries if e.get("identity")])
     apps = Application.objects.select_related("requisition").in_bulk(
         [e["application"] for e in entries if e["application"]])
     results = []
     for e in entries:
         person = people_by_id.get(e["candidate"])
-        error = e["error"] or ("" if person else "This profile has since been deleted.")
+        other = people_by_id.get(e.get("identity"))
+        waiting = e.get("queued") or other is not None
+        error = e["error"] or ("" if person or waiting else "This profile has since been deleted.")
         results.append((e["name"], IntakeResult(
             candidate=person, created=e["created"], application=apps.get(e["application"]), error=error,
-            duplicate=e.get("duplicate", False), set_aside=e.get("set_aside", ""),
-            parsed={"method": e["method"], "notes": e["notes"]})))
+            duplicate=e.get("duplicate", False), set_aside=e.get("set_aside", ""), queued=e.get("queued", False),
+            identity=other, parsed={"method": e["method"], "notes": e["notes"]})))
     return results
+
+
+def _intake_sources() -> dict:
+    """The linked folders and what came of the files received lately, for the CV intake page."""
+    from core import cv_folder
+    from core.models import WatchedFolder
+    from intake.models import Connector, Receipt
+    from intake.worker import status
+
+    folders = list(WatchedFolder.objects.select_related("requisition", "connector"))
+    for folder in folders:
+        folder.stats = cv_folder.summary(folder)
+    cvs = Receipt.objects.filter(kind=Receipt.Kind.CV).select_related("folder", "candidate", "received_by")
+    return {"folders": folders, "worker": status(),
+            "review": list(cvs.filter(status__in=[Receipt.Status.NEEDS_REVIEW, Receipt.Status.FAILED])
+                           .order_by("-received_at")[:30]),
+            "recent": list(cvs.order_by("-received_at")[:25]),
+            "connectors": list(Connector.objects.filter(revoked_at__isnull=True))}
 
 
 def _intake_page(request, form, results, lost=()):
@@ -509,12 +551,14 @@ def _intake_page(request, form, results, lost=()):
 
     ok = [r for _, r in results if not r.error]
     counts = {s: sum(1 for _, r in results if r.status == s)
-              for s in ("added", "updated", "duplicate", "not_cv", "unreadable", "error")}
-    # The CVs first (new, then brought up to date), then those already held, then what was set aside.
-    order = {"added": 0, "updated": 1, "duplicate": 2, "not_cv": 3, "unreadable": 4, "error": 5}
+              for s in ("added", "updated", "duplicate", "identity", "queued", "not_cv", "unreadable", "error")}
+    # The CVs first (new, then brought up to date), then those to look at, already held, then what was set aside.
+    order = {"added": 0, "updated": 1, "identity": 2, "queued": 3, "duplicate": 4, "not_cv": 5, "unreadable": 6,
+             "error": 7, "deferred": 3}
     results = sorted(results, key=lambda item: order[item[1].status])
     context = {"form": form, "results": results, "lost": lost, "read_count": counts["added"] + counts["updated"],
-               "counts": counts, "set_aside_count": counts["not_cv"] + counts["unreadable"] + counts["error"]}
+               "counts": counts, "set_aside_count": counts["not_cv"] + counts["unreadable"] + counts["error"],
+               **_intake_sources()}
     if ok and not any(r.application for r in ok):
         # No vacancy was chosen: offer to match them (those already in the portal too) to the vacancies.
         ids = list(dict.fromkeys(r.candidate.pk for r in ok))
@@ -540,7 +584,7 @@ def intake(request):
         results = [(uploaded.name, _ingest_upload(uploaded, data, request.user)) for uploaded in data["files"]]
         if batch:
             _remember_run(request, token, results)
-            return JsonResponse({"results": [{"name": name, "ok": not r.error, "error": r.error}
+            return JsonResponse({"results": [{"name": name, "ok": not r.error, "error": r.error, "status": r.status}
                                              for name, r in results]})
         added = sum(1 for _, r in results if r.status in {"added", "updated"})
         messages.success(request, f"{added} CV{'s' if added != 1 else ''} added from {len(results)} "
@@ -785,7 +829,8 @@ def match_vacancies(request):
                     "weighted": result["weighted_score"], "applied": (person.pk, vacancy.pk) in applied,
                     "can_add": vacancy.can_add,
                     "failed": [f"{s['label']}: {s['has']}" for s in result["screening"] if not s["passed"]],
-                    "match": bool(verdict.get("is_match")), "reason": verdict.get("reason", ""),
+                    "match": bool(verdict.get("is_match")), "review": bool(verdict.get("needs_review")),
+                    "reason": verdict.get("reason", ""),
                     "stages": verdict.get("stages", []), "why": result.get("why") or {},
                 })
             scored = sorted((c for c in cells if not c["unscored"]), key=lambda c: -c["score"])
@@ -804,14 +849,15 @@ def match_vacancies(request):
             grades = {g: sum(1 for c in column if c["grade"] == g) for g in "ABCD"}
             columns.append({"vacancy": vacancy, "scored": len(column), "grades": grades,
                             "meets_all": sum(1 for c in column if not c["failed"]),
-                            "matches": sum(1 for c in column if c["match"]), "role": role_profile(vacancy),
+                            "matches": sum(1 for c in column if c["match"]),
+                            "review": sum(1 for c in column if c["review"]), "role": role_profile(vacancy),
                             "unscored": any(r["cells"][i]["unscored"] for r in rows)})
         # The cell each row is ranked and filtered by: the chosen vacancy, or the role the person matches (failing
         # that, their strongest one).
         for row in rows:
             if rank_by == "any":
                 options = [c for c in row["cells"] if not c["unscored"]]
-                row["key"] = max(options, key=lambda c: (c["match"], c["score"])) if options else None
+                row["key"] = max(options, key=lambda c: (c["match"], c["review"], c["score"])) if options else None
             else:
                 row["key"] = next(c for c in row["cells"] if str(c["vacancy"].pk) == rank_by)
                 row["key"] = None if row["key"]["unscored"] else row["key"]
@@ -821,7 +867,8 @@ def match_vacancies(request):
             rows = [r for r in rows if r["key"] is not None]
         if not show_all and any(not c["unscored"] for r in rows for c in r["cells"]):
             everyone = len(rows)
-            rows = [r for r in rows if r["key"] is not None and r["key"]["match"]]
+            # Matches, and those a person must look at (evidence missing or unclear): never left out silently.
+            rows = [r for r in rows if r["key"] is not None and (r["key"]["match"] or r["key"]["review"])]
             hidden = everyone - len(rows)
         rows.sort(key=lambda r: (-(r["key"]["score"] if r["key"] else -1), r["candidate"].full_name.lower()))
         shown_total = len(rows)

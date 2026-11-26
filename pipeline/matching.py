@@ -37,7 +37,7 @@ from django.utils import timezone
 from core.choices import DEGREE_CLASS_RANK, EDUCATION_RANK, DegreeClass, EducationLevel, NyscStatus, TRAINEE_TYPES
 from core.text import contains_phrase, db_aliases, normalize, tokens, variants
 
-VERSION = 6
+VERSION = 7
 ROLE_SHARE = 0.5  # the share of what the JD asks for (experience and duties) a match must show
 WEIGHTS = {
     "experienced": {"jd": 25, "skills": 20, "tools": 8, "experience": 15, "relevance": 10, "education": 7, "course": 8,
@@ -462,7 +462,8 @@ def compute_match(requisition, candidate, aliases=None, assessment=None) -> dict
         screen("qualification", "Minimum qualification", requisition.get_education_level_display(),
                label_of(EducationLevel, candidate.highest_qualification),
                meets_education(candidate.highest_qualification, requisition.education_level),
-               "" if candidate.highest_qualification else "Not stated on the profile")
+               "" if candidate.highest_qualification else "Not stated on the profile",
+               unknown=not candidate.highest_qualification)
     if requisition.min_degree_class:
         have_rank = DEGREE_CLASS_RANK.get(candidate.degree_class)
         if have_rank is None:  # many CVs do not give the class: confirm it, do not rule the candidate out
@@ -491,7 +492,8 @@ def compute_match(requisition, candidate, aliases=None, assessment=None) -> dict
     minimum = requisition.min_experience_years or 0
     if minimum:
         screen("experience", "Minimum experience", f"{minimum}+ years",
-               "Not stated" if years is None else f"{years:g} years", years is not None and years >= minimum)
+               "Not stated" if years is None else f"{years:g} years", years is not None and years >= minimum,
+               NOT_STATED if years is None else "", unknown=years is None)
     # The JD's own experience requirements, judged job by job (pipeline/criteria.py): the main ones are key
     # requirements for an experienced hire.
     jd = assess(requisition, candidate, ai=assessment) if evidence.has_story else None
@@ -643,16 +645,20 @@ def judge_match(screening: list, jd: dict | None, score: float, *, has_cv: bool 
 
     requirements = [s for s in screening if not s["key"].startswith("jd_")]
     role = [s for s in screening if s["key"].startswith("jd_")]
-    missed = [s for s in requirements if not s["passed"]]
-    to_confirm = sum(1 for s in requirements if s["unknown"])
+    # A requirement the CV shows is not met is a mismatch; one it does not mention (or not clearly) is missing
+    # information: a person has to look, the candidate is not ruled out.
+    missed = [s for s in requirements if not s["passed"] and not s["unknown"]]
+    unclear = [s for s in requirements if s["unknown"]]
     stages = [{
-        "name": "Requirements", "passed": not missed,
+        "name": "Requirements", "passed": False if missed else None if unclear else True,
         "detail": ("Not met: " + "; ".join(f"{s['label'].lower()} ({short(s['has'], 50)})" for s in missed)) if missed
-        else (f"All {len(requirements)} met" + (f", {to_confirm} to confirm" if to_confirm else "")) if requirements
-        else "The vacancy sets none",
+        else ("To confirm, the CV does not show: " + "; ".join(s["label"].lower() for s in unclear)) if unclear
+        else f"All {len(requirements)} met" if requirements else "The vacancy sets none",
     }]
     share = jd["share"] if jd else None
-    not_shown = [r for r in (jd or {}).get("criteria", []) if r["core"] and r["verdict"] not in {"met", "unclear"}]
+    not_shown = [r for r in (jd or {}).get("criteria", []) if r["core"] and r["verdict"] not in {"met", "unclear"}
+                 and not r.get("unknown")]
+    vague = [r for r in (jd or {}).get("criteria", []) if r["core"] and (r["verdict"] == "unclear" or r.get("unknown"))]
     if jd is None:
         stages.append({"name": "The role", "passed": None,
                        "detail": "Not judged: the CV's text could not be read" if not has_cv
@@ -672,6 +678,10 @@ def judge_match(screening: list, jd: dict | None, score: float, *, has_cv: bool 
     elif share < ROLE_SHARE:
         stages.append({"name": "The role", "passed": False,
                        "detail": f"Only {round(share * 100)}% of what the job description asks for is shown in the CV"})
+    elif vague:
+        stages.append({"name": "The role", "passed": None,
+                       "detail": f"The CV is not clear about {vague[0]['subject'] or vague[0]['text']}: read it to "
+                                 "confirm"})
     else:
         stages.append({"name": "The role", "passed": True,
                        "detail": f"The CV shows {round(share * 100)}% of what the job description asks for"})
@@ -679,11 +689,15 @@ def judge_match(screening: list, jd: dict | None, score: float, *, has_cv: bool 
     stages.append({"name": "Overall", "passed": score >= threshold,
                    "detail": f"{score:g} out of 100" + ("" if score >= threshold else f": a match needs {threshold:g}")})
     failed = next((s for s in stages if s["passed"] is False), None)
-    is_match = failed is None
-    return {"is_match": is_match, "label": "Match" if is_match else "Not a match", "stages": stages,
-            "threshold": threshold,
-            "reason": "meets the requirements, has done the work and scores well" if is_match
-            else failed["detail"][:1].lower() + failed["detail"][1:]}
+    open_ = next((s for s in stages if s["passed"] is None), None)
+    # Never a match on a stage that was not judged: missing, unclear or unreadable evidence goes to a person.
+    verdict = "no_match" if failed else "review" if open_ else "match"
+    deciding = failed or open_
+    return {"is_match": verdict == "match", "verdict": verdict, "needs_review": verdict == "review",
+            "label": {"match": "Match", "review": "Needs review", "no_match": "Not a match"}[verdict],
+            "stages": stages, "threshold": threshold,
+            "reason": "meets the requirements, has done the work and scores well" if verdict == "match"
+            else deciding["detail"][:1].lower() + deciding["detail"][1:]}
 
 
 def explain(requisition, candidate, screening: list, components: dict, jd: dict | None, match: dict) -> dict:

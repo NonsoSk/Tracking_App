@@ -210,8 +210,8 @@ class NoDuplicatesTests(TestCase):
                     SimpleUploadedFile("Copy of Ada Obi CV.txt", FULL_CV.encode())]
 
         first = self.client.post(reverse("candidates:intake"), {"files": folder(), "source": "email"})
-        self.assertEqual(first.context["counts"], {"added": 2, "updated": 0, "duplicate": 1, "not_cv": 2,
-                                                   "unreadable": 0, "error": 0})
+        self.assertEqual(first.context["counts"], {"added": 2, "updated": 0, "duplicate": 1, "identity": 0, "queued": 0,
+                                                   "not_cv": 2, "unreadable": 0, "error": 0})
         self.assertContains(first, "Not a CV: it reads as a cover or application letter.")
         self.assertContains(first, "not added again")
         self.assertEqual(Candidate.objects.count(), 2)
@@ -270,13 +270,16 @@ class FolderLeavesOutWhatIsNotACvTests(TestCase):
             (root / name).write_bytes(content)
             os.utime(root / name, (time.time() - 120, time.time() - 120))
         ingest_cv(simple_docx(FULL_CV.splitlines()), "Ada.docx", source="email")  # already in the portal
+        from intake.models import Receipt
+
         folder = cv_folder.link(str(root))
         self.assertEqual(cv_folder.check(), [])
-        notes = {f.name: f.skipped for f in FolderFile.objects.all()}
+        notes = {r.source_path: r.message for r in Receipt.objects.filter(folder=folder)}
         self.assertIn("Already in the portal", notes["Ada Obi CV.txt"])
         self.assertIn("cover or application letter", notes["Ada cover letter.txt"])
-        self.assertIn("Could not be read", notes["scan.txt"])
+        self.assertEqual(Receipt.objects.get(source_path="scan.txt").get_outcome_display(), "Could not be read")
         stats = cv_folder.summary(folder)
         self.assertEqual((stats["read"], stats["held"], stats["skipped"], stats["unread"]), (0, 1, 1, 1))
         self.assertEqual(cv_folder.retry_unread(folder), 1)
-        self.assertFalse(FolderFile.objects.filter(name="scan.txt").exists())
+        self.assertEqual(Receipt.objects.get(source_path="scan.txt").status, "received")  # read again shortly
+        self.assertTrue(FolderFile.objects.filter(name="scan.txt").exists())
